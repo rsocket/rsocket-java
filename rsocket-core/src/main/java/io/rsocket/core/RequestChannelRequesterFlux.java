@@ -26,6 +26,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.IllegalReferenceCountException;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.ErrorFrameCodec;
@@ -33,7 +34,6 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -54,7 +54,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
   final int maxFrameLength;
   final int maxInboundPayloadSize;
   final RequesterResponderSupport requesterResponderSupport;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
 
   final Publisher<Payload> payloadsPublisher;
@@ -84,7 +84,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
   }
 
@@ -125,8 +125,9 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     if (hasRequested(previousState)) {
       if (isFirstFrameSent(previousState)
           && !isMaxAllowedRequestN(extractRequestN(previousState))) {
-        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, this.streamId, n);
-        this.sendProcessor.onNext(requestNFrame);
+        final int streamId = this.streamId;
+        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
+        this.connection.sendFrame(streamId, requestNFrame, false);
       }
       return;
     }
@@ -182,7 +183,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     }
 
     final RequesterResponderSupport sm = this.requesterResponderSupport;
-    final UnboundedProcessor<ByteBuf> sender = this.sendProcessor;
+    final DuplexConnection connection = this.connection;
     final ByteBufAllocator allocator = this.allocator;
 
     final int streamId;
@@ -209,7 +210,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
           initialRequestN,
           mtu,
           firstPayload,
-          sender,
+          connection,
           allocator,
           // TODO: Should be a different flag in case of the scalar
           //  source or if we know in advance upstream is mono
@@ -236,7 +237,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-      sender.onNext(cancelFrame);
+      connection.sendFrame(streamId, cancelFrame, false);
 
       return;
     }
@@ -248,14 +249,14 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     long requestN = extractRequestN(previousState);
     if (isMaxAllowedRequestN(requestN)) {
       final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
-      sender.onNext(requestNFrame);
+      connection.sendFrame(streamId, requestNFrame, false);
       return;
     }
 
     if (requestN > initialRequestN) {
       final ByteBuf requestNFrame =
           RequestNFrameCodec.encode(allocator, streamId, requestN - initialRequestN);
-      sender.onNext(requestNFrame);
+      connection.sendFrame(streamId, requestNFrame, false);
     }
   }
 
@@ -292,7 +293,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
           FrameType.NEXT,
           mtu,
           followingPayload,
-          this.sendProcessor,
+          this.connection,
           allocator,
           true);
     } catch (Throwable e) {
@@ -339,7 +340,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     ReassemblyUtils.synchronizedRelease(this, previousState);
 
     final ByteBuf cancelFrame = CancelFrameCodec.encode(this.allocator, streamId);
-    this.sendProcessor.onNext(cancelFrame);
+    this.connection.sendFrame(streamId, cancelFrame, false);
   }
 
   @Override
@@ -369,7 +370,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     this.requesterResponderSupport.remove(streamId, this);
     // propagates error to remote responder
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.sendProcessor.onNext(errorFrame);
+    this.connection.sendFrame(streamId, errorFrame, false);
 
     if (!isInboundTerminated(previousState)) {
       // FIXME: must be scheduled on the connection event-loop to achieve serial
@@ -409,7 +410,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     }
 
     final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(this.allocator, streamId);
-    this.sendProcessor.onNext(completeFrame);
+    this.connection.sendFrame(streamId, completeFrame, false);
   }
 
   @Override

@@ -20,9 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
-import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.ResumeFrameCodec;
-import io.rsocket.frame.ResumeOkFrameCodec;
 import java.time.Duration;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -34,7 +32,7 @@ import reactor.core.publisher.ReplayProcessor;
 public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
   private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
 
-  private final ResumableDuplexConnection resumableConnection;
+  //  private final ResumableDuplexConnection resumableConnection;
   /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
   private final FluxProcessor<DuplexConnection, DuplexConnection> newConnections =
       ReplayProcessor.create(0);
@@ -50,39 +48,39 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
       boolean cleanupStoreOnKeepAlive) {
     this.allocator = duplexConnection.alloc();
     this.resumeToken = resumeToken;
-    this.resumableConnection =
-        new ResumableDuplexConnection(
-            "server",
-            duplexConnection,
-            resumeStoreFactory.apply(resumeToken),
-            resumeStreamTimeout,
-            cleanupStoreOnKeepAlive);
-
-    Mono<DuplexConnection> timeout =
-        resumableConnection
-            .connectionErrors()
-            .flatMap(
-                err -> {
-                  logger.debug("Starting session timeout due to error", err);
-                  return newConnections
-                      .next()
-                      .doOnNext(c -> logger.debug("Connection after error: {}", c))
-                      .timeout(resumeSessionDuration);
-                })
-            .then()
-            .cast(DuplexConnection.class);
+    //    this.resumableConnection =
+    //        new ResumableDuplexConnection(
+    //            "server",
+    //            duplexConnection,
+    //            resumeStoreFactory.apply(resumeToken),
+    //            resumeStreamTimeout,
+    //            cleanupStoreOnKeepAlive);
+    //
+    //    Mono<DuplexConnection> timeout =
+    //        resumableConnection
+    //            .connectionErrors()
+    //            .flatMap(
+    //                err -> {
+    //                  logger.debug("Starting session timeout due to error", err);
+    //                  return newConnections
+    //                      .next()
+    //                      .doOnNext(c -> logger.debug("Connection after error: {}", c))
+    //                      .timeout(resumeSessionDuration);
+    //                })
+    //            .then()
+    //            .cast(DuplexConnection.class);
 
     newConnections
-        .mergeWith(timeout)
+        //        .mergeWith(timeout)
         .subscribe(
-            connection -> {
-              reconnect(connection);
-              logger.debug("Server ResumableConnection reconnected: {}", connection);
-            },
-            err -> {
-              logger.debug("Server ResumableConnection reconnect timeout");
-              resumableConnection.dispose();
-            });
+        connection -> {
+          reconnect(connection);
+          logger.debug("Server ResumableConnection reconnected: {}", connection);
+        },
+        err -> {
+          logger.debug("Server ResumableConnection reconnect timeout");
+          //              resumableConnection.dispose();
+        });
   }
 
   @Override
@@ -99,30 +97,33 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
     long remoteImpliedPos = remoteImpliedPos(resumeFrame);
     resumeFrame.release();
 
-    resumableConnection.resume(
-        remotePos,
-        remoteImpliedPos,
-        pos ->
-            pos.flatMap(impliedPos -> sendFrame(ResumeOkFrameCodec.encode(allocator, impliedPos)))
-                .onErrorResume(
-                    err ->
-                        sendFrame(ErrorFrameCodec.encode(allocator, 0, errorFrameThrowable(err)))
-                            .then(Mono.fromRunnable(resumableConnection::dispose))
-                            /*Resumption is impossible: no need to return control to ResumableConnection*/
-                            .then(Mono.never())));
+    //    resumableConnection.resume(
+    //        remotePos,
+    //        remoteImpliedPos,
+    //        pos ->
+    //            pos.flatMap(impliedPos -> sendFrame(ResumeOkFrameCodec.encode(allocator,
+    // impliedPos)))
+    //                .onErrorResume(
+    //                    err ->
+    //                        sendFrame(ErrorFrameCodec.encode(allocator, 0,
+    // errorFrameThrowable(err)))
+    //                            .then(Mono.fromRunnable(resumableConnection::dispose))
+    //                            /*Resumption is impossible: no need to return control to
+    // ResumableConnection*/
+    //                            .then(Mono.never())));
     return this;
   }
 
   @Override
   public void reconnect(DuplexConnection connection) {
-    resumableConnection.reconnect(connection);
+    //    resumableConnection.reconnect(connection);
   }
 
-  @Override
-  public ResumableDuplexConnection resumableConnection() {
-    return resumableConnection;
-  }
-
+  //  @Override
+  //  public ResumableDuplexConnection resumableConnection() {
+  //    return resumableConnection;
+  //  }
+  //
   @Override
   public ByteBuf token() {
     return resumeToken;
@@ -130,7 +131,8 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
 
   private Mono<Void> sendFrame(ByteBuf frame) {
     logger.debug("Sending Resume frame: {}", frame);
-    return resumableConnection.sendOne(frame).onErrorResume(e -> Mono.empty());
+    //    return resumableConnection.sendOne(frame).onErrorResume(e -> Mono.empty());
+    return null;
   }
 
   private static long remotePos(ByteBuf resumeFrame) {

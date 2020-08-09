@@ -20,13 +20,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,19 +95,19 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     clientConnection = registry.initConnection(Type.CLIENT, clientReceiver);
   }
 
-  public DuplexConnection asClientServerConnection() {
+  DuplexConnection asClientServerConnection() {
     return source;
   }
 
-  public DuplexConnection asServerConnection() {
+  DuplexConnection asServerConnection() {
     return serverConnection;
   }
 
-  public DuplexConnection asClientConnection() {
+  DuplexConnection asClientConnection() {
     return clientConnection;
   }
 
-  public DuplexConnection asSetupConnection() {
+  DuplexConnection asSetupConnection() {
     return setupConnection;
   }
 
@@ -340,23 +340,21 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     }
 
     @Override
-    public Mono<Void> send(Publisher<ByteBuf> frame) {
-      if (debugEnabled) {
-        return Flux.from(frame)
-            .doOnNext(f -> LOGGER.debug("sending -> " + FrameUtil.toString(f)))
-            .as(source::send);
-      }
-
-      return source.send(frame);
-    }
-
-    @Override
-    public Mono<Void> sendOne(ByteBuf frame) {
+    public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
       if (debugEnabled) {
         LOGGER.debug("sending -> " + FrameUtil.toString(frame));
       }
 
-      return source.sendOne(frame);
+      source.sendFrame(streamId, frame, prioritize);
+    }
+
+    @Override
+    public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+      if (debugEnabled) {
+        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
+      }
+
+      source.terminate(frame, terminalError);
     }
 
     @Override

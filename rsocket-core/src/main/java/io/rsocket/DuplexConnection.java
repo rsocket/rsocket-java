@@ -20,40 +20,21 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 /** Represents a connection with input/output that the protocol uses. */
 public interface DuplexConnection extends Availability, Closeable {
 
   /**
-   * Sends the source of Frames on this connection and returns the {@code Publisher} representing
-   * the result of this send.
+   * Delivers the given frame to the underlying transport connection. This method is non-blocking
+   * and can be safely executed from multiple threads.
    *
-   * <p><strong>Flow control</strong>
-   *
-   * <p>The passed {@code Publisher} must
-   *
-   * @param frames Stream of {@code Frame}s to send on the connection.
-   * @return {@code Publisher} that completes when all the frames are written on the connection
-   *     successfully and errors when it fails.
-   * @throws NullPointerException if {@code frames} is {@code null}
+   * @param streamId to which the given frame relates
+   * @param frame with the encoded content
+   * @param prioritize whether the given frame should be sent with priority to others
    */
-  Mono<Void> send(Publisher<ByteBuf> frames);
-
-  /**
-   * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing
-   * the result of this send.
-   *
-   * @param frame {@code Frame} to send.
-   * @return {@code Publisher} that completes when the frame is written on the connection
-   *     successfully and errors when it fails.
-   */
-  default Mono<Void> sendOne(ByteBuf frame) {
-    return send(Mono.just(frame));
-  }
+  void sendFrame(int streamId, ByteBuf frame, boolean prioritize);
 
   /**
    * Returns a stream of all {@code Frame}s received on this connection.
@@ -79,6 +60,12 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return Stream of all {@code Frame}s received.
    */
   Flux<ByteBuf> receive();
+
+  /**
+   * @param errorFrame
+   * @return
+   */
+  void terminate(ByteBuf frame, RSocketErrorException terminalError);
 
   /**
    * Returns the assigned {@link ByteBufAllocator}.

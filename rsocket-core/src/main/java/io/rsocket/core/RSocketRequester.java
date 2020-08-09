@@ -29,7 +29,6 @@ import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
@@ -62,7 +61,6 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
 
-  private final DuplexConnection connection;
   private final RequesterLeaseHandler leaseHandler;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private final MonoProcessor<Void> onClose;
@@ -78,23 +76,13 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       RequesterLeaseHandler leaseHandler) {
-    super(
-        mtu,
-        maxFrameLength,
-        maxInboundPayloadSize,
-        payloadDecoder,
-        connection.alloc(),
-        streamIdSupplier);
+    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection, streamIdSupplier);
 
-    this.connection = connection;
     this.leaseHandler = leaseHandler;
     this.onClose = MonoProcessor.create();
 
-    UnboundedProcessor<ByteBuf> sendProcessor = super.getSendProcessor();
-
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
-    connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, e -> {});
 
@@ -103,7 +91,9 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
           new ClientKeepAliveSupport(this.getAllocator(), keepAliveTickPeriod, keepAliveAckTimeout);
       this.keepAliveFramesAcceptor =
           keepAliveHandler.start(
-              keepAliveSupport, sendProcessor::onNextPrioritized, this::tryTerminateOnKeepAlive);
+              keepAliveSupport,
+              (keepAliveFrame) -> connection.sendFrame(0, keepAliveFrame, true),
+              this::tryTerminateOnKeepAlive);
     } else {
       keepAliveFramesAcceptor = null;
     }
@@ -177,7 +167,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public double availability() {
-    return Math.min(connection.availability(), leaseHandler.availability());
+    return Math.min(getDuplexConnection().availability(), leaseHandler.availability());
   }
 
   @Override
@@ -206,13 +196,10 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       }
     } catch (Throwable t) {
       LOGGER.error("Unexpected error during frame handling", t);
-      super.getSendProcessor()
-          .onNext(
-              ErrorFrameCodec.encode(
-                  super.getAllocator(),
-                  0,
-                  new ConnectionErrorException("Unexpected error during frame handling", t)));
-      this.tryTerminateOnConnectionError(t);
+      final ConnectionErrorException error =
+          new ConnectionErrorException("Unexpected error during frame handling", t);
+      getDuplexConnection()
+          .terminate(ErrorFrameCodec.encode(super.getAllocator(), 0, error), error);
     }
   }
 
@@ -332,7 +319,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     if (keepAliveFramesAcceptor != null) {
       keepAliveFramesAcceptor.dispose();
     }
-    connection.dispose();
+    getDuplexConnection().dispose();
     leaseHandler.dispose();
 
     synchronized (this) {
@@ -347,15 +334,10 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
               });
     }
 
-    this.getSendProcessor().dispose();
     if (e == CLOSED_CHANNEL_EXCEPTION) {
       onClose.onComplete();
     } else {
       onClose.onError(e);
     }
-  }
-
-  private void handleSendProcessorError(Throwable t) {
-    connection.dispose();
   }
 }

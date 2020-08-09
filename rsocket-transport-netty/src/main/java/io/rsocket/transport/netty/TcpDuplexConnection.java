@@ -19,13 +19,12 @@ package io.rsocket.transport.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
 import java.util.Objects;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
@@ -48,6 +47,8 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
             future -> {
               if (!isDisposed()) dispose();
             });
+
+    connection.outbound().send(sender).then().subscribe();
   }
 
   @Override
@@ -63,8 +64,18 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   protected void doOnClose() {
     if (!connection.isDisposed()) {
+      sender.dispose();
       connection.dispose();
     }
+  }
+
+  @Override
+  public void terminate(ByteBuf errorFrame, RSocketErrorException terminalError) {
+    connection
+        .outbound()
+        .sendObject(errorFrame)
+        .then()
+        .subscribe(null, t -> onClose.onError(t), () -> onClose.onError(terminalError));
   }
 
   @Override
@@ -73,14 +84,8 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<ByteBuf> frames) {
-    if (frames instanceof Mono) {
-      return connection.outbound().sendObject(((Mono<ByteBuf>) frames).map(this::encode)).then();
-    }
-    return connection.outbound().send(Flux.from(frames).map(this::encode)).then();
-  }
-
-  private ByteBuf encode(ByteBuf frame) {
-    return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
+  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
+    super.sendFrame(
+        streamId, FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame), prioritize);
   }
 }

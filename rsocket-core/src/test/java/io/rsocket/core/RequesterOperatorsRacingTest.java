@@ -180,7 +180,7 @@ public class RequesterOperatorsRacingTest {
           scenario.requestOperator(payloadSupplier, requesterResponderSupport);
 
       StepVerifier stepVerifier =
-          StepVerifier.create(requesterResponderSupport.getSendProcessor())
+          StepVerifier.create(requesterResponderSupport.getDuplexConnection().getSentAsPublisher())
               .assertNext(
                   frame -> {
                     FrameAssert frameAssert =
@@ -239,7 +239,6 @@ public class RequesterOperatorsRacingTest {
               });
 
       stepVerifier.verify(Duration.ofSeconds(1));
-      Assertions.assertThat(requesterResponderSupport.getSendProcessor().isEmpty()).isTrue();
       requesterResponderSupport.getAllocator().assertHasNoLeaks();
     }
   }
@@ -266,11 +265,11 @@ public class RequesterOperatorsRacingTest {
 
       RaceTestUtils.race(() -> assertSubscriber.request(1), () -> assertSubscriber.request(1));
 
-      final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+      final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
 
       if (scenario.requestType().hasInitialRequestN()) {
         if (RequestStreamFrameCodec.initialRequestN(sentFrame) == 1) {
-          FrameAssert.assertThat(activeStreams.getSendProcessor().poll())
+          FrameAssert.assertThat(activeStreams.getDuplexConnection().awaitFrame())
               .isNotNull()
               .hasStreamId(1)
               .hasRequestN(1)
@@ -300,7 +299,7 @@ public class RequesterOperatorsRacingTest {
 
       if (scenario.requestType() == REQUEST_CHANNEL) {
         ((CoreSubscriber) requestOperator).onComplete();
-        FrameAssert.assertThat(activeStreams.getSendProcessor().poll())
+        FrameAssert.assertThat(activeStreams.getDuplexConnection().awaitFrame())
             .typeOf(COMPLETE)
             .hasStreamId(1)
             .hasNoLeaks();
@@ -315,7 +314,7 @@ public class RequesterOperatorsRacingTest {
               });
 
       activeStreams.assertNoActiveStreams();
-      Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+      Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
     }
   }
@@ -342,7 +341,7 @@ public class RequesterOperatorsRacingTest {
 
       requestOperator.subscribe(assertSubscriber);
 
-      final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+      final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(sentFrame)
           .isNotNull()
           .hasPayloadSize(
@@ -393,12 +392,12 @@ public class RequesterOperatorsRacingTest {
                 });
       }
 
-      if (!activeStreams.getSendProcessor().isEmpty()) {
+      if (!activeStreams.getDuplexConnection().isEmpty()) {
         if (scenario.requestType() != REQUEST_CHANNEL) {
           assertSubscriber.assertNotTerminated();
         }
 
-        final ByteBuf cancellationFrame = activeStreams.getSendProcessor().poll();
+        final ByteBuf cancellationFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(cancellationFrame)
             .isNotNull()
             .typeOf(FrameType.CANCEL)
@@ -411,7 +410,7 @@ public class RequesterOperatorsRacingTest {
       Assertions.assertThat(responsePayload.refCnt()).isZero();
 
       activeStreams.assertNoActiveStreams();
-      Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+      Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
     }
   }
@@ -437,7 +436,7 @@ public class RequesterOperatorsRacingTest {
           .expectComplete()
           .verifyLater();
 
-      final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+      final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(sentFrame)
           .isNotNull()
           .hasPayloadSize(
@@ -460,9 +459,9 @@ public class RequesterOperatorsRacingTest {
       Assertions.assertThat(response.refCnt()).isZero();
 
       activeStreams.assertNoActiveStreams();
-      final boolean isEmpty = activeStreams.getSendProcessor().isEmpty();
+      final boolean isEmpty = activeStreams.getDuplexConnection().isEmpty();
       if (!isEmpty) {
-        final ByteBuf cancellationFrame = activeStreams.getSendProcessor().poll();
+        final ByteBuf cancellationFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(cancellationFrame)
             .isNotNull()
             .typeOf(FrameType.CANCEL)
@@ -470,7 +469,7 @@ public class RequesterOperatorsRacingTest {
             .hasStreamId(1)
             .hasNoLeaks();
       }
-      Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+      Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
 
       StateAssert.assertThat(requestResponseRequesterMono).isTerminated();
       activeStreams.getAllocator().assertHasNoLeaks();
@@ -509,7 +508,7 @@ public class RequesterOperatorsRacingTest {
 
         stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
 
-        final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+        final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(sentFrame)
             .isNotNull()
             .hasPayloadSize(
@@ -542,9 +541,9 @@ public class RequesterOperatorsRacingTest {
         activeStreams.assertNoActiveStreams();
         stateAssert.isTerminated();
 
-        final boolean isEmpty = activeStreams.getSendProcessor().isEmpty();
+        final boolean isEmpty = activeStreams.getDuplexConnection().isEmpty();
         if (!isEmpty) {
-          final ByteBuf cancellationFrame = activeStreams.getSendProcessor().poll();
+          final ByteBuf cancellationFrame = activeStreams.getDuplexConnection().awaitFrame();
           FrameAssert.assertThat(cancellationFrame)
               .isNotNull()
               .typeOf(FrameType.CANCEL)
@@ -556,7 +555,7 @@ public class RequesterOperatorsRacingTest {
         } else {
           assertSubscriber.assertTerminated().assertErrorMessage("test");
         }
-        Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+        Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
 
         stateAssert.isTerminated();
         droppedErrors.clear();
@@ -601,8 +600,8 @@ public class RequesterOperatorsRacingTest {
 
       RaceTestUtils.race(() -> assertSubscriber.cancel(), () -> assertSubscriber.request(1));
 
-      if (!activeStreams.getSendProcessor().isEmpty()) {
-        final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+      if (!activeStreams.getDuplexConnection().isEmpty()) {
+        final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(sentFrame)
             .isNotNull()
             .typeOf(FrameType.REQUEST_RESPONSE)
@@ -617,7 +616,7 @@ public class RequesterOperatorsRacingTest {
             .hasStreamId(1)
             .hasNoLeaks();
 
-        final ByteBuf cancelFrame = activeStreams.getSendProcessor().poll();
+        final ByteBuf cancelFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(cancelFrame)
             .isNotNull()
             .typeOf(FrameType.CANCEL)
@@ -634,7 +633,7 @@ public class RequesterOperatorsRacingTest {
       Assertions.assertThat(response.refCnt()).isZero();
 
       activeStreams.assertNoActiveStreams();
-      Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+      Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
     }
   }
@@ -657,7 +656,7 @@ public class RequesterOperatorsRacingTest {
 
       assertSubscriber.request(1);
 
-      final ByteBuf sentFrame = activeStreams.getSendProcessor().poll();
+      final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(sentFrame)
           .isNotNull()
           .hasNoFragmentsFollow()
@@ -675,7 +674,7 @@ public class RequesterOperatorsRacingTest {
       RaceTestUtils.race(
           requestResponseRequesterMono::cancel, requestResponseRequesterMono::cancel);
 
-      final ByteBuf cancelFrame = activeStreams.getSendProcessor().poll();
+      final ByteBuf cancelFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(cancelFrame)
           .isNotNull()
           .typeOf(FrameType.CANCEL)
@@ -695,7 +694,7 @@ public class RequesterOperatorsRacingTest {
       assertSubscriber.assertNotTerminated();
 
       activeStreams.assertNoActiveStreams();
-      Assertions.assertThat(activeStreams.getSendProcessor().isEmpty()).isTrue();
+      Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
     }
   }

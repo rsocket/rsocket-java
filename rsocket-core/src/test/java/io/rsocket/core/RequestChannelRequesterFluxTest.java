@@ -27,8 +27,8 @@ import io.rsocket.PayloadAssert;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.FrameType;
-import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
@@ -66,7 +66,7 @@ public class RequestChannelRequesterFluxTest {
   public void requestNFrameShouldBeSentOnSubscriptionAndThenSeparately(String completionCase) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final Payload payload = TestRequesterResponderSupport.genericPayload(allocator);
     final TestPublisher<Payload> publisher = TestPublisher.create();
 
@@ -103,7 +103,7 @@ public class RequestChannelRequesterFluxTest {
     // state machine check
     stateAssert.hasSubscribedFlag().hasRequestN(10).hasFirstFrameSentFlag();
 
-    final ByteBuf frame = sender.poll();
+    final ByteBuf frame = sender.awaitFrame();
     FrameAssert.assertThat(frame)
         .isNotNull()
         .hasPayloadSize(
@@ -121,7 +121,7 @@ public class RequestChannelRequesterFluxTest {
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     assertSubscriber.request(1);
-    final ByteBuf requestNFrame = sender.poll();
+    final ByteBuf requestNFrame = sender.awaitFrame();
     FrameAssert.assertThat(requestNFrame)
         .isNotNull()
         .hasRequestN(1)
@@ -137,7 +137,7 @@ public class RequestChannelRequesterFluxTest {
     stateAssert.hasSubscribedFlag().hasRequestN(11).hasFirstFrameSentFlag();
 
     assertSubscriber.request(Long.MAX_VALUE);
-    final ByteBuf requestMaxNFrame = sender.poll();
+    final ByteBuf requestMaxNFrame = sender.awaitFrame();
     FrameAssert.assertThat(requestMaxNFrame)
         .isNotNull()
         .hasRequestN(Integer.MAX_VALUE)
@@ -211,10 +211,10 @@ public class RequestChannelRequesterFluxTest {
           .hasInboundTerminated();
 
       publisher.complete();
-      FrameAssert.assertThat(sender.poll()).typeOf(FrameType.COMPLETE).hasNoLeaks();
+      FrameAssert.assertThat(sender.awaitFrame()).typeOf(FrameType.COMPLETE).hasNoLeaks();
     } else if (completionCase.equals("outbound")) {
       publisher.complete();
-      FrameAssert.assertThat(sender.poll()).typeOf(FrameType.COMPLETE).hasNoLeaks();
+      FrameAssert.assertThat(sender.awaitFrame()).typeOf(FrameType.COMPLETE).hasNoLeaks();
 
       // state machine check
       stateAssert
@@ -247,7 +247,7 @@ public class RequestChannelRequesterFluxTest {
   public void streamShouldErrorWithoutInitializingRemoteStreamIfSourceIsEmpty(boolean doRequest) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final TestPublisher<Payload> publisher = TestPublisher.create();
 
     final RequestChannelRequesterFlux requestChannelRequesterFlux =
@@ -292,7 +292,7 @@ public class RequestChannelRequesterFluxTest {
       boolean doRequest) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final TestPublisher<Payload> publisher = TestPublisher.create();
 
     final RequestChannelRequesterFlux requestChannelRequesterFlux =
@@ -336,7 +336,7 @@ public class RequestChannelRequesterFluxTest {
   public void streamShouldBeInHalfClosedStateOnTheInboundCancellation(String terminationMode) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final TestPublisher<Payload> publisher = TestPublisher.create();
 
     final RequestChannelRequesterFlux requestChannelRequesterFlux =
@@ -366,7 +366,7 @@ public class RequestChannelRequesterFluxTest {
 
     publisher.next(payload1.retain());
 
-    FrameAssert.assertThat(sender.poll())
+    FrameAssert.assertThat(sender.awaitFrame())
         .typeOf(FrameType.REQUEST_CHANNEL)
         .hasPayload(payload1)
         .hasRequestN(Integer.MAX_VALUE)
@@ -386,10 +386,16 @@ public class RequestChannelRequesterFluxTest {
 
     publisher.next(payload2.retain(), payload3.retain());
 
-    FrameAssert.assertThat(sender.poll()).typeOf(FrameType.NEXT).hasPayload(payload2).hasNoLeaks();
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(FrameType.NEXT)
+        .hasPayload(payload2)
+        .hasNoLeaks();
     payload2.release();
 
-    FrameAssert.assertThat(sender.poll()).typeOf(FrameType.NEXT).hasPayload(payload3).hasNoLeaks();
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(FrameType.NEXT)
+        .hasPayload(payload3)
+        .hasNoLeaks();
     payload3.release();
 
     if (terminationMode.equals("outbound")) {
@@ -428,7 +434,7 @@ public class RequestChannelRequesterFluxTest {
   public void errorShouldTerminateExecution(String terminationMode) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final TestPublisher<Payload> publisher = TestPublisher.create();
 
     final RequestChannelRequesterFlux requestChannelRequesterFlux =
@@ -458,7 +464,7 @@ public class RequestChannelRequesterFluxTest {
 
     publisher.next(payload1.retain());
 
-    FrameAssert.assertThat(sender.poll())
+    FrameAssert.assertThat(sender.awaitFrame())
         .typeOf(FrameType.REQUEST_CHANNEL)
         .hasPayload(payload1)
         .hasRequestN(Integer.MAX_VALUE)
@@ -478,15 +484,24 @@ public class RequestChannelRequesterFluxTest {
 
     publisher.next(payload2.retain(), payload3.retain());
 
-    FrameAssert.assertThat(sender.poll()).typeOf(FrameType.NEXT).hasPayload(payload2).hasNoLeaks();
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(FrameType.NEXT)
+        .hasPayload(payload2)
+        .hasNoLeaks();
     payload2.release();
 
-    FrameAssert.assertThat(sender.poll()).typeOf(FrameType.NEXT).hasPayload(payload3).hasNoLeaks();
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(FrameType.NEXT)
+        .hasPayload(payload3)
+        .hasNoLeaks();
     payload3.release();
 
     if (terminationMode.equals("outbound")) {
       publisher.error(new ApplicationErrorException("test"));
-      FrameAssert.assertThat(sender.poll()).typeOf(FrameType.ERROR).hasData("test").hasNoLeaks();
+      FrameAssert.assertThat(sender.awaitFrame())
+          .typeOf(FrameType.ERROR)
+          .hasData("test")
+          .hasNoLeaks();
     } else if (terminationMode.equals("inbound")) {
       requestChannelRequesterFlux.handleError(new ApplicationErrorException("test"));
       publisher.assertWasCancelled();
@@ -533,7 +548,7 @@ public class RequestChannelRequesterFluxTest {
       for (int i = 0; i < 10000; i++) {
         final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
         final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-        final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+        final TestDuplexConnection sender = activeStreams.getDuplexConnection();
         final TestPublisher<Payload> publisher =
             TestPublisher.createNoncompliant(TestPublisher.Violation.DEFER_CANCELLATION);
 
@@ -561,7 +576,7 @@ public class RequestChannelRequesterFluxTest {
 
         stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
         activeStreams.assertHasStream(1, requestChannelRequesterFlux);
-        FrameAssert.assertThat(sender.poll())
+        FrameAssert.assertThat(sender.awaitFrame())
             .typeOf(FrameType.REQUEST_CHANNEL)
             .hasRequestN(Integer.MAX_VALUE)
             .hasNoLeaks();
@@ -599,7 +614,7 @@ public class RequestChannelRequesterFluxTest {
               }
             });
 
-        ByteBuf errorFrameOrEmpty = sender.poll();
+        ByteBuf errorFrameOrEmpty = sender.pollFrame();
         if (errorFrameOrEmpty != null) {
           if (outboundTerminationMode.equals("onError")) {
             FrameAssert.assertThat(errorFrameOrEmpty)
@@ -694,7 +709,7 @@ public class RequestChannelRequesterFluxTest {
     for (int i = 0; i < 10000; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-      final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+      final TestDuplexConnection sender = activeStreams.getDuplexConnection();
       final TestPublisher<Payload> publisher =
           TestPublisher.createNoncompliant(TestPublisher.Violation.DEFER_CANCELLATION);
 
@@ -723,7 +738,7 @@ public class RequestChannelRequesterFluxTest {
       stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
       activeStreams.assertHasStream(1, requestChannelRequesterFlux);
-      FrameAssert.assertThat(sender.poll())
+      FrameAssert.assertThat(sender.awaitFrame())
           .typeOf(FrameType.REQUEST_CHANNEL)
           .hasRequestN(Integer.MAX_VALUE)
           .hasNoLeaks();
@@ -740,7 +755,7 @@ public class RequestChannelRequesterFluxTest {
           },
           requestChannelRequesterFlux::handleComplete);
 
-      ByteBuf completeFrameOrNull = sender.poll();
+      ByteBuf completeFrameOrNull = sender.pollFrame();
       if (completeFrameOrNull != null) {
         FrameAssert.assertThat(completeFrameOrNull)
             .hasStreamId(1)

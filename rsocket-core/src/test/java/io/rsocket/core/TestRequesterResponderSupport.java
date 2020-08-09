@@ -21,10 +21,12 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
@@ -42,6 +44,7 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
   TestRequesterResponderSupport(
       @Nullable Throwable error,
       StreamIdSupplier streamIdSupplier,
+      DuplexConnection connection,
       int mtu,
       int maxFrameLength,
       int maxInboundPayloadSize) {
@@ -50,9 +53,14 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         maxFrameLength,
         maxInboundPayloadSize,
         PayloadDecoder.ZERO_COPY,
-        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT),
+        connection,
         streamIdSupplier);
     this.error = error;
+  }
+
+  @Override
+  public TestDuplexConnection getDuplexConnection() {
+    return (TestDuplexConnection) super.getDuplexConnection();
   }
 
   static Payload genericPayload(LeaksTrackingByteBufAllocator allocator) {
@@ -168,8 +176,28 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
 
   public static TestRequesterResponderSupport client(
       int mtu, int maxFrameLength, int maxInboundPayloadSize, @Nullable Throwable e) {
+    return client(
+        new TestDuplexConnection(
+            LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT)),
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize,
+        e);
+  }
+
+  public static TestRequesterResponderSupport client(
+      TestDuplexConnection duplexConnection,
+      int mtu,
+      int maxFrameLength,
+      int maxInboundPayloadSize,
+      @Nullable Throwable e) {
     return new TestRequesterResponderSupport(
-        e, StreamIdSupplier.clientSupplier(), mtu, maxFrameLength, maxInboundPayloadSize);
+        e,
+        StreamIdSupplier.clientSupplier(),
+        duplexConnection,
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize);
   }
 
   public static TestRequesterResponderSupport client(

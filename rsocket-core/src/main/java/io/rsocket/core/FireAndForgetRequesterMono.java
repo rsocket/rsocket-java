@@ -20,12 +20,11 @@ import static io.rsocket.core.PayloadValidationUtils.isValid;
 import static io.rsocket.core.SendUtils.sendReleasingPayload;
 import static io.rsocket.core.StateUtils.*;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.IllegalReferenceCountException;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
-import io.rsocket.internal.UnboundedProcessor;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
@@ -50,7 +49,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
   final int mtu;
   final int maxFrameLength;
   final RequesterResponderSupport requesterResponderSupport;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
 
   FireAndForgetRequesterMono(Payload payload, RequesterResponderSupport requesterResponderSupport) {
     this.allocator = requesterResponderSupport.getAllocator();
@@ -58,7 +57,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
     this.mtu = requesterResponderSupport.getMtu();
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
   }
 
   @Override
@@ -106,7 +105,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
       }
 
       sendReleasingPayload(
-          streamId, FrameType.REQUEST_FNF, mtu, p, this.sendProcessor, this.allocator, true);
+          streamId, FrameType.REQUEST_FNF, mtu, p, this.connection, this.allocator, true);
     } catch (Throwable e) {
       lazyTerminate(STATE, this);
       actual.onError(e);
@@ -169,7 +168,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
           FrameType.REQUEST_FNF,
           this.mtu,
           this.payload,
-          this.sendProcessor,
+          this.connection,
           this.allocator,
           true);
     } catch (Throwable e) {

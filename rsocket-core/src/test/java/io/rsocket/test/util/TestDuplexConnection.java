@@ -17,8 +17,9 @@
 package io.rsocket.test.util;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import java.net.SocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -33,6 +34,7 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.util.annotation.NonNull;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior
@@ -43,16 +45,17 @@ public class TestDuplexConnection implements DuplexConnection {
   private static final Logger logger = LoggerFactory.getLogger(TestDuplexConnection.class);
 
   private final LinkedBlockingQueue<ByteBuf> sent;
+
   private final DirectProcessor<ByteBuf> sentPublisher;
   private final FluxSink<ByteBuf> sendSink;
   private final DirectProcessor<ByteBuf> received;
   private final FluxSink<ByteBuf> receivedSink;
   private final MonoProcessor<Void> onClose;
-  private final ByteBufAllocator allocator;
+  private final LeaksTrackingByteBufAllocator allocator;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
 
-  public TestDuplexConnection(ByteBufAllocator allocator) {
+  public TestDuplexConnection(LeaksTrackingByteBufAllocator allocator) {
     this.allocator = allocator;
     this.sent = new LinkedBlockingQueue<>();
     this.received = DirectProcessor.create();
@@ -63,19 +66,13 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<ByteBuf> frames) {
+  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
     if (availability <= 0) {
-      return Mono.error(
-          new IllegalStateException("RSocket not available. Availability: " + availability));
+      throw new IllegalStateException("RSocket not available. Availability: " + availability);
     }
-    return Flux.from(frames)
-        .doOnNext(
-            frame -> {
-              sendSink.next(frame);
-              sent.offer(frame);
-            })
-        .doOnError(throwable -> logger.error("Error in send stream on test connection.", throwable))
-        .then();
+
+    sendSink.next(frame);
+    sent.offer(frame);
   }
 
   @Override
@@ -108,7 +105,14 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public ByteBufAllocator alloc() {
+  public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+    sendSink.next(frame);
+    sent.offer(frame);
+    onClose.onError(terminalError);
+  }
+
+  @Override
+  public LeaksTrackingByteBufAllocator alloc() {
     return allocator;
   }
 
@@ -137,8 +141,21 @@ public class TestDuplexConnection implements DuplexConnection {
     return onClose;
   }
 
-  public ByteBuf awaitSend() throws InterruptedException {
-    return sent.take();
+  public boolean isEmpty() {
+    return sent.isEmpty();
+  }
+
+  @NonNull
+  public ByteBuf awaitFrame() {
+    try {
+      return sent.take();
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public ByteBuf pollFrame() {
+    return sent.poll();
   }
 
   public void setAvailability(double availability) {

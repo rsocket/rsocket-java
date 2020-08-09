@@ -22,6 +22,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCounted;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.exceptions.CanceledException;
 import io.rsocket.frame.CancelFrameCodec;
@@ -32,7 +33,6 @@ import io.rsocket.frame.RequestChannelFrameCodec;
 import io.rsocket.frame.RequestFireAndForgetFrameCodec;
 import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.function.Consumer;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
@@ -55,7 +55,7 @@ final class SendUtils {
       FrameType frameType,
       int mtu,
       Payload payload,
-      UnboundedProcessor<ByteBuf> sendProcessor,
+      DuplexConnection connection,
       ByteBufAllocator allocator,
       boolean requester) {
 
@@ -67,7 +67,7 @@ final class SendUtils {
     try {
       fragmentable = isFragmentable(mtu, data, metadata, false);
     } catch (IllegalReferenceCountException | NullPointerException e) {
-      sendTerminalFrame(streamId, frameType, sendProcessor, allocator, requester, false, e);
+      sendTerminalFrame(streamId, frameType, connection, allocator, requester, false, e);
       throw e;
     }
 
@@ -81,11 +81,11 @@ final class SendUtils {
             FragmentationUtils.encodeFirstFragment(
                 allocator, mtu, frameType, streamId, hasMetadata, slicedMetadata, slicedData);
       } catch (IllegalReferenceCountException e) {
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, requester, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, requester, false, e);
         throw e;
       }
 
-      sendProcessor.onNext(first);
+      connection.sendFrame(streamId, first, false);
 
       boolean complete = frameType == FrameType.NEXT_COMPLETE;
       while (slicedData.isReadable() || slicedMetadata.isReadable()) {
@@ -95,16 +95,16 @@ final class SendUtils {
               FragmentationUtils.encodeFollowsFragment(
                   allocator, mtu, streamId, complete, slicedMetadata, slicedData);
         } catch (IllegalReferenceCountException e) {
-          sendTerminalFrame(streamId, frameType, sendProcessor, allocator, requester, true, e);
+          sendTerminalFrame(streamId, frameType, connection, allocator, requester, true, e);
           throw e;
         }
-        sendProcessor.onNext(following);
+        connection.sendFrame(streamId, following, false);
       }
 
       try {
         payload.release();
       } catch (IllegalReferenceCountException e) {
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, true, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, true, true, e);
         throw e;
       }
     } else {
@@ -116,7 +116,7 @@ final class SendUtils {
       } catch (IllegalReferenceCountException e) {
         dataRetainedSlice.release();
 
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, requester, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, requester, false, e);
         throw e;
       }
 
@@ -128,7 +128,7 @@ final class SendUtils {
           metadataRetainedSlice.release();
         }
 
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, requester, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, requester, false, e);
         throw e;
       }
 
@@ -161,7 +161,7 @@ final class SendUtils {
           throw new IllegalArgumentException("Unsupported frame type " + frameType);
       }
 
-      sendProcessor.onNext(requestFrame);
+      connection.sendFrame(streamId, requestFrame, false);
     }
   }
 
@@ -171,7 +171,7 @@ final class SendUtils {
       long initialRequestN,
       int mtu,
       Payload payload,
-      UnboundedProcessor<ByteBuf> sendProcessor,
+      DuplexConnection connection,
       ByteBufAllocator allocator,
       boolean complete) {
 
@@ -183,7 +183,7 @@ final class SendUtils {
     try {
       fragmentable = isFragmentable(mtu, data, metadata, true);
     } catch (IllegalReferenceCountException | NullPointerException e) {
-      sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, false, e);
+      sendTerminalFrame(streamId, frameType, connection, allocator, true, false, e);
       throw e;
     }
 
@@ -204,11 +204,11 @@ final class SendUtils {
                 slicedMetadata,
                 slicedData);
       } catch (IllegalReferenceCountException e) {
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, true, false, e);
         throw e;
       }
 
-      sendProcessor.onNext(first);
+      connection.sendFrame(streamId, first, false);
 
       while (slicedData.isReadable() || slicedMetadata.isReadable()) {
         final ByteBuf following;
@@ -217,16 +217,16 @@ final class SendUtils {
               FragmentationUtils.encodeFollowsFragment(
                   allocator, mtu, streamId, complete, slicedMetadata, slicedData);
         } catch (IllegalReferenceCountException e) {
-          sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, true, e);
+          sendTerminalFrame(streamId, frameType, connection, allocator, true, true, e);
           throw e;
         }
-        sendProcessor.onNext(following);
+        connection.sendFrame(streamId, following, false);
       }
 
       try {
         payload.release();
       } catch (IllegalReferenceCountException e) {
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, true, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, true, true, e);
         throw e;
       }
     } else {
@@ -238,7 +238,7 @@ final class SendUtils {
       } catch (IllegalReferenceCountException e) {
         dataRetainedSlice.release();
 
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, true, false, e);
         throw e;
       }
 
@@ -250,7 +250,7 @@ final class SendUtils {
           metadataRetainedSlice.release();
         }
 
-        sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, false, e);
+        sendTerminalFrame(streamId, frameType, connection, allocator, true, false, e);
         throw e;
       }
 
@@ -281,14 +281,14 @@ final class SendUtils {
           throw new IllegalArgumentException("Unsupported frame type " + frameType);
       }
 
-      sendProcessor.onNext(requestFrame);
+      connection.sendFrame(streamId, requestFrame, false);
     }
   }
 
   static void sendTerminalFrame(
       int streamId,
       FrameType frameType,
-      UnboundedProcessor<ByteBuf> sendProcessor,
+      DuplexConnection connection,
       ByteBufAllocator allocator,
       boolean requester,
       boolean onFollowingFrame,
@@ -297,7 +297,7 @@ final class SendUtils {
     if (onFollowingFrame) {
       if (requester) {
         final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-        sendProcessor.onNext(cancelFrame);
+        connection.sendFrame(streamId, cancelFrame, false);
       } else {
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
@@ -308,7 +308,7 @@ final class SendUtils {
                         + frameType
                         + " frame. Cause: "
                         + t.getMessage()));
-        sendProcessor.onNext(errorFrame);
+        connection.sendFrame(streamId, errorFrame, false);
       }
     } else {
       switch (frameType) {
@@ -317,7 +317,7 @@ final class SendUtils {
         case PAYLOAD:
           if (requester) {
             final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-            sendProcessor.onNext(cancelFrame);
+            connection.sendFrame(streamId, cancelFrame, false);
           } else {
             final ByteBuf errorFrame =
                 ErrorFrameCodec.encode(
@@ -325,7 +325,7 @@ final class SendUtils {
                     streamId,
                     new CanceledException(
                         "Failed to encode " + frameType + " frame. Cause: " + t.getMessage()));
-            sendProcessor.onNext(errorFrame);
+            connection.sendFrame(streamId, errorFrame, false);
           }
       }
     }

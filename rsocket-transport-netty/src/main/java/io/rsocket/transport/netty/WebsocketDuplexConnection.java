@@ -19,12 +19,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
 import java.util.Objects;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 
 /**
@@ -53,6 +52,8 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
             future -> {
               if (!isDisposed()) dispose();
             });
+
+    connection.outbound().sendObject(sender.map(BinaryWebSocketFrame::new)).then().subscribe();
   }
 
   @Override
@@ -68,6 +69,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   protected void doOnClose() {
     if (!connection.isDisposed()) {
+      sender.dispose();
       connection.dispose();
     }
   }
@@ -78,16 +80,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<ByteBuf> frames) {
-    if (frames instanceof Mono) {
-      return connection
-          .outbound()
-          .sendObject(((Mono<ByteBuf>) frames).map(BinaryWebSocketFrame::new))
-          .then();
-    }
-    return connection
+  public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+    connection
         .outbound()
-        .sendObject(Flux.from(frames).map(BinaryWebSocketFrame::new))
-        .then();
+        .sendObject(new BinaryWebSocketFrame(frame))
+        .then()
+        .subscribe(null, t -> onClose.onError(t), () -> onClose.onError(terminalError));
   }
 }

@@ -25,11 +25,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.IllegalReferenceCountException;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -49,7 +49,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
   final int maxFrameLength;
   final int maxInboundPayloadSize;
   final RequesterResponderSupport requesterResponderSupport;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
 
   volatile long state;
@@ -70,7 +70,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
   }
 
@@ -122,7 +122,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
   void sendFirstPayload(Payload payload, long initialRequestN) {
 
     final RequesterResponderSupport sm = this.requesterResponderSupport;
-    final UnboundedProcessor<ByteBuf> sender = this.sendProcessor;
+    final DuplexConnection connection = this.connection;
     final ByteBufAllocator allocator = this.allocator;
 
     final int streamId;
@@ -143,7 +143,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     try {
       sendReleasingPayload(
-          streamId, FrameType.REQUEST_RESPONSE, this.mtu, payload, sender, allocator, true);
+          streamId, FrameType.REQUEST_RESPONSE, this.mtu, payload, connection, allocator, true);
     } catch (Throwable e) {
       this.done = true;
       lazyTerminate(STATE, this);
@@ -163,7 +163,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       sm.remove(streamId, this);
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-      sender.onNext(cancelFrame);
+      connection.sendFrame(streamId, cancelFrame, false);
     }
   }
 
@@ -180,7 +180,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
-      this.sendProcessor.onNext(CancelFrameCodec.encode(this.allocator, streamId));
+      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId), false);
     } else if (!hasRequested(previousState)) {
       this.payload.release();
     }

@@ -20,6 +20,7 @@ import static io.rsocket.keepalive.KeepAliveHandler.*;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.frame.ErrorFrameCodec;
@@ -39,15 +40,14 @@ abstract class ServerSetup {
       ClientServerInputMultiplexer multiplexer,
       BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then);
 
-  abstract Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
+  abstract void acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
 
   void dispose() {}
 
-  Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
+  void sendError(ClientServerInputMultiplexer multiplexer, RSocketErrorException exception) {
     DuplexConnection duplexConnection = multiplexer.asSetupConnection();
-    return duplexConnection
-        .sendOne(ErrorFrameCodec.encode(duplexConnection.alloc(), 0, exception))
-        .onErrorResume(err -> Mono.empty());
+    duplexConnection.terminate(
+        ErrorFrameCodec.encode(duplexConnection.alloc(), 0, exception), exception);
   }
 
   static class DefaultServerSetup extends ServerSetup {
@@ -59,26 +59,16 @@ abstract class ServerSetup {
         BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
       if (SetupFrameCodec.resumeEnabled(frame)) {
-        return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
-            .doFinally(
-                signalType -> {
-                  frame.release();
-                  multiplexer.dispose();
-                });
+        sendError(multiplexer, new UnsupportedSetupException("resume not supported"));
+        return Mono.empty();
       } else {
         return then.apply(new DefaultKeepAliveHandler(multiplexer), multiplexer);
       }
     }
 
     @Override
-    public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-
-      return sendError(multiplexer, new RejectedResumeException("resume not supported"))
-          .doFinally(
-              signalType -> {
-                frame.release();
-                multiplexer.dispose();
-              });
+    public void acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
+      sendError(multiplexer, new RejectedResumeException("resume not supported"));
     }
   }
 
@@ -111,41 +101,33 @@ abstract class ServerSetup {
       if (SetupFrameCodec.resumeEnabled(frame)) {
         ByteBuf resumeToken = SetupFrameCodec.resumeToken(frame);
 
-        ResumableDuplexConnection connection =
-            sessionManager
-                .save(
-                    new ServerRSocketSession(
-                        multiplexer.asClientServerConnection(),
-                        resumeSessionDuration,
-                        resumeStreamTimeout,
-                        resumeStoreFactory,
-                        resumeToken,
-                        cleanupStoreOnKeepAlive))
-                .resumableConnection();
-        return then.apply(
-            new ResumableKeepAliveHandler(connection),
-            new ClientServerInputMultiplexer(connection));
+        //        ResumableDuplexConnection connection =
+        //            sessionManager
+        //                .save(
+        //                    new ServerRSocketSession(
+        //                        multiplexer.asClientServerConnection(),
+        //                        resumeSessionDuration,
+        //                        resumeStreamTimeout,
+        //                        resumeStoreFactory,
+        //                        resumeToken,
+        //                        cleanupStoreOnKeepAlive))
+        //                .resumableConnection();
+        //        return then.apply(
+        //            new ResumableKeepAliveHandler(connection),
+        //            new ClientServerInputMultiplexer(connection));
+        return null;
       } else {
         return then.apply(new DefaultKeepAliveHandler(multiplexer), multiplexer);
       }
     }
 
     @Override
-    public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
+    public void acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
       ServerRSocketSession session = sessionManager.get(ResumeFrameCodec.token(frame));
       if (session != null) {
-        return session
-            .continueWith(multiplexer.asClientServerConnection())
-            .resumeWith(frame)
-            .onClose()
-            .then();
+        session.continueWith(multiplexer.asClientServerConnection()).resumeWith(frame);
       } else {
-        return sendError(multiplexer, new RejectedResumeException("unknown resume token"))
-            .doFinally(
-                s -> {
-                  frame.release();
-                  multiplexer.dispose();
-                });
+        sendError(multiplexer, new RejectedResumeException("unknown resume token"));
       }
     }
 

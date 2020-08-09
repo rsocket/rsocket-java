@@ -25,7 +25,7 @@ public interface RSocketSession<T> extends Closeable {
 
   ByteBuf token();
 
-  ResumableDuplexConnection resumableConnection();
+  //  ResumableDuplexConnection resumableConnection();
 
   RSocketSession continueWith(T ConnectionFactory);
 
@@ -35,16 +35,18 @@ public interface RSocketSession<T> extends Closeable {
 
   @Override
   default Mono<Void> onClose() {
-    return resumableConnection().onClose();
+    //    return resumableConnection().onClose();
+    return null;
   }
 
   @Override
   default void dispose() {
-    resumableConnection().dispose();
+    //    resumableConnection().dispose();
   }
 
   @Override
   default boolean isDisposed() {
-    return resumableConnection().isDisposed();
+    //    return resumableConnection().isDisposed();
+    return true;
   }
 }

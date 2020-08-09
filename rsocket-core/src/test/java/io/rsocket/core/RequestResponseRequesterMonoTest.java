@@ -31,7 +31,7 @@ import io.rsocket.PayloadAssert;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.FrameType;
-import io.rsocket.internal.UnboundedProcessor;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
@@ -75,7 +75,7 @@ public class RequestResponseRequesterMonoTest {
           transformer) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final Payload payload = genericPayload(allocator);
 
     final RequestResponseRequesterMono requestResponseRequesterMono =
@@ -105,7 +105,7 @@ public class RequestResponseRequesterMonoTest {
     // should not add anything to map
     activeStreams.assertNoActiveStreams();
 
-    final ByteBuf frame = sender.poll();
+    final ByteBuf frame = sender.awaitFrame();
     FrameAssert.assertThat(frame)
         .isNotNull()
         .hasPayloadSize(
@@ -122,7 +122,7 @@ public class RequestResponseRequesterMonoTest {
     stateAssert.isTerminated();
 
     if (!sender.isEmpty()) {
-      ByteBuf cancelFrame = sender.poll();
+      ByteBuf cancelFrame = sender.awaitFrame();
       FrameAssert.assertThat(cancelFrame)
           .isNotNull()
           .typeOf(FrameType.CANCEL)
@@ -320,7 +320,7 @@ public class RequestResponseRequesterMonoTest {
     final int mtu = 64;
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client(mtu);
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
 
     final byte[] metadata = new byte[65];
     final byte[] data = new byte[129];
@@ -356,7 +356,7 @@ public class RequestResponseRequesterMonoTest {
 
     Assertions.assertThat(payload.refCnt()).isZero();
 
-    final ByteBuf frameFragment1 = sender.poll();
+    final ByteBuf frameFragment1 = sender.awaitFrame();
     FrameAssert.assertThat(frameFragment1)
         .isNotNull()
         .hasPayloadSize(
@@ -370,7 +370,7 @@ public class RequestResponseRequesterMonoTest {
         .hasStreamId(1)
         .hasNoLeaks();
 
-    final ByteBuf frameFragment2 = sender.poll();
+    final ByteBuf frameFragment2 = sender.awaitFrame();
     FrameAssert.assertThat(frameFragment2)
         .isNotNull()
         .hasPayloadSize(
@@ -384,7 +384,7 @@ public class RequestResponseRequesterMonoTest {
         .hasStreamId(1)
         .hasNoLeaks();
 
-    final ByteBuf frameFragment3 = sender.poll();
+    final ByteBuf frameFragment3 = sender.awaitFrame();
     FrameAssert.assertThat(frameFragment3)
         .isNotNull()
         .hasPayloadSize(
@@ -397,7 +397,7 @@ public class RequestResponseRequesterMonoTest {
         .hasStreamId(1)
         .hasNoLeaks();
 
-    final ByteBuf frameFragment4 = sender.poll();
+    final ByteBuf frameFragment4 = sender.awaitFrame();
     FrameAssert.assertThat(frameFragment4)
         .isNotNull()
         .hasPayloadSize(35)
@@ -410,14 +410,14 @@ public class RequestResponseRequesterMonoTest {
         .hasNoLeaks();
 
     if (!sender.isEmpty()) {
-      FrameAssert.assertThat(sender.poll())
+      FrameAssert.assertThat(sender.awaitFrame())
           .isNotNull()
           .typeOf(FrameType.CANCEL)
           .hasClientSideStreamId()
           .hasStreamId(1)
           .hasNoLeaks();
     }
-    Assertions.assertThat(sender).isEmpty();
+    Assertions.assertThat(sender.isEmpty()).isTrue();
     stateAssert.isTerminated();
     allocator.assertHasNoLeaks();
   }
@@ -430,7 +430,7 @@ public class RequestResponseRequesterMonoTest {
   public void shouldBeNoOpsOnCancel() {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final Payload payload = ByteBufPayload.create("testData", "testMetadata");
 
     final RequestResponseRequesterMono requestResponseRequesterMono =
@@ -466,7 +466,8 @@ public class RequestResponseRequesterMonoTest {
       Consumer<RequestResponseRequesterMono> monoConsumer) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    ;
     final Payload payload = ByteBufPayload.create("");
     payload.release();
 
@@ -483,7 +484,7 @@ public class RequestResponseRequesterMonoTest {
 
     stateAssert.isTerminated();
     activeStreams.assertNoActiveStreams();
-    Assertions.assertThat(sender).isEmpty();
+    Assertions.assertThat(sender.isEmpty()).isTrue();
     allocator.assertHasNoLeaks();
   }
 
@@ -509,7 +510,8 @@ public class RequestResponseRequesterMonoTest {
   public void shouldErrorOnIncorrectRefCntInGivenPayloadLatePhase() {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    ;
     final Payload payload = ByteBufPayload.create("");
 
     final RequestResponseRequesterMono requestResponseRequesterMono =
@@ -543,7 +545,8 @@ public class RequestResponseRequesterMonoTest {
     final int mtu = 64;
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client(mtu);
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    ;
     final byte[] metadata = new byte[65];
     final byte[] data = new byte[129];
     ThreadLocalRandom.current().nextBytes(metadata);
@@ -582,7 +585,8 @@ public class RequestResponseRequesterMonoTest {
       Consumer<RequestResponseRequesterMono> monoConsumer) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    ;
 
     final byte[] metadata = new byte[FRAME_LENGTH_MASK];
     final byte[] data = new byte[FRAME_LENGTH_MASK];
@@ -604,7 +608,7 @@ public class RequestResponseRequesterMonoTest {
     Assertions.assertThat(payload.refCnt()).isZero();
 
     activeStreams.assertNoActiveStreams();
-    Assertions.assertThat(sender).isEmpty();
+    Assertions.assertThat(sender.isEmpty()).isTrue();
     stateAssert.isTerminated();
     allocator.assertHasNoLeaks();
   }
@@ -639,7 +643,6 @@ public class RequestResponseRequesterMonoTest {
     final TestRequesterResponderSupport activeStreams =
         TestRequesterResponderSupport.client(new RuntimeException("test"));
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = activeStreams.getSendProcessor();
     final Payload payload = genericPayload(allocator);
 
     final RequestResponseRequesterMono requestResponseRequesterMono =

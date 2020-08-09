@@ -40,6 +40,7 @@ import reactor.util.context.Context;
  *
  * @param <T> the input and output type
  */
+@Deprecated
 public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     implements Fuseable.QueueSubscription<T>, Fuseable {
 

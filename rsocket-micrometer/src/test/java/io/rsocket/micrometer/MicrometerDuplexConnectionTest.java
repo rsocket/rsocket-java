@@ -34,7 +34,7 @@ import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.reactivestreams.Publisher;
+import org.mockito.Mockito;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
@@ -153,31 +153,28 @@ final class MicrometerDuplexConnectionTest {
   @SuppressWarnings("unchecked")
   @Test
   void send() {
-    ArgumentCaptor<Publisher<ByteBuf>> captor = ArgumentCaptor.forClass(Publisher.class);
-    when(delegate.send(captor.capture())).thenReturn(Mono.empty());
+    ArgumentCaptor<ByteBuf> captor = ArgumentCaptor.forClass(ByteBuf.class);
+    doNothing().when(delegate).sendFrame(Mockito.anyInt(), captor.capture(), Mockito.anyBoolean());
 
-    Flux<ByteBuf> frames =
-        Flux.just(
-            createTestCancelFrame(),
-            createTestErrorFrame(),
-            createTestKeepaliveFrame(),
-            createTestLeaseFrame(),
-            createTestMetadataPushFrame(),
-            createTestPayloadFrame(),
-            createTestRequestChannelFrame(),
-            createTestRequestFireAndForgetFrame(),
-            createTestRequestNFrame(),
-            createTestRequestResponseFrame(),
-            createTestRequestStreamFrame(),
-            createTestSetupFrame());
+    final MicrometerDuplexConnection micrometerDuplexConnection =
+        new MicrometerDuplexConnection(
+            SERVER, delegate, meterRegistry, Tag.of("test-key", "test-value"));
+    micrometerDuplexConnection.sendFrame(1, createTestCancelFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestErrorFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestKeepaliveFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestLeaseFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestMetadataPushFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestPayloadFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestRequestChannelFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestRequestFireAndForgetFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestRequestNFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestRequestResponseFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestRequestStreamFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestSetupFrame(), false);
 
-    new MicrometerDuplexConnection(
-            SERVER, delegate, meterRegistry, Tag.of("test-key", "test-value"))
-        .send(frames)
-        .as(StepVerifier::create)
+    StepVerifier.create(Flux.fromIterable(captor.getAllValues()))
+        .expectNextCount(12)
         .verifyComplete();
-
-    StepVerifier.create(captor.getValue()).expectNextCount(12).verifyComplete();
 
     assertThat(findCounter(SERVER, CANCEL).count()).isEqualTo(1);
     assertThat(findCounter(SERVER, COMPLETE).count()).isEqualTo(1);
@@ -191,15 +188,6 @@ final class MicrometerDuplexConnectionTest {
     assertThat(findCounter(SERVER, REQUEST_RESPONSE).count()).isEqualTo(1);
     assertThat(findCounter(SERVER, REQUEST_STREAM).count()).isEqualTo(1);
     assertThat(findCounter(SERVER, SETUP).count()).isEqualTo(1);
-  }
-
-  @DisplayName("send throws NullPointerException with null frames")
-  @Test
-  void sendNullFrames() {
-    assertThatNullPointerException()
-        .isThrownBy(
-            () -> new MicrometerDuplexConnection(CLIENT, delegate, meterRegistry).send(null))
-        .withMessage("frames must not be null");
   }
 
   private Counter findCounter(Type connectionType, FrameType frameType) {

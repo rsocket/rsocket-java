@@ -25,6 +25,7 @@ import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -50,7 +51,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.logging.Logger;
 import org.junit.platform.commons.logging.LoggerFactory;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
@@ -547,8 +547,13 @@ public interface TransportTest {
       }
 
       @Override
-      public Mono<Void> send(Publisher<ByteBuf> frames) {
-        return duplexConnection.send(frames);
+      public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
+        duplexConnection.sendFrame(streamId, frame, prioritize);
+      }
+
+      @Override
+      public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+        duplexConnection.terminate(frame, terminalError);
       }
 
       @Override

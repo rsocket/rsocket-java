@@ -28,8 +28,8 @@ import io.rsocket.PayloadAssert;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
-import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.test.util.TestDuplexConnection;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
@@ -245,7 +245,7 @@ public class ResponderOperatorsCommonTest {
     TestRequesterResponderSupport testRequesterResponderSupport =
         TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = testRequesterResponderSupport.getSendProcessor();
+    final TestDuplexConnection sender = testRequesterResponderSupport.getDuplexConnection();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
     TestHandler testHandler = new TestHandler(testPublisher, new AssertSubscriber<>(0));
 
@@ -261,7 +261,7 @@ public class ResponderOperatorsCommonTest {
     testPublisher.next(randomPayload.retain());
     testPublisher.complete();
 
-    FrameAssert.assertThat(sender.poll())
+    FrameAssert.assertThat(sender.awaitFrame())
         .isNotNull()
         .hasStreamId(1)
         .typeOf(scenario.requestType() == REQUEST_RESPONSE ? FrameType.NEXT_COMPLETE : NEXT)
@@ -274,11 +274,14 @@ public class ResponderOperatorsCommonTest {
 
     if (scenario.requestType() != REQUEST_RESPONSE) {
 
-      FrameAssert.assertThat(sender.poll()).typeOf(FrameType.COMPLETE).hasStreamId(1).hasNoLeaks();
+      FrameAssert.assertThat(sender.awaitFrame())
+          .typeOf(FrameType.COMPLETE)
+          .hasStreamId(1)
+          .hasNoLeaks();
 
       if (scenario.requestType() == REQUEST_CHANNEL) {
         testHandler.consumer.request(2);
-        FrameAssert.assertThat(sender.poll())
+        FrameAssert.assertThat(sender.awaitFrame())
             .typeOf(FrameType.REQUEST_N)
             .hasStreamId(1)
             .hasRequestN(1)
@@ -302,7 +305,7 @@ public class ResponderOperatorsCommonTest {
     TestRequesterResponderSupport testRequesterResponderSupport =
         TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = testRequesterResponderSupport.getSendProcessor();
+    final TestDuplexConnection sender = testRequesterResponderSupport.getDuplexConnection();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
     TestHandler testHandler = new TestHandler(testPublisher, new AssertSubscriber<>(0));
 
@@ -332,7 +335,7 @@ public class ResponderOperatorsCommonTest {
     testPublisher.next(randomPayload.retain());
     testPublisher.complete();
 
-    FrameAssert.assertThat(sender.poll())
+    FrameAssert.assertThat(sender.awaitFrame())
         .isNotNull()
         .hasStreamId(1)
         .typeOf(scenario.requestType() == REQUEST_RESPONSE ? FrameType.NEXT_COMPLETE : NEXT)
@@ -345,11 +348,14 @@ public class ResponderOperatorsCommonTest {
 
     if (scenario.requestType() != REQUEST_RESPONSE) {
 
-      FrameAssert.assertThat(sender.poll()).typeOf(FrameType.COMPLETE).hasStreamId(1).hasNoLeaks();
+      FrameAssert.assertThat(sender.awaitFrame())
+          .typeOf(FrameType.COMPLETE)
+          .hasStreamId(1)
+          .hasNoLeaks();
 
       if (scenario.requestType() == REQUEST_CHANNEL) {
         testHandler.consumer.request(2);
-        FrameAssert.assertThat(sender.poll()).isNull();
+        FrameAssert.assertThat(sender.pollFrame()).isNull();
       }
     }
 
@@ -375,7 +381,6 @@ public class ResponderOperatorsCommonTest {
     TestRequesterResponderSupport testRequesterResponderSupport =
         TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
-    final UnboundedProcessor<ByteBuf> sender = testRequesterResponderSupport.getSendProcessor();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
     TestHandler testHandler = new TestHandler(testPublisher, new AssertSubscriber<>(0));
 

@@ -27,6 +27,7 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -345,9 +346,9 @@ public final class RSocketServer {
         .flatMap(startFrame -> accept(serverSetup, startFrame, multiplexer, maxFrameLength));
   }
 
-  private Mono<Void> acceptResume(
+  private void acceptResume(
       ServerSetup serverSetup, ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
-    return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
+    serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
   }
 
   private Mono<Void> accept(
@@ -359,19 +360,16 @@ public final class RSocketServer {
       case SETUP:
         return acceptSetup(serverSetup, startFrame, multiplexer, maxFrameLength);
       case RESUME:
-        return acceptResume(serverSetup, startFrame, multiplexer);
+        acceptResume(serverSetup, startFrame, multiplexer);
+        break;
       default:
-        return serverSetup
-            .sendError(
-                multiplexer,
-                new InvalidSetupException(
-                    "invalid setup frame: " + FrameHeaderCodec.frameType(startFrame)))
-            .doFinally(
-                signalType -> {
-                  startFrame.release();
-                  multiplexer.dispose();
-                });
+        serverSetup.sendError(
+            multiplexer,
+            new InvalidSetupException(
+                "invalid setup frame: " + FrameHeaderCodec.frameType(startFrame)));
     }
+
+    return Mono.empty();
   }
 
   private Mono<Void> acceptSetup(
@@ -381,19 +379,16 @@ public final class RSocketServer {
       int maxFrameLength) {
 
     if (!SetupFrameCodec.isSupportedVersion(setupFrame)) {
-      return serverSetup
-          .sendError(
-              multiplexer,
-              new InvalidSetupException(
-                  "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)))
-          .doFinally(signalType -> multiplexer.dispose());
+      serverSetup.sendError(
+          multiplexer,
+          new InvalidSetupException(
+              "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)));
     }
 
     boolean leaseEnabled = leasesSupplier != null;
     if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
-      return serverSetup
-          .sendError(multiplexer, new InvalidSetupException("lease is not supported"))
-          .doFinally(signalType -> multiplexer.dispose());
+      serverSetup.sendError(multiplexer, new InvalidSetupException("lease is not supported"));
+      return Mono.empty();
     }
 
     return serverSetup.acceptRSocketSetup(
@@ -427,11 +422,7 @@ public final class RSocketServer {
           return interceptors
               .initSocketAcceptor(acceptor)
               .accept(setupPayload, wrappedRSocketRequester)
-              .onErrorResume(
-                  err ->
-                      serverSetup
-                          .sendError(multiplexer, rejectedSetupError(err))
-                          .then(Mono.error(err)))
+              .doOnError(err -> serverSetup.sendError(multiplexer, rejectedSetupError(err)))
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
@@ -471,7 +462,7 @@ public final class RSocketServer {
         resume.isCleanupStoreOnKeepAlive());
   }
 
-  private Exception rejectedSetupError(Throwable err) {
+  private RSocketErrorException rejectedSetupError(Throwable err) {
     String msg = err.getMessage();
     return new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg);
   }

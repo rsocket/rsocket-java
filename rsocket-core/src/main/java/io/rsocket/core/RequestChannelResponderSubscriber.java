@@ -26,6 +26,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.exceptions.CanceledException;
@@ -35,7 +36,6 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -60,7 +60,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
   final int maxFrameLength;
   final int maxInboundPayloadSize;
   final RequesterResponderSupport requesterResponderSupport;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
   final long firstRequest;
 
   final RSocket handler;
@@ -97,7 +97,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
     this.handler = handler;
     this.firstRequest = firstRequestN;
@@ -119,7 +119,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
     this.firstRequest = firstRequestN;
     this.firstPayload = firstPayload;
@@ -221,8 +221,9 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     if (hasRequested(previousState)) {
       if (isFirstFrameSent(previousState)
           && !isMaxAllowedRequestN(StateUtils.extractRequestN(previousState))) {
-        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, this.streamId, n);
-        this.sendProcessor.onNext(requestNFrame);
+        final int streamId = this.streamId;
+        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
+        this.connection.sendFrame(streamId, requestNFrame, false);
       }
       return;
     }
@@ -262,14 +263,16 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     long requestN = StateUtils.extractRequestN(previousState);
     if (isMaxAllowedRequestN(requestN)) {
+      final int streamId = this.streamId;
       final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
-      this.sendProcessor.onNext(requestNFrame);
+      this.connection.sendFrame(streamId, requestNFrame, false);
     } else {
       long firstRequestN = requestN - 1;
       if (firstRequestN > 0) {
+        final int streamId = this.streamId;
         final ByteBuf requestNFrame =
-            RequestNFrameCodec.encode(this.allocator, this.streamId, firstRequestN);
-        this.sendProcessor.onNext(requestNFrame);
+            RequestNFrameCodec.encode(this.allocator, streamId, firstRequestN);
+        this.connection.sendFrame(streamId, requestNFrame, false);
       }
     }
   }
@@ -295,7 +298,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     final ByteBuf cancelFrame = CancelFrameCodec.encode(this.allocator, streamId);
-    this.sendProcessor.onNext(cancelFrame);
+    this.connection.sendFrame(streamId, cancelFrame, false);
   }
 
   @Override
@@ -472,10 +475,10 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         this.outboundDone = true;
         // send error to terminate interaction
+        final int streamId = this.streamId;
         final ByteBuf errorFrame =
-            ErrorFrameCodec.encode(
-                this.allocator, this.streamId, new CanceledException(t.getMessage()));
-        this.sendProcessor.onNext(errorFrame);
+            ErrorFrameCodec.encode(this.allocator, streamId, new CanceledException(t.getMessage()));
+        this.connection.sendFrame(streamId, errorFrame, false);
 
         return;
       }
@@ -518,12 +521,13 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         this.outboundDone = true;
         // send error to terminate interaction
+        final int streamId = this.streamId;
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
                 this.allocator,
-                this.streamId,
+                streamId,
                 new CanceledException("Failed to reassemble payload. Cause: " + e.getMessage()));
-        this.sendProcessor.onNext(errorFrame);
+        this.connection.sendFrame(streamId, errorFrame, false);
 
         return;
       }
@@ -551,12 +555,13 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         }
 
         // send error to terminate interaction
+        final int streamId = this.streamId;
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
                 this.allocator,
-                this.streamId,
+                streamId,
                 new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-        this.sendProcessor.onNext(errorFrame);
+        this.connection.sendFrame(streamId, errorFrame, false);
 
         return;
       }
@@ -583,12 +588,12 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     final int streamId = this.streamId;
-    final UnboundedProcessor<ByteBuf> sender = this.sendProcessor;
+    final DuplexConnection connection = this.connection;
     final ByteBufAllocator allocator = this.allocator;
 
     if (p == null) {
       final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-      sender.onNext(completeFrame);
+      connection.sendFrame(streamId, completeFrame, false);
       return;
     }
 
@@ -614,7 +619,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
                 streamId,
                 new CanceledException(
                     String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
-        sender.onNext(errorFrame);
+        connection.sendFrame(streamId, errorFrame, false);
         return;
       }
     } catch (IllegalReferenceCountException e) {
@@ -632,12 +637,12 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
               allocator,
               streamId,
               new CanceledException("Failed to validate payload. Cause:" + e.getMessage()));
-      sender.onNext(errorFrame);
+      connection.sendFrame(streamId, errorFrame, false);
       return;
     }
 
     try {
-      sendReleasingPayload(streamId, FrameType.NEXT, mtu, p, sender, allocator, false);
+      sendReleasingPayload(streamId, FrameType.NEXT, mtu, p, connection, allocator, false);
     } catch (Throwable t) {
       // FIXME: must be scheduled on the connection event-loop to achieve serial
       //  behaviour on the inbound subscriber
@@ -699,7 +704,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.sendProcessor.onNext(errorFrame);
+    this.connection.sendFrame(streamId, errorFrame, false);
   }
 
   @Override
@@ -722,7 +727,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(this.allocator, streamId);
-    this.sendProcessor.onNext(completeFrame);
+    this.connection.sendFrame(streamId, completeFrame, false);
   }
 
   @Override

@@ -22,9 +22,9 @@ import static io.rsocket.core.StateUtils.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.IllegalReferenceCountException;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.MetadataPushFrameCodec;
-import io.rsocket.internal.UnboundedProcessor;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import reactor.core.CoreSubscriber;
@@ -43,13 +43,13 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
   final ByteBufAllocator allocator;
   final Payload payload;
   final int maxFrameLength;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
 
   MetadataPushRequesterMono(Payload payload, RequesterResponderSupport requesterResponderSupport) {
     this.allocator = requesterResponderSupport.getAllocator();
     this.payload = payload;
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
   }
 
   @Override
@@ -109,7 +109,7 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
 
     final ByteBuf requestFrame =
         MetadataPushFrameCodec.encode(this.allocator, metadataRetainedSlice);
-    this.sendProcessor.onNext(requestFrame);
+    this.connection.sendFrame(0, requestFrame, true);
 
     Operators.complete(actual);
   }
@@ -166,7 +166,7 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
 
     final ByteBuf requestFrame =
         MetadataPushFrameCodec.encode(this.allocator, metadataRetainedSlice);
-    this.sendProcessor.onNext(requestFrame);
+    this.connection.sendFrame(0, requestFrame, true);
 
     return null;
   }

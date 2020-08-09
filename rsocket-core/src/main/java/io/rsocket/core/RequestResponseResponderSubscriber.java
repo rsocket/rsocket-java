@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.exceptions.CanceledException;
@@ -31,7 +32,6 @@ import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -54,7 +54,7 @@ final class RequestResponseResponderSubscriber
   final int maxFrameLength;
   final int maxInboundPayloadSize;
   final RequesterResponderSupport requesterResponderSupport;
-  final UnboundedProcessor<ByteBuf> sendProcessor;
+  final DuplexConnection connection;
 
   final RSocket handler;
 
@@ -77,7 +77,7 @@ final class RequestResponseResponderSubscriber
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
     this.handler = handler;
     this.frames =
@@ -93,7 +93,7 @@ final class RequestResponseResponderSubscriber
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
-    this.sendProcessor = requesterResponderSupport.getSendProcessor();
+    this.connection = requesterResponderSupport.getDuplexConnection();
 
     this.payloadDecoder = null;
     this.handler = null;
@@ -129,14 +129,14 @@ final class RequestResponseResponderSubscriber
     this.done = true;
 
     final int streamId = this.streamId;
-    final UnboundedProcessor<ByteBuf> sender = this.sendProcessor;
+    final DuplexConnection connection = this.connection;
     final ByteBufAllocator allocator = this.allocator;
 
     this.requesterResponderSupport.remove(streamId, this);
 
     if (p == null) {
       final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-      sender.onNext(completeFrame);
+      connection.sendFrame(streamId, completeFrame, false);
       return;
     }
 
@@ -153,7 +153,7 @@ final class RequestResponseResponderSubscriber
                 streamId,
                 new CanceledException(
                     String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
-        sender.onNext(errorFrame);
+        connection.sendFrame(streamId, errorFrame, false);
         return;
       }
     } catch (IllegalReferenceCountException e) {
@@ -164,12 +164,12 @@ final class RequestResponseResponderSubscriber
               allocator,
               streamId,
               new CanceledException("Failed to validate payload. Cause" + e.getMessage()));
-      sender.onNext(errorFrame);
+      connection.sendFrame(streamId, errorFrame, false);
       return;
     }
 
     try {
-      sendReleasingPayload(streamId, FrameType.NEXT_COMPLETE, mtu, p, sender, allocator, false);
+      sendReleasingPayload(streamId, FrameType.NEXT_COMPLETE, mtu, p, connection, allocator, false);
     } catch (Throwable ignored) {
       currentSubscription.cancel();
     }
@@ -196,7 +196,7 @@ final class RequestResponseResponderSubscriber
     this.requesterResponderSupport.remove(streamId, this);
 
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.sendProcessor.onNext(errorFrame);
+    this.connection.sendFrame(streamId, errorFrame, false);
   }
 
   @Override
@@ -256,12 +256,13 @@ final class RequestResponseResponderSubscriber
       logger.debug("Reassembly has failed", t);
 
       // sends error frame from the responder side to tell that something went wrong
+      final int streamId = this.streamId;
       final ByteBuf errorFrame =
           ErrorFrameCodec.encode(
               this.allocator,
-              this.streamId,
+              streamId,
               new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-      this.sendProcessor.onNext(errorFrame);
+      this.connection.sendFrame(streamId, errorFrame, false);
       return;
     }
 
@@ -274,7 +275,8 @@ final class RequestResponseResponderSubscriber
       } catch (Throwable t) {
         S.lazySet(this, Operators.cancelledSubscription());
 
-        this.requesterResponderSupport.remove(this.streamId, this);
+        final int streamId = this.streamId;
+        this.requesterResponderSupport.remove(streamId, this);
 
         ReferenceCountUtil.safeRelease(frames);
 
@@ -284,9 +286,9 @@ final class RequestResponseResponderSubscriber
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
                 this.allocator,
-                this.streamId,
+                streamId,
                 new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-        this.sendProcessor.onNext(errorFrame);
+        this.connection.sendFrame(streamId, errorFrame, false);
         return;
       }
 
