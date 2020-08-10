@@ -102,7 +102,7 @@ class ReassemblyUtils {
     if (frames == null) {
       frames =
           ReassemblyUtils.addFollowingFrame(
-              allocator.compositeBuffer(), frame, maxInboundPayloadSize);
+              allocator.compositeBuffer(), frame, hasFollows, maxInboundPayloadSize);
       instance.setFrames(frames);
 
       long previousState = markReassembling(updater, instance);
@@ -113,7 +113,8 @@ class ReassemblyUtils {
       }
     } else {
       try {
-        frames = ReassemblyUtils.addFollowingFrame(frames, frame, maxInboundPayloadSize);
+        frames =
+            ReassemblyUtils.addFollowingFrame(frames, frame, hasFollows, maxInboundPayloadSize);
       } catch (IllegalStateException t) {
         if (isTerminated(updater.get(instance))) {
           return;
@@ -160,7 +161,10 @@ class ReassemblyUtils {
   }
 
   static CompositeByteBuf addFollowingFrame(
-      CompositeByteBuf frames, ByteBuf followingFrame, int maxInboundPayloadSize) {
+      CompositeByteBuf frames,
+      ByteBuf followingFrame,
+      boolean hasFollows,
+      int maxInboundPayloadSize) {
     int readableBytes = frames.readableBytes();
     if (readableBytes == 0) {
       return frames.addComponent(true, followingFrame.retain());
@@ -169,6 +173,9 @@ class ReassemblyUtils {
             > maxInboundPayloadSize) {
       throw new IllegalStateException(
           String.format(ILLEGAL_REASSEMBLED_PAYLOAD_SIZE, maxInboundPayloadSize));
+    } else if (followingFrame.readableBytes() < MIN_MTU_SIZE - 3 && hasFollows) {
+      // FIXME: check MIN_MTU_SIZE only (currently fragments have size of 61)
+      throw new IllegalStateException("Fragment is too small.");
     }
 
     final boolean hasMetadata = FrameHeaderCodec.hasMetadata(followingFrame);

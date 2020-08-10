@@ -1332,6 +1332,36 @@ public class RSocketRequesterTest {
     leaksTrackingByteBufAllocator.assertHasNoLeaks();
   }
 
+  @ParameterizedTest(name = "throws error if fragment before the last is < min MTU {0}")
+  @MethodSource("requestNInteractions")
+  public void errorFragmentTooSmall(
+      FrameType frameType,
+      BiFunction<ClientSocketRule, Payload, Publisher<Payload>> requestFunction) {
+    final int mtu = 32;
+    final LeaksTrackingByteBufAllocator leaksTrackingByteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+
+    final Payload requestPayload = genericPayload(leaksTrackingByteBufAllocator);
+    final Payload responsePayload = fixedSizePayload(leaksTrackingByteBufAllocator, 156);
+    List<ByteBuf> fragments = prepareFragments(leaksTrackingByteBufAllocator, mtu, responsePayload);
+    responsePayload.release();
+
+    StepVerifier.create(requestFunction.apply(rule, requestPayload))
+        .then(() -> rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0])))
+        .expectErrorMessage("Fragment is too small.")
+        .verify();
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(frameType).hasNoLeaks();
+
+    if (frameType == REQUEST_CHANNEL) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+    }
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(CANCEL).hasNoLeaks();
+
+    leaksTrackingByteBufAllocator.assertHasNoLeaks();
+  }
+
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
     protected RSocketRequester newRSocket() {

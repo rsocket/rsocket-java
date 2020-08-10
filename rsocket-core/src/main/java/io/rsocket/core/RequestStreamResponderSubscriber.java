@@ -84,7 +84,7 @@ final class RequestStreamResponderSubscriber
     this.handler = handler;
     this.frames =
         ReassemblyUtils.addFollowingFrame(
-            allocator.compositeBuffer(), firstFrame, maxInboundPayloadSize);
+            allocator.compositeBuffer(), firstFrame, true, maxInboundPayloadSize);
   }
 
   public RequestStreamResponderSubscriber(
@@ -258,7 +258,8 @@ final class RequestStreamResponderSubscriber
     }
 
     try {
-      ReassemblyUtils.addFollowingFrame(frames, followingFrame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(
+          frames, followingFrame, hasFollows, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       // if subscription is null, it means that streams has not yet reassembled all the fragments
       // and fragmentation of the first frame was cancelled before

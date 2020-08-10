@@ -68,7 +68,7 @@ final class FireAndForgetResponderSubscriber
 
     this.frames =
         ReassemblyUtils.addFollowingFrame(
-            allocator.compositeBuffer(), firstFrame, maxInboundPayloadSize);
+            allocator.compositeBuffer(), firstFrame, true, maxInboundPayloadSize);
   }
 
   @Override
@@ -92,7 +92,8 @@ final class FireAndForgetResponderSubscriber
     final CompositeByteBuf frames = this.frames;
 
     try {
-      ReassemblyUtils.addFollowingFrame(frames, followingFrame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(
+          frames, followingFrame, hasFollows, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       this.requesterResponderSupport.remove(this.streamId, this);
 
