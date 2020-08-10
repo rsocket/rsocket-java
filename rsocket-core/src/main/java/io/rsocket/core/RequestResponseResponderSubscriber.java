@@ -81,7 +81,7 @@ final class RequestResponseResponderSubscriber
     this.handler = handler;
     this.frames =
         ReassemblyUtils.addFollowingFrame(
-            allocator.compositeBuffer(), firstFrame, maxInboundPayloadSize);
+            allocator.compositeBuffer(), firstFrame, true, maxInboundPayloadSize);
   }
 
   public RequestResponseResponderSubscriber(
@@ -218,7 +218,7 @@ final class RequestResponseResponderSubscriber
     }
 
     try {
-      ReassemblyUtils.addFollowingFrame(frames, frame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(frames, frame, hasFollows, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       S.lazySet(this, Operators.cancelledSubscription());
 

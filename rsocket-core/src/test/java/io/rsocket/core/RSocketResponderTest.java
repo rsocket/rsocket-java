@@ -1002,6 +1002,55 @@ public class RSocketResponderTest {
     rule.assertHasNoLeaks();
   }
 
+  @ParameterizedTest(name = "throws error if fragment before the last is < min MTU {0}")
+  @MethodSource("requestCases")
+  public void errorFragmentTooSmall(FrameType frameType) {
+    final int mtu = 32;
+    AtomicReference<Payload> receivedPayload = new AtomicReference<>();
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.empty();
+          }
+
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            receivedPayload.set(payload);
+            return Flux.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
+            return Flux.just(genericPayload(rule.allocator));
+          }
+        });
+    final Payload randomPayload = fixedSizePayload(rule.allocator, 156);
+    List<ByteBuf> fragments = prepareFragments(rule.allocator, mtu, randomPayload, frameType);
+    randomPayload.release();
+
+    rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0]));
+
+    PayloadAssert.assertThat(receivedPayload.get()).isNull();
+
+    if (frameType != REQUEST_FNF) {
+      FrameAssert.assertThat(rule.connection.getSent().poll())
+          .typeOf(ERROR)
+          .hasData("Failed to reassemble payload. Cause: Fragment is too small.")
+          .hasNoLeaks();
+    }
+
+    rule.assertHasNoLeaks();
+  }
+
   @ParameterizedTest
   @MethodSource("requestCases")
   void receivingRequestOnStreamIdThaIsAlreadyInUseMUSTBeIgnored_ReassemblyCase(

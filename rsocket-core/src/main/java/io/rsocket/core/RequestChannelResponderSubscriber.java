@@ -104,7 +104,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     this.frames =
         ReassemblyUtils.addFollowingFrame(
-            allocator.compositeBuffer(), firstFrame, maxInboundPayloadSize);
+            allocator.compositeBuffer(), firstFrame, true, maxInboundPayloadSize);
     STATE.lazySet(this, REASSEMBLING_FLAG);
   }
 
@@ -491,7 +491,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     if (frames == null) {
       frames =
           ReassemblyUtils.addFollowingFrame(
-              this.allocator.compositeBuffer(), frame, this.maxInboundPayloadSize);
+              this.allocator.compositeBuffer(), frame, hasFollows, this.maxInboundPayloadSize);
       this.frames = frames;
 
       long previousState = markReassembling(STATE, this);
@@ -502,7 +502,9 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       }
     } else {
       try {
-        frames = ReassemblyUtils.addFollowingFrame(frames, frame, this.maxInboundPayloadSize);
+        frames =
+            ReassemblyUtils.addFollowingFrame(
+                frames, frame, hasFollows, this.maxInboundPayloadSize);
       } catch (IllegalStateException e) {
         if (isTerminated(this.state)) {
           return;
