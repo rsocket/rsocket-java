@@ -28,8 +28,8 @@ repositories {
 	mavenCentral()
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.1.0-M1'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-M1'
 }
 ```
 
@@ -42,8 +42,8 @@ repositories {
 	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.1-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.1-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-SNAPSHOT'
 }
 ```
 
