@@ -178,6 +178,10 @@ subprojects {
                         println "This is the console output of the failing test below:\n$stdOutput"
                     }
                 }
+
+                reports {
+                    junitXml.outputPerTestCase = true
+                }
             }
 
             if (JavaVersion.current().isJava9Compatible()) {

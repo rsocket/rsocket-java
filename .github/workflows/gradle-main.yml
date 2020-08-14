@@ -42,3 +42,12 @@ jobs:
           bintrayUser: ${{ secrets.bintrayUser }}
           bintrayKey: ${{ secrets.bintrayKey }}
           buildNumber: ${{ github.run_number }}
+      - name: Aggregate test reports with ciMate
+        if: always()
+        continue-on-error: true
+        env:
+          CIMATE_PROJECT_ID: m84qx17y
+        run: |
+          wget -q https://get.cimate.io/release/linux/cimate
+          chmod +x cimate
+          ./cimate "**/TEST-*.xml"
