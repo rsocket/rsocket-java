@@ -37,7 +37,7 @@ import reactor.core.publisher.MonoProcessor;
  *
  * <p>It estimates the load of each RSocket based on statistics collected.
  *
- * @deprecated as of 1.1. in favor of {@link LoadBalancedRSocketClient}.
+ * @deprecated as of 1.1. in favor of {@link LoadbalanceRSocketClient}.
  */
 @Deprecated
 public abstract class LoadBalancedRSocketMono extends Mono<RSocket>

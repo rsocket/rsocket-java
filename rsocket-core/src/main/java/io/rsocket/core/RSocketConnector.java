@@ -190,9 +190,9 @@ public class RSocketConnector {
    * <p>For metadata encoding, consider using one of the following encoders:
    *
    * <ul>
-   *   <li>{@link io.rsocket.metadata.CompositeMetadataFlyweight Composite Metadata}
-   *   <li>{@link io.rsocket.metadata.TaggingMetadataFlyweight Routing}
-   *   <li>{@link io.rsocket.metadata.security.AuthMetadataFlyweight Authentication}
+   *   <li>{@link io.rsocket.metadata.CompositeMetadataCodec Composite Metadata}
+   *   <li>{@link io.rsocket.metadata.TaggingMetadataCodec Routing}
+   *   <li>{@link io.rsocket.metadata.AuthMetadataCodec Authentication}
    * </ul>
    *
    * <p>For more on the above metadata formats, see the corresponding <a
@@ -221,7 +221,7 @@ public class RSocketConnector {
    *   <li>For server-to-server connections, a reasonable time interval between client {@code
    *       KEEPALIVE} frames is 500ms.
    *   <li>For mobile-to-server connections, the time interval between client {@code KEEPALIVE}
-   *       frames is often > 30,000ms.
+   *       frames is often {@code >} 30,000ms.
    * </ul>
    *
    * <p>By default these are set to 20 seconds and 90 seconds respectively.

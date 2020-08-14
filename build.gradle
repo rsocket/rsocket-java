@@ -133,6 +133,7 @@ subprojects {
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
             }
+            failOnError = false
         }
 
         tasks.named("javadoc").configure {
