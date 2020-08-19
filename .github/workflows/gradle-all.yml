@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        jdk: [ 11, 14 ]
+        jdk: [ 1.8, 11, 14 ]
       fail-fast: false
 
     steps:

@@ -34,11 +34,11 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build
       - name: Publish Packages to Bintray
-        run: ./gradlew -PbintrayUser="${bintrayUser}" -PbintrayKey="${bintrayKey}" -PsonatypeUsername="${sonatypeUsername}" -PsonatypePassword="${sonatypePassword}" -Pversion="${releaseVersion}" -PbuildNumber="${buildNumber}" bintrayUpload
+        run: ./gradlew -PbintrayUser="${bintrayUser}" -PbintrayKey="${bintrayKey}" -PsonatypeUsername="${sonatypeUsername}" -PsonatypePassword="${sonatypePassword}" -Pversion="${githubRef#refs/tags/}" -PbuildNumber="${buildNumber}" bintrayUpload
         env:
           bintrayUser: ${{ secrets.bintrayUser }}
           bintrayKey: ${{ secrets.bintrayKey }}
           sonatypeUsername: ${{ secrets.sonatypeUsername }}
           sonatypePassword: ${{ secrets.sonatypePassword }}
-          releaseVersion: ${{ github.ref }}
+          githubRef: ${{ github.ref }}
           buildNumber: ${{ github.run_number }}
