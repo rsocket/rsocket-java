@@ -16,6 +16,7 @@
 
 package io.rsocket.loadbalance;
 
+import java.util.List;
 import java.util.SplittableRandom;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -56,19 +57,19 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
   }
 
   @Override
-  public PooledRSocket select(PooledRSocket[] sockets) {
+  public PooledRSocket select(List<PooledRSocket> sockets) {
     final int effort = this.effort;
-    final int size = sockets.length;
+    final int size = sockets.size();
 
     PooledRSocket pooledRSocket;
     switch (size) {
       case 1:
-        pooledRSocket = sockets[0];
+        pooledRSocket = sockets.get(0);
         break;
       case 2:
         {
-          PooledRSocket rsc1 = sockets[0];
-          PooledRSocket rsc2 = sockets[1];
+          PooledRSocket rsc1 = sockets.get(0);
+          PooledRSocket rsc2 = sockets.get(1);
 
           double w1 = algorithmicWeight(rsc1);
           double w2 = algorithmicWeight(rsc2);
@@ -91,8 +92,8 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
             if (i2 >= i1) {
               i2++;
             }
-            rsc1 = sockets[i1];
-            rsc2 = sockets[i2];
+            rsc1 = sockets.get(i1);
+            rsc2 = sockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0) {
               break;
             }
