@@ -20,8 +20,11 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.frame.FrameType;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
@@ -34,7 +37,7 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
 class RSocketPool extends ResolvingOperator<Void>
-    implements CoreSubscriber<List<LoadbalanceRSocketSource>> {
+    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<PooledRSocket> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final LoadbalanceStrategy loadbalanceStrategy;
@@ -200,7 +203,33 @@ class RSocketPool extends ResolvingOperator<Void>
       return null;
     }
 
-    return this.loadbalanceStrategy.select(sockets);
+    return this.loadbalanceStrategy.select(this);
+  }
+
+  @Override
+  public PooledRSocket get(int index) {
+    return activeSockets[index];
+  }
+
+  @Override
+  public int size() {
+    return activeSockets.length;
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return activeSockets.length == 0;
+  }
+
+  @Override
+  public Object[] toArray() {
+    return activeSockets;
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public <T> T[] toArray(T[] a) {
+    return (T[]) activeSockets;
   }
 
   static class DeferredResolutionRSocket implements RSocket {
@@ -324,5 +353,95 @@ class RSocketPool extends ResolvingOperator<Void>
         parent.add(this);
       }
     }
+  }
+
+  @Override
+  public boolean contains(Object o) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Iterator<PooledRSocket> iterator() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean add(PooledRSocket pooledRSocket) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean remove(Object o) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean containsAll(Collection<?> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean addAll(Collection<? extends PooledRSocket> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean addAll(int index, Collection<? extends PooledRSocket> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean removeAll(Collection<?> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean retainAll(Collection<?> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void clear() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public PooledRSocket set(int index, PooledRSocket element) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void add(int index, PooledRSocket element) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public PooledRSocket remove(int index) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int indexOf(Object o) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int lastIndexOf(Object o) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public ListIterator<PooledRSocket> listIterator() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public ListIterator<PooledRSocket> listIterator(int index) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<PooledRSocket> subList(int fromIndex, int toIndex) {
+    throw new UnsupportedOperationException();
   }
 }

@@ -15,12 +15,13 @@
  */
 package io.rsocket.loadbalance;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionalInterface
 public interface LoadbalanceStrategy {
 
-  PooledRSocket select(PooledRSocket[] availableRSockets);
+  PooledRSocket select(List<PooledRSocket> availableRSockets);
 
   default Supplier<Stats> statsSupplier() {
     return Stats::noOps;

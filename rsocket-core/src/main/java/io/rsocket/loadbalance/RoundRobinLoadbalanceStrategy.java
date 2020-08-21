@@ -15,6 +15,7 @@
  */
 package io.rsocket.loadbalance;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 public class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
@@ -25,12 +26,11 @@ public class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
       AtomicIntegerFieldUpdater.newUpdater(RoundRobinLoadbalanceStrategy.class, "nextIndex");
 
   @Override
-  public PooledRSocket select(PooledRSocket[] sockets) {
-    int length = sockets.length;
+  public PooledRSocket select(List<PooledRSocket> sockets) {
+    int length = sockets.size();
 
     int indexToUse = Math.abs(NEXT_INDEX.getAndIncrement(this) % length);
 
-    final PooledRSocket pooledRSocket = sockets[indexToUse];
-    return pooledRSocket;
+    return sockets.get(indexToUse);
   }
 }
