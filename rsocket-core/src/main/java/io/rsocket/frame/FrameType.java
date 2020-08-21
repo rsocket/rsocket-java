@@ -195,6 +195,17 @@ public enum FrameType {
   /** A {@link #PAYLOAD} frame with {@code NEXT} and {@code COMPLETE} flags set. */
   NEXT_COMPLETE(0xC0, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA | Flags.IS_FRAGMENTABLE),
 
+  // SYNTHETIC REQUEST_CHANNEL WITH COMPLETION
+
+  /** A {@link #REQUEST_CHANNEL} and {@code COMPLETE} flags set. */
+  REQUEST_CHANNEL_COMPLETE(
+      0xD7,
+      Flags.CAN_HAVE_METADATA
+          | Flags.CAN_HAVE_DATA
+          | Flags.HAS_INITIAL_REQUEST_N
+          | Flags.IS_FRAGMENTABLE
+          | Flags.IS_REQUEST_TYPE),
+
   /**
    * Used To Extend more frame types as well as extensions.
    *

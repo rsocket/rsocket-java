@@ -134,14 +134,14 @@ final class LeaseEnabledRSocketResponder extends RSocketResponder {
   }
 
   @Override
-  void handleChannel(int streamId, ByteBuf frame, long initialRequestN) {
+  void handleChannel(int streamId, ByteBuf frame, long initialRequestN, boolean complete) {
     if (leaseHandler.useLease()) {
       final RequestTracker requestTracker = this.requestTracker;
       if (requestTracker != null) {
         requestTracker.onStart(
             streamId, FrameType.REQUEST_CHANNEL, RequestChannelFrameCodec.metadata(frame));
       }
-      super.handleChannel(streamId, frame, initialRequestN);
+      super.handleChannel(streamId, frame, initialRequestN, complete);
     } else {
       final RequestTracker requestTracker = this.requestTracker;
       if (requestTracker != null) {
