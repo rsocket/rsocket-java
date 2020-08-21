@@ -58,6 +58,7 @@ final class RequestResponseResponderSubscriber
 
   final RSocket handler;
 
+  boolean done;
   CompositeByteBuf frames;
 
   volatile Subscription s;
@@ -109,12 +110,23 @@ final class RequestResponseResponderSubscriber
 
   @Override
   public void onNext(@Nullable Payload p) {
-    if (!Operators.terminate(S, this)) {
+    if (this.done) {
       if (p != null) {
         p.release();
       }
       return;
     }
+
+    final Subscription currentSubscription = this.s;
+    if (currentSubscription == Operators.cancelledSubscription()
+        || !S.compareAndSet(this, currentSubscription, Operators.cancelledSubscription())) {
+      if (p != null) {
+        p.release();
+      }
+      return;
+    }
+
+    this.done = true;
 
     final int streamId = this.streamId;
     final UnboundedProcessor<ByteBuf> sender = this.sendProcessor;
@@ -131,6 +143,8 @@ final class RequestResponseResponderSubscriber
     final int mtu = this.mtu;
     try {
       if (!isValid(mtu, this.maxFrameLength, p, false)) {
+        currentSubscription.cancel();
+
         p.release();
 
         final ByteBuf errorFrame =
@@ -143,6 +157,8 @@ final class RequestResponseResponderSubscriber
         return;
       }
     } catch (IllegalReferenceCountException e) {
+      currentSubscription.cancel();
+
       final ByteBuf errorFrame =
           ErrorFrameCodec.encode(
               allocator,
@@ -155,15 +171,25 @@ final class RequestResponseResponderSubscriber
     try {
       sendReleasingPayload(streamId, FrameType.NEXT_COMPLETE, mtu, p, sender, allocator, false);
     } catch (Throwable ignored) {
+      currentSubscription.cancel();
     }
   }
 
   @Override
   public void onError(Throwable t) {
-    if (S.getAndSet(this, Operators.cancelledSubscription()) == Operators.cancelledSubscription()) {
+    if (this.done) {
       logger.debug("Dropped error", t);
       return;
     }
+
+    final Subscription currentSubscription = this.s;
+    if (currentSubscription == Operators.cancelledSubscription()
+        || !S.compareAndSet(this, currentSubscription, Operators.cancelledSubscription())) {
+      logger.debug("Dropped error", t);
+      return;
+    }
+
+    this.done = true;
 
     final int streamId = this.streamId;
 
