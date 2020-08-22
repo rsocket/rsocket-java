@@ -57,33 +57,33 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
   }
 
   @Override
-  public PooledRSocket select(List<PooledRSocket> sockets) {
+  public WeightedRSocket select(List<WeightedRSocket> sockets) {
     final int effort = this.effort;
     final int size = sockets.size();
 
-    PooledRSocket pooledRSocket;
+    WeightedRSocket weightedRSocket;
     switch (size) {
       case 1:
-        pooledRSocket = sockets.get(0);
+        weightedRSocket = sockets.get(0);
         break;
       case 2:
         {
-          PooledRSocket rsc1 = sockets.get(0);
-          PooledRSocket rsc2 = sockets.get(1);
+          WeightedRSocket rsc1 = sockets.get(0);
+          WeightedRSocket rsc2 = sockets.get(1);
 
           double w1 = algorithmicWeight(rsc1);
           double w2 = algorithmicWeight(rsc2);
           if (w1 < w2) {
-            pooledRSocket = rsc2;
+            weightedRSocket = rsc2;
           } else {
-            pooledRSocket = rsc1;
+            weightedRSocket = rsc1;
           }
         }
         break;
       default:
         {
-          PooledRSocket rsc1 = null;
-          PooledRSocket rsc2 = null;
+          WeightedRSocket rsc1 = null;
+          WeightedRSocket rsc2 = null;
 
           for (int i = 0; i < effort; i++) {
             int i1 = ThreadLocalRandom.current().nextInt(size);
@@ -102,23 +102,23 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
           double w1 = algorithmicWeight(rsc1);
           double w2 = algorithmicWeight(rsc2);
           if (w1 < w2) {
-            pooledRSocket = rsc2;
+            weightedRSocket = rsc2;
           } else {
-            pooledRSocket = rsc1;
+            weightedRSocket = rsc1;
           }
         }
     }
 
-    return pooledRSocket;
+    return weightedRSocket;
   }
 
-  private static double algorithmicWeight(@Nullable final PooledRSocket pooledRSocket) {
-    if (pooledRSocket == null
-        || pooledRSocket.isDisposed()
-        || pooledRSocket.availability() == 0.0) {
+  private static double algorithmicWeight(@Nullable final WeightedRSocket weightedRSocket) {
+    if (weightedRSocket == null
+        || weightedRSocket.isDisposed()
+        || weightedRSocket.availability() == 0.0) {
       return 0.0;
     }
-    final Stats stats = pooledRSocket.stats();
+    final Stats stats = weightedRSocket.stats();
     final int pending = stats.pending();
     double latency = stats.predictedLatency();
 
@@ -135,7 +135,7 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
       latency *= calculateFactor(latency, high, bandWidth);
     }
 
-    return pooledRSocket.availability() * 1.0 / (1.0 + latency * (pending + 1));
+    return weightedRSocket.availability() * 1.0 / (1.0 + latency * (pending + 1));
   }
 
   private static double calculateFactor(final double u, final double l, final double bandWidth) {

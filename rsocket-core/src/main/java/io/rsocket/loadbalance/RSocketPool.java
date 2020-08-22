@@ -37,20 +37,20 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
 class RSocketPool extends ResolvingOperator<Void>
-    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<PooledRSocket> {
+    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<WeightedRSocket> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final LoadbalanceStrategy loadbalanceStrategy;
   final Supplier<Stats> statsSupplier;
 
-  volatile PooledRSocket[] activeSockets;
+  volatile PooledWeightedRSocket[] activeSockets;
 
-  static final AtomicReferenceFieldUpdater<RSocketPool, PooledRSocket[]> ACTIVE_SOCKETS =
+  static final AtomicReferenceFieldUpdater<RSocketPool, PooledWeightedRSocket[]> ACTIVE_SOCKETS =
       AtomicReferenceFieldUpdater.newUpdater(
-          RSocketPool.class, PooledRSocket[].class, "activeSockets");
+          RSocketPool.class, PooledWeightedRSocket[].class, "activeSockets");
 
-  static final PooledRSocket[] EMPTY = new PooledRSocket[0];
-  static final PooledRSocket[] TERMINATED = new PooledRSocket[0];
+  static final PooledWeightedRSocket[] EMPTY = new PooledWeightedRSocket[0];
+  static final PooledWeightedRSocket[] TERMINATED = new PooledWeightedRSocket[0];
 
   volatile Subscription s;
   static final AtomicReferenceFieldUpdater<RSocketPool, Subscription> S =
@@ -96,8 +96,8 @@ class RSocketPool extends ResolvingOperator<Void>
       return;
     }
 
-    PooledRSocket[] previouslyActiveSockets;
-    PooledRSocket[] activeSockets;
+    PooledWeightedRSocket[] previouslyActiveSockets;
+    PooledWeightedRSocket[] activeSockets;
     for (; ; ) {
       HashMap<LoadbalanceRSocketSource, Integer> rSocketSuppliersCopy = new HashMap<>();
 
@@ -108,11 +108,11 @@ class RSocketPool extends ResolvingOperator<Void>
 
       // checking intersection of active RSocket with the newly received set
       previouslyActiveSockets = this.activeSockets;
-      PooledRSocket[] nextActiveSockets =
-          new PooledRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
+      PooledWeightedRSocket[] nextActiveSockets =
+          new PooledWeightedRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
       int position = 0;
       for (int i = 0; i < previouslyActiveSockets.length; i++) {
-        PooledRSocket rSocket = previouslyActiveSockets[i];
+        PooledWeightedRSocket rSocket = previouslyActiveSockets[i];
 
         Integer index = rSocketSuppliersCopy.remove(rSocket.source());
         if (index == null) {
@@ -130,7 +130,7 @@ class RSocketPool extends ResolvingOperator<Void>
           } else {
             // put newly create RSocket instance
             nextActiveSockets[position++] =
-                new DefaultPooledRSocket(
+                new PooledWeightedRSocket(
                     this, loadbalanceRSocketSources.get(index), this.statsSupplier.get());
           }
         }
@@ -139,7 +139,7 @@ class RSocketPool extends ResolvingOperator<Void>
       // going though brightly new rsocket
       for (LoadbalanceRSocketSource newLoadbalanceRSocketSource : rSocketSuppliersCopy.keySet()) {
         nextActiveSockets[position++] =
-            new DefaultPooledRSocket(this, newLoadbalanceRSocketSource, this.statsSupplier.get());
+            new PooledWeightedRSocket(this, newLoadbalanceRSocketSource, this.statsSupplier.get());
       }
 
       // shrank to actual length
@@ -198,7 +198,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
   @Nullable
   RSocket doSelect() {
-    PooledRSocket[] sockets = this.activeSockets;
+    WeightedRSocket[] sockets = this.activeSockets;
     if (sockets == EMPTY) {
       return null;
     }
@@ -207,7 +207,7 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public PooledRSocket get(int index) {
+  public WeightedRSocket get(int index) {
     return activeSockets[index];
   }
 
@@ -361,12 +361,12 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public Iterator<PooledRSocket> iterator() {
+  public Iterator<WeightedRSocket> iterator() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public boolean add(PooledRSocket pooledRSocket) {
+  public boolean add(WeightedRSocket weightedRSocket) {
     throw new UnsupportedOperationException();
   }
 
@@ -381,12 +381,12 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public boolean addAll(Collection<? extends PooledRSocket> c) {
+  public boolean addAll(Collection<? extends WeightedRSocket> c) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public boolean addAll(int index, Collection<? extends PooledRSocket> c) {
+  public boolean addAll(int index, Collection<? extends WeightedRSocket> c) {
     throw new UnsupportedOperationException();
   }
 
@@ -406,17 +406,17 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public PooledRSocket set(int index, PooledRSocket element) {
+  public WeightedRSocket set(int index, WeightedRSocket element) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void add(int index, PooledRSocket element) {
+  public void add(int index, WeightedRSocket element) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public PooledRSocket remove(int index) {
+  public WeightedRSocket remove(int index) {
     throw new UnsupportedOperationException();
   }
 
@@ -431,17 +431,17 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public ListIterator<PooledRSocket> listIterator() {
+  public ListIterator<WeightedRSocket> listIterator() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public ListIterator<PooledRSocket> listIterator(int index) {
+  public ListIterator<WeightedRSocket> listIterator(int index) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public List<PooledRSocket> subList(int fromIndex, int toIndex) {
+  public List<WeightedRSocket> subList(int fromIndex, int toIndex) {
     throw new UnsupportedOperationException();
   }
 }
