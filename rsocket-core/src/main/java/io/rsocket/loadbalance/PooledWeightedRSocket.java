@@ -28,9 +28,9 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
 
-/** Default implementation of {@link PooledRSocket} stored in {@link RSocketPool} */
-final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
-    implements CoreSubscriber<RSocket>, PooledRSocket {
+/** Default implementation of {@link WeightedRSocket} stored in {@link RSocketPool} */
+final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
+    implements CoreSubscriber<RSocket>, WeightedRSocket {
 
   final RSocketPool parent;
   final LoadbalanceRSocketSource loadbalanceRSocketSource;
@@ -38,10 +38,10 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
 
   volatile Subscription s;
 
-  static final AtomicReferenceFieldUpdater<DefaultPooledRSocket, Subscription> S =
-      AtomicReferenceFieldUpdater.newUpdater(DefaultPooledRSocket.class, Subscription.class, "s");
+  static final AtomicReferenceFieldUpdater<PooledWeightedRSocket, Subscription> S =
+      AtomicReferenceFieldUpdater.newUpdater(PooledWeightedRSocket.class, Subscription.class, "s");
 
-  DefaultPooledRSocket(
+  PooledWeightedRSocket(
       RSocketPool parent, LoadbalanceRSocketSource loadbalanceRSocketSource, Stats stats) {
     this.parent = parent;
     this.stats = stats;
@@ -128,7 +128,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
   protected void doOnDispose() {
     final RSocketPool parent = this.parent;
     for (; ; ) {
-      final PooledRSocket[] sockets = parent.activeSockets;
+      final PooledWeightedRSocket[] sockets = parent.activeSockets;
       final int activeSocketsCount = sockets.length;
 
       int index = -1;
@@ -144,7 +144,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
       }
 
       final int lastIndex = activeSocketsCount - 1;
-      final PooledRSocket[] newSockets = new PooledRSocket[lastIndex];
+      final PooledWeightedRSocket[] newSockets = new PooledWeightedRSocket[lastIndex];
       if (index != 0) {
         System.arraycopy(sockets, 0, newSockets, 0, index);
       }
@@ -196,8 +196,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     return stats;
   }
 
-  @Override
-  public LoadbalanceRSocketSource source() {
+  LoadbalanceRSocketSource source() {
     return loadbalanceRSocketSource;
   }
 
@@ -211,7 +210,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
 
     long startTime;
 
-    RequestTrackingMonoInner(DefaultPooledRSocket parent, Payload payload, FrameType requestType) {
+    RequestTrackingMonoInner(PooledWeightedRSocket parent, Payload payload, FrameType requestType) {
       super(parent, payload, requestType);
     }
 
@@ -245,7 +244,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        startTime = ((DefaultPooledRSocket) parent).stats.startRequest();
+        startTime = ((PooledWeightedRSocket) parent).stats.startRequest();
 
         source.subscribe((CoreSubscriber) this);
       } else {
@@ -257,7 +256,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     public void onComplete() {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        final Stats stats = ((DefaultPooledRSocket) parent).stats;
+        final Stats stats = ((PooledWeightedRSocket) parent).stats;
         final long now = stats.stopRequest(startTime);
         stats.record(now - startTime);
         super.onComplete();
@@ -268,7 +267,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     public void onError(Throwable t) {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        Stats stats = ((DefaultPooledRSocket) parent).stats;
+        Stats stats = ((PooledWeightedRSocket) parent).stats;
         stats.stopRequest(startTime);
         stats.recordError(0.0);
         super.onError(t);
@@ -284,7 +283,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
 
       if (state == STATE_SUBSCRIBED) {
         this.s.cancel();
-        ((DefaultPooledRSocket) parent).stats.stopRequest(startTime);
+        ((PooledWeightedRSocket) parent).stats.stopRequest(startTime);
       } else {
         this.parent.remove(this);
         ReferenceCountUtil.safeRelease(this.payload);
@@ -296,7 +295,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
       extends FluxDeferredResolution<INPUT, RSocket> {
 
     RequestTrackingFluxInner(
-        DefaultPooledRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
+        PooledWeightedRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
       super(parent, fluxOrPayload, requestType);
     }
 
@@ -329,7 +328,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        ((DefaultPooledRSocket) parent).stats.startStream();
+        ((PooledWeightedRSocket) parent).stats.startStream();
 
         source.subscribe(this);
       } else {
@@ -341,7 +340,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     public void onComplete() {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((DefaultPooledRSocket) parent).stats.stopStream();
+        ((PooledWeightedRSocket) parent).stats.stopStream();
         super.onComplete();
       }
     }
@@ -350,7 +349,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     public void onError(Throwable t) {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((DefaultPooledRSocket) parent).stats.stopStream();
+        ((PooledWeightedRSocket) parent).stats.stopStream();
         super.onError(t);
       }
     }
@@ -364,7 +363,7 @@ final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
 
       if (state == STATE_SUBSCRIBED) {
         this.s.cancel();
-        ((DefaultPooledRSocket) parent).stats.stopStream();
+        ((PooledWeightedRSocket) parent).stats.stopStream();
       } else {
         this.parent.remove(this);
         if (requestType == FrameType.REQUEST_STREAM) {

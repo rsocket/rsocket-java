@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 @FunctionalInterface
 public interface LoadbalanceStrategy {
 
-  PooledRSocket select(List<PooledRSocket> availableRSockets);
+  WeightedRSocket select(List<WeightedRSocket> availableRSockets);
 
   default Supplier<Stats> statsSupplier() {
     return Stats::noOps;
