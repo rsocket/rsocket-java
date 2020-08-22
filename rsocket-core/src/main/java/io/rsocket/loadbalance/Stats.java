@@ -138,15 +138,15 @@ public class Stats implements Availability {
     return duration + (now - stamp0) * pending;
   }
 
-  void startStream() {
+  public void startStream() {
     PENDING_STREAMS.incrementAndGet(this);
   }
 
-  void stopStream() {
+  public void stopStream() {
     PENDING_STREAMS.decrementAndGet(this);
   }
 
-  synchronized long startRequest() {
+  public synchronized long startRequest() {
     long now = Clock.now();
     interArrivalTime.insert(now - stamp);
     duration += Math.max(0, now - stamp0) * pending;
@@ -156,7 +156,7 @@ public class Stats implements Availability {
     return now;
   }
 
-  synchronized long stopRequest(long timestamp) {
+  public synchronized long stopRequest(long timestamp) {
     long now = Clock.now();
     duration += Math.max(0, now - stamp0) * pending - (now - timestamp);
     pending -= 1;
@@ -164,18 +164,18 @@ public class Stats implements Availability {
     return now;
   }
 
-  synchronized void record(double roundTripTime) {
+  public synchronized void record(double roundTripTime) {
     median.insert(roundTripTime);
     lowerQuantile.insert(roundTripTime);
     higherQuantile.insert(roundTripTime);
   }
 
-  synchronized void recordError(double value) {
+  public synchronized void recordError(double value) {
     errorPercentage.insert(value);
     errorStamp = Clock.now();
   }
 
-  void setAvailability(double availability) {
+  public void setAvailability(double availability) {
     this.availability = availability;
   }
 
@@ -270,26 +270,26 @@ public class Stats implements Availability {
     }
 
     @Override
-    void startStream() {}
+    public void startStream() {}
 
     @Override
-    void stopStream() {}
+    public void stopStream() {}
 
     @Override
-    long startRequest() {
+    public long startRequest() {
       return 0;
     }
 
     @Override
-    long stopRequest(long timestamp) {
+    public long stopRequest(long timestamp) {
       return 0;
     }
 
     @Override
-    void record(double roundTripTime) {}
+    public void record(double roundTripTime) {}
 
     @Override
-    void recordError(double value) {}
+    public void recordError(double value) {}
 
     @Override
     public String toString() {
