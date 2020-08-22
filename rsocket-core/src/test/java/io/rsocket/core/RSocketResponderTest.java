@@ -143,17 +143,24 @@ public class RSocketResponderTest {
 
   @Test
   @Timeout(2_000)
-  @Disabled
   public void testHandleResponseFrameNoError() throws Exception {
     final int streamId = 4;
     rule.connection.clearSendReceiveBuffers();
-
+    final TestPublisher<Payload> testPublisher = TestPublisher.create();
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            return testPublisher.mono();
+          }
+        });
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
-
+    testPublisher.complete();
     assertThat(
         "Unexpected frame sent.",
         frameType(rule.connection.awaitSend()),
         anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
+    testPublisher.assertWasNotCancelled();
   }
 
   @Test
