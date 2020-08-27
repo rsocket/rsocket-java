@@ -22,7 +22,6 @@ import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.loadbalance.LoadbalanceRSocketClient;
 import io.rsocket.loadbalance.LoadbalanceRSocketSource;
-import io.rsocket.loadbalance.WeightedLoadbalanceStrategy;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import org.reactivestreams.Publisher;
@@ -79,7 +78,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     rsl.stream()
                         .map(rs -> LoadbalanceRSocketSource.from(rs.toString(), rs.get()))
                         .collect(Collectors.toList()))
-            .as(f -> LoadbalanceRSocketClient.create(new WeightedLoadbalanceStrategy(), f)));
+            .as(
+                f ->
+                    LoadbalanceRSocketClient.builder().withWeightedLoadbalanceStrategy().build(f)));
   }
 
   public static LoadBalancedRSocketMono fromClient(LoadbalanceRSocketClient rSocketClient) {

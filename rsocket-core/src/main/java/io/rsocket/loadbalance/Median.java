@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.rsocket.loadbalance.stat;
+package io.rsocket.loadbalance;
 
 /** This implementation gives better results because it considers more data-point. */
-public class Median extends FrugalQuantile {
+class Median extends FrugalQuantile {
   public Median() {
     super(0.5, 1.0);
   }

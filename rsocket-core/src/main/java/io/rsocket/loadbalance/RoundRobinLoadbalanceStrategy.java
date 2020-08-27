@@ -15,10 +15,11 @@
  */
 package io.rsocket.loadbalance;
 
+import io.rsocket.RSocket;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-public class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
+class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
 
   volatile int nextIndex;
 
@@ -26,7 +27,7 @@ public class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
       AtomicIntegerFieldUpdater.newUpdater(RoundRobinLoadbalanceStrategy.class, "nextIndex");
 
   @Override
-  public WeightedRSocket select(List<WeightedRSocket> sockets) {
+  public RSocket select(List<RSocket> sockets) {
     int length = sockets.size();
 
     int indexToUse = Math.abs(NEXT_INDEX.getAndIncrement(this) % length);

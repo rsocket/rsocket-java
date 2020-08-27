@@ -17,7 +17,7 @@ package io.rsocket.loadbalance;
 
 import io.rsocket.RSocket;
 
-public interface WeightedRSocket extends RSocket {
+interface WeightedRSocket extends RSocket {
 
   Stats stats();
 }

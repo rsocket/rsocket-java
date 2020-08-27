@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket.loadbalance.stat;
+package io.rsocket.loadbalance;
 
 import java.util.SplittableRandom;
 
@@ -25,7 +25,7 @@ import java.util.SplittableRandom;
  *
  * <p>More info: http://blog.aggregateknowledge.com/2013/09/16/sketch-of-the-day-frugal-streaming/
  */
-public class FrugalQuantile implements Quantile {
+class FrugalQuantile implements Quantile {
   private final double increment;
   volatile double estimate;
   int step;

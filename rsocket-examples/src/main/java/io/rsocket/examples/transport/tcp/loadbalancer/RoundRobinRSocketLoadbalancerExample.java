@@ -6,7 +6,6 @@ import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.loadbalance.LoadbalanceRSocketClient;
 import io.rsocket.loadbalance.LoadbalanceRSocketSource;
-import io.rsocket.loadbalance.RoundRobinLoadbalanceStrategy;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -120,7 +119,7 @@ public class RoundRobinRSocketLoadbalancerExample {
                 });
 
     RSocketClient loadBalancedRSocketClient =
-        LoadbalanceRSocketClient.create(new RoundRobinLoadbalanceStrategy(), producer);
+        LoadbalanceRSocketClient.builder().withRoundRobinLoadbalanceStrategy().build(producer);
 
     for (int i = 0; i < 10000; i++) {
       try {

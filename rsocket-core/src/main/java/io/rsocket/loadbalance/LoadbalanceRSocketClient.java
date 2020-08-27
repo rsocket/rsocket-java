@@ -79,8 +79,38 @@ public class LoadbalanceRSocketClient implements RSocketClient {
         new RSocketPool(rSocketSuppliersPublisher, loadbalanceStrategy));
   }
 
-  public static RSocketClient create(
+  public static LoadbalanceRSocketClient create(
       Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
     return create(new RoundRobinLoadbalanceStrategy(), rSocketSuppliersPublisher);
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+
+    LoadbalanceStrategy loadbalanceStrategy;
+
+    Builder() {}
+
+    public Builder withWeightedLoadbalanceStrategy() {
+      return withCustomLoadbalanceStrategy(new WeightedLoadbalanceStrategy());
+    }
+
+    public Builder withRoundRobinLoadbalanceStrategy() {
+      return withCustomLoadbalanceStrategy(new RoundRobinLoadbalanceStrategy());
+    }
+
+    public Builder withCustomLoadbalanceStrategy(LoadbalanceStrategy strategy) {
+      this.loadbalanceStrategy = strategy;
+      return this;
+    }
+
+    public LoadbalanceRSocketClient build(
+        Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
+      return new LoadbalanceRSocketClient(
+          new RSocketPool(rSocketSuppliersPublisher, this.loadbalanceStrategy));
+    }
   }
 }

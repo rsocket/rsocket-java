@@ -16,13 +16,14 @@
 
 package io.rsocket.loadbalance;
 
+import io.rsocket.RSocket;
 import java.util.List;
 import java.util.SplittableRandom;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import reactor.util.annotation.Nullable;
 
-public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
+class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
 
   private static final double EXP_FACTOR = 4.0;
 
@@ -52,24 +53,19 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
   }
 
   @Override
-  public Supplier<Stats> statsSupplier() {
-    return this.statsSupplier;
-  }
-
-  @Override
-  public WeightedRSocket select(List<WeightedRSocket> sockets) {
+  public RSocket select(List<RSocket> sockets) {
     final int effort = this.effort;
     final int size = sockets.size();
 
     WeightedRSocket weightedRSocket;
     switch (size) {
       case 1:
-        weightedRSocket = sockets.get(0);
+        weightedRSocket = (WeightedRSocket) sockets.get(0);
         break;
       case 2:
         {
-          WeightedRSocket rsc1 = sockets.get(0);
-          WeightedRSocket rsc2 = sockets.get(1);
+          WeightedRSocket rsc1 = (WeightedRSocket) sockets.get(0);
+          WeightedRSocket rsc2 = (WeightedRSocket) sockets.get(1);
 
           double w1 = algorithmicWeight(rsc1);
           double w2 = algorithmicWeight(rsc2);
@@ -92,8 +88,8 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
             if (i2 >= i1) {
               i2++;
             }
-            rsc1 = sockets.get(i1);
-            rsc2 = sockets.get(i2);
+            rsc1 = (WeightedRSocket) sockets.get(i1);
+            rsc2 = (WeightedRSocket) sockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0) {
               break;
             }
