@@ -13,8 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.rsocket.loadbalance;
 
-@NonNullApi
-package io.rsocket.loadbalance.stat;
+interface Quantile {
+  /** @return the estimation of the current value of the quantile */
+  double estimation();
 
-import reactor.util.annotation.NonNullApi;
+  /**
+   * Insert a data point `x` in the quantile estimator.
+   *
+   * @param x the data point to add.
+   */
+  void insert(double x);
+}

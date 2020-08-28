@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket.loadbalance.stat;
+package io.rsocket.loadbalance;
 
 import io.rsocket.util.Clock;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  * <p>e.g. with a half-life of 10 unit, if you insert 100 at t=0 and 200 at t=10 the ewma will be
  * equal to (200 - 100)/2 = 150 (half of the distance between the new and the old value)
  */
-public class Ewma {
+class Ewma {
   private final long tau;
   private volatile long stamp;
   private volatile double ewma;

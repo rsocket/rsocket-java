@@ -37,7 +37,7 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
 class RSocketPool extends ResolvingOperator<Void>
-    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<WeightedRSocket> {
+    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<RSocket> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final LoadbalanceStrategy loadbalanceStrategy;
@@ -59,7 +59,11 @@ class RSocketPool extends ResolvingOperator<Void>
   RSocketPool(
       Publisher<List<LoadbalanceRSocketSource>> source, LoadbalanceStrategy loadbalanceStrategy) {
     this.loadbalanceStrategy = loadbalanceStrategy;
-    this.statsSupplier = loadbalanceStrategy.statsSupplier();
+    if (loadbalanceStrategy instanceof WeightedLoadbalanceStrategy) {
+      this.statsSupplier = Stats::create;
+    } else {
+      this.statsSupplier = Stats::noOps;
+    }
 
     ACTIVE_SOCKETS.lazySet(this, EMPTY);
 
@@ -361,12 +365,12 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public Iterator<WeightedRSocket> iterator() {
+  public Iterator<RSocket> iterator() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public boolean add(WeightedRSocket weightedRSocket) {
+  public boolean add(RSocket weightedRSocket) {
     throw new UnsupportedOperationException();
   }
 
@@ -381,12 +385,12 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public boolean addAll(Collection<? extends WeightedRSocket> c) {
+  public boolean addAll(Collection<? extends RSocket> c) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public boolean addAll(int index, Collection<? extends WeightedRSocket> c) {
+  public boolean addAll(int index, Collection<? extends RSocket> c) {
     throw new UnsupportedOperationException();
   }
 
@@ -406,12 +410,12 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public WeightedRSocket set(int index, WeightedRSocket element) {
+  public WeightedRSocket set(int index, RSocket element) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void add(int index, WeightedRSocket element) {
+  public void add(int index, RSocket element) {
     throw new UnsupportedOperationException();
   }
 
@@ -431,17 +435,17 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public ListIterator<WeightedRSocket> listIterator() {
+  public ListIterator<RSocket> listIterator() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public ListIterator<WeightedRSocket> listIterator(int index) {
+  public ListIterator<RSocket> listIterator(int index) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public List<WeightedRSocket> subList(int fromIndex, int toIndex) {
+  public List<RSocket> subList(int fromIndex, int toIndex) {
     throw new UnsupportedOperationException();
   }
 }

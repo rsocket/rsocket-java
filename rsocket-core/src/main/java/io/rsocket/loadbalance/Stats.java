@@ -1,15 +1,11 @@
 package io.rsocket.loadbalance;
 
 import io.rsocket.Availability;
-import io.rsocket.loadbalance.stat.Ewma;
-import io.rsocket.loadbalance.stat.FrugalQuantile;
-import io.rsocket.loadbalance.stat.Median;
-import io.rsocket.loadbalance.stat.Quantile;
 import io.rsocket.util.Clock;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-public class Stats implements Availability {
+class Stats implements Availability {
 
   private static final double DEFAULT_LOWER_QUANTILE = 0.5;
   private static final double DEFAULT_HIGHER_QUANTILE = 0.8;
