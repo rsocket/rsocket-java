@@ -18,14 +18,16 @@ package io.rsocket.loadbalance;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketClient;
+import io.rsocket.core.RSocketConnector;
 import java.util.List;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 /**
- * {@link RSocketClient} implementation that uses a pool and a {@link LoadbalanceStrategy} to select
- * the {@code RSocket} to use for each request.
+ * {@link RSocketClient} implementation that uses a {@link LoadbalanceStrategy} to select the {@code
+ * RSocket} to use for a given request from a pool of possible targets.
  *
  * @since 1.1
  */
@@ -72,45 +74,109 @@ public class LoadbalanceRSocketClient implements RSocketClient {
     rSocketPool.dispose();
   }
 
+  /**
+   * Shortcut to create an {@link LoadbalanceRSocketClient} with round robin loadalancing.
+   * Effectively a shortcut for:
+   *
+   * <pre class="cdoe">
+   * LoadbalanceRSocketClient.builder(targetPublisher)
+   *    .connector(RSocketConnector.create())
+   *    .build();
+   * </pre>
+   *
+   * @param connector the {@link Builder#connector(RSocketConnector) to use
+   * @param targetPublisher publisher that periodically refreshes the list of targets to loadbalance across.
+   * @return the created client instance
+   */
   public static LoadbalanceRSocketClient create(
-      LoadbalanceStrategy loadbalanceStrategy,
-      Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
-    return new LoadbalanceRSocketClient(
-        new RSocketPool(rSocketSuppliersPublisher, loadbalanceStrategy));
+      RSocketConnector connector, Publisher<List<LoadbalanceTarget>> targetPublisher) {
+    return builder(targetPublisher).connector(connector).build();
   }
 
-  public static LoadbalanceRSocketClient create(
-      Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
-    return create(new RoundRobinLoadbalanceStrategy(), rSocketSuppliersPublisher);
+  /**
+   * Return a builder to create an {@link LoadbalanceRSocketClient} with.
+   *
+   * @param targetPublisher publisher that periodically refreshes the list of targets to loadbalance
+   *     across.
+   * @return the builder instance
+   */
+  public static Builder builder(Publisher<List<LoadbalanceTarget>> targetPublisher) {
+    return new Builder(targetPublisher);
   }
 
-  public static Builder builder() {
-    return new Builder();
-  }
-
+  /** Builder for creating an {@link LoadbalanceRSocketClient}. */
   public static class Builder {
 
-    LoadbalanceStrategy loadbalanceStrategy;
+    private final Publisher<List<LoadbalanceTarget>> targetPublisher;
 
-    Builder() {}
+    @Nullable private RSocketConnector connector;
 
-    public Builder withWeightedLoadbalanceStrategy() {
-      return withCustomLoadbalanceStrategy(new WeightedLoadbalanceStrategy());
+    @Nullable LoadbalanceStrategy loadbalanceStrategy;
+
+    Builder(Publisher<List<LoadbalanceTarget>> targetPublisher) {
+      this.targetPublisher = targetPublisher;
     }
 
-    public Builder withRoundRobinLoadbalanceStrategy() {
-      return withCustomLoadbalanceStrategy(new RoundRobinLoadbalanceStrategy());
+    /**
+     * The given {@link RSocketConnector} is used as a template to produce the {@code Mono<RSocket>}
+     * source for each {@link LoadbalanceTarget}. This is done by passing the {@code
+     * ClientTransport} contained in every target to the {@code connect} method of the given
+     * connector instance.
+     *
+     * <p>By default this is initialized with {@link RSocketConnector#create()}.
+     *
+     * @param connector the connector to use as a template
+     */
+    public Builder connector(RSocketConnector connector) {
+      this.connector = connector;
+      return this;
     }
 
-    public Builder withCustomLoadbalanceStrategy(LoadbalanceStrategy strategy) {
+    /**
+     * Switch to using a round-robin strategy for selecting a target.
+     *
+     * <p>This is the strategy used by default.
+     */
+    public Builder roundRobinLoadbalanceStrategy() {
+      this.loadbalanceStrategy = new RoundRobinLoadbalanceStrategy();
+      return this;
+    }
+
+    /**
+     * Switch to using a strategy that assigns a weight to each pooled {@code RSocket} based on
+     * actual usage stats, and uses that to make a choice.
+     *
+     * <p>By default this strategy is not used.
+     */
+    public Builder weightedLoadbalanceStrategy() {
+      this.loadbalanceStrategy = new WeightedLoadbalanceStrategy();
+      return this;
+    }
+
+    /**
+     * Switch to using a custom strategy for loadbalancing.
+     *
+     * @see #roundRobinLoadbalanceStrategy()
+     */
+    public Builder customLoadbalanceStrategy(LoadbalanceStrategy strategy) {
       this.loadbalanceStrategy = strategy;
       return this;
     }
 
-    public LoadbalanceRSocketClient build(
-        Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
+    /** Build the {@link LoadbalanceRSocketClient} instance. */
+    public LoadbalanceRSocketClient build() {
       return new LoadbalanceRSocketClient(
-          new RSocketPool(rSocketSuppliersPublisher, this.loadbalanceStrategy));
+          new RSocketPool(initConnector(), this.targetPublisher, initLoadbalanceStrategy()));
+    }
+
+    private RSocketConnector initConnector() {
+      return (this.connector != null ? this.connector : RSocketConnector.create());
+    }
+
+    private LoadbalanceStrategy initLoadbalanceStrategy() {
+      return (this.loadbalanceStrategy != null
+          ? this.loadbalanceStrategy
+          : new RoundRobinLoadbalanceStrategy());
     }
   }
 }

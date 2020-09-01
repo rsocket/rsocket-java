@@ -1,11 +1,25 @@
+/*
+ * Copyright 2015-2020 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.rsocket.examples.transport.tcp.loadbalancer;
 
 import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.loadbalance.LoadbalanceRSocketClient;
-import io.rsocket.loadbalance.LoadbalanceRSocketSource;
+import io.rsocket.loadbalance.LoadbalanceTarget;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -50,7 +64,11 @@ public class RoundRobinRSocketLoadbalancerExample {
                     }))
             .bindNow(TcpServerTransport.create(8082));
 
-    Flux<List<LoadbalanceRSocketSource>> producer =
+    LoadbalanceTarget target8080 = LoadbalanceTarget.from("8080", TcpClientTransport.create(8080));
+    LoadbalanceTarget target8081 = LoadbalanceTarget.from("8081", TcpClientTransport.create(8081));
+    LoadbalanceTarget target8082 = LoadbalanceTarget.from("8082", TcpClientTransport.create(8082));
+
+    Flux<List<LoadbalanceTarget>> producer =
         Flux.interval(Duration.ofSeconds(5))
             .log()
             .map(
@@ -60,73 +78,31 @@ public class RoundRobinRSocketLoadbalancerExample {
                     case 0:
                       return Collections.emptyList();
                     case 1:
-                      return Collections.singletonList(
-                          LoadbalanceRSocketSource.from(
-                              "8080",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8080))));
+                      return Collections.singletonList(target8080);
                     case 2:
-                      return Arrays.asList(
-                          LoadbalanceRSocketSource.from(
-                              "8080",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          LoadbalanceRSocketSource.from(
-                              "8081",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8081))));
+                      return Arrays.asList(target8080, target8081);
                     case 3:
-                      return Arrays.asList(
-                          LoadbalanceRSocketSource.from(
-                              "8080",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          LoadbalanceRSocketSource.from(
-                              "8082",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8082))));
+                      return Arrays.asList(target8080, target8082);
                     case 4:
-                      return Arrays.asList(
-                          LoadbalanceRSocketSource.from(
-                              "8081",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          LoadbalanceRSocketSource.from(
-                              "8082",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8082))));
+                      return Arrays.asList(target8081, target8082);
                     case 5:
-                      return Arrays.asList(
-                          LoadbalanceRSocketSource.from(
-                              "8080",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          LoadbalanceRSocketSource.from(
-                              "8081",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          LoadbalanceRSocketSource.from(
-                              "8082",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8082))));
+                      return Arrays.asList(target8080, target8081, target8082);
                     case 6:
                       return Collections.emptyList();
                     case 7:
                       return Collections.emptyList();
                     default:
-                    case 8:
-                      return Arrays.asList(
-                          LoadbalanceRSocketSource.from(
-                              "8080",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          LoadbalanceRSocketSource.from(
-                              "8081",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          LoadbalanceRSocketSource.from(
-                              "8082",
-                              RSocketConnector.connectWith(TcpClientTransport.create(8082))));
+                      return Arrays.asList(target8080, target8081, target8082);
                   }
                 });
 
-    RSocketClient loadBalancedRSocketClient =
-        LoadbalanceRSocketClient.builder().withRoundRobinLoadbalanceStrategy().build(producer);
+    RSocketClient rSocketClient =
+        LoadbalanceRSocketClient.builder(producer).roundRobinLoadbalanceStrategy().build();
 
     for (int i = 0; i < 10000; i++) {
       try {
 
-        loadBalancedRSocketClient
-            .requestResponse(Mono.just(DefaultPayload.create("test" + i)))
-            .block();
+        rSocketClient.requestResponse(Mono.just(DefaultPayload.create("test" + i))).block();
       } catch (Throwable t) {
         // no ops
       }
