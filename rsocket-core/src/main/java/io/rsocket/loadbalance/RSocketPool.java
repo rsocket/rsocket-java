@@ -18,6 +18,7 @@ package io.rsocket.loadbalance;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.core.RSocketConnector;
 import io.rsocket.frame.FrameType;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,9 +38,10 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
 class RSocketPool extends ResolvingOperator<Void>
-    implements CoreSubscriber<List<LoadbalanceRSocketSource>>, List<RSocket> {
+    implements CoreSubscriber<List<LoadbalanceTarget>>, List<RSocket> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
+  final RSocketConnector connector;
   final LoadbalanceStrategy loadbalanceStrategy;
   final Supplier<Stats> statsSupplier;
 
@@ -56,8 +58,11 @@ class RSocketPool extends ResolvingOperator<Void>
   static final AtomicReferenceFieldUpdater<RSocketPool, Subscription> S =
       AtomicReferenceFieldUpdater.newUpdater(RSocketPool.class, Subscription.class, "s");
 
-  RSocketPool(
-      Publisher<List<LoadbalanceRSocketSource>> source, LoadbalanceStrategy loadbalanceStrategy) {
+  public RSocketPool(
+      RSocketConnector connector,
+      Publisher<List<LoadbalanceTarget>> targetPublisher,
+      LoadbalanceStrategy loadbalanceStrategy) {
+    this.connector = connector;
     this.loadbalanceStrategy = loadbalanceStrategy;
     if (loadbalanceStrategy instanceof WeightedLoadbalanceStrategy) {
       this.statsSupplier = Stats::create;
@@ -67,7 +72,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
     ACTIVE_SOCKETS.lazySet(this, EMPTY);
 
-    source.subscribe(this);
+    targetPublisher.subscribe(this);
   }
 
   @Override
@@ -92,10 +97,10 @@ class RSocketPool extends ResolvingOperator<Void>
    * method invocations, therefore it is acceptable to have it algorithmically inefficient. The
    * algorithmic complexity of this method is
    *
-   * @param loadbalanceRSocketSources set which represents RSocket source to balance on
+   * @param targets set which represents RSocket targets to balance on
    */
   @Override
-  public void onNext(List<LoadbalanceRSocketSource> loadbalanceRSocketSources) {
+  public void onNext(List<LoadbalanceTarget> targets) {
     if (isDisposed()) {
       return;
     }
@@ -103,11 +108,11 @@ class RSocketPool extends ResolvingOperator<Void>
     PooledWeightedRSocket[] previouslyActiveSockets;
     PooledWeightedRSocket[] activeSockets;
     for (; ; ) {
-      HashMap<LoadbalanceRSocketSource, Integer> rSocketSuppliersCopy = new HashMap<>();
+      HashMap<LoadbalanceTarget, Integer> rSocketSuppliersCopy = new HashMap<>();
 
       int j = 0;
-      for (LoadbalanceRSocketSource loadbalanceRSocketSource : loadbalanceRSocketSources) {
-        rSocketSuppliersCopy.put(loadbalanceRSocketSource, j++);
+      for (LoadbalanceTarget target : targets) {
+        rSocketSuppliersCopy.put(target, j++);
       }
 
       // checking intersection of active RSocket with the newly received set
@@ -118,7 +123,7 @@ class RSocketPool extends ResolvingOperator<Void>
       for (int i = 0; i < previouslyActiveSockets.length; i++) {
         PooledWeightedRSocket rSocket = previouslyActiveSockets[i];
 
-        Integer index = rSocketSuppliersCopy.remove(rSocket.source());
+        Integer index = rSocketSuppliersCopy.remove(rSocket.target());
         if (index == null) {
           // if one of the active rSockets is not included, we remove it and put in the
           // pending removal
@@ -133,17 +138,25 @@ class RSocketPool extends ResolvingOperator<Void>
             nextActiveSockets[position++] = rSocket;
           } else {
             // put newly create RSocket instance
+            LoadbalanceTarget target = targets.get(index);
             nextActiveSockets[position++] =
                 new PooledWeightedRSocket(
-                    this, loadbalanceRSocketSources.get(index), this.statsSupplier.get());
+                    this,
+                    this.connector.connect(target.getTransport()),
+                    target,
+                    this.statsSupplier.get());
           }
         }
       }
 
       // going though brightly new rsocket
-      for (LoadbalanceRSocketSource newLoadbalanceRSocketSource : rSocketSuppliersCopy.keySet()) {
+      for (LoadbalanceTarget target : rSocketSuppliersCopy.keySet()) {
         nextActiveSockets[position++] =
-            new PooledWeightedRSocket(this, newLoadbalanceRSocketSource, this.statsSupplier.get());
+            new PooledWeightedRSocket(
+                this,
+                this.connector.connect(target.getTransport()),
+                target,
+                this.statsSupplier.get());
       }
 
       // shrank to actual length

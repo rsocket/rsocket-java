@@ -33,7 +33,8 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
     implements CoreSubscriber<RSocket>, WeightedRSocket {
 
   final RSocketPool parent;
-  final LoadbalanceRSocketSource loadbalanceRSocketSource;
+  final Mono<RSocket> rSocketSource;
+  final LoadbalanceTarget loadbalanceTarget;
   final Stats stats;
 
   volatile Subscription s;
@@ -42,10 +43,14 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
       AtomicReferenceFieldUpdater.newUpdater(PooledWeightedRSocket.class, Subscription.class, "s");
 
   PooledWeightedRSocket(
-      RSocketPool parent, LoadbalanceRSocketSource loadbalanceRSocketSource, Stats stats) {
+      RSocketPool parent,
+      Mono<RSocket> rSocketSource,
+      LoadbalanceTarget loadbalanceTarget,
+      Stats stats) {
     this.parent = parent;
+    this.rSocketSource = rSocketSource;
+    this.loadbalanceTarget = loadbalanceTarget;
     this.stats = stats;
-    this.loadbalanceRSocketSource = loadbalanceRSocketSource;
   }
 
   @Override
@@ -103,7 +108,7 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
 
   @Override
   protected void doSubscribe() {
-    this.loadbalanceRSocketSource.source().subscribe(this);
+    this.rSocketSource.subscribe(this);
   }
 
   @Override
@@ -196,8 +201,8 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
     return stats;
   }
 
-  LoadbalanceRSocketSource source() {
-    return loadbalanceRSocketSource;
+  LoadbalanceTarget target() {
+    return loadbalanceTarget;
   }
 
   @Override
