@@ -119,7 +119,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
           && !isMaxAllowedRequestN(extractRequestN(previousState))) {
         final int streamId = this.streamId;
         final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
-        this.connection.sendFrame(streamId, requestNFrame, false);
+        this.connection.sendFrame(streamId, requestNFrame);
       }
       return;
     }
@@ -178,7 +178,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       sm.remove(streamId, this);
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-      connection.sendFrame(streamId, cancelFrame, false);
+      connection.sendFrame(streamId, cancelFrame);
 
       return;
     }
@@ -190,14 +190,14 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     long requestN = extractRequestN(previousState);
     if (isMaxAllowedRequestN(requestN)) {
       final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
-      connection.sendFrame(streamId, requestNFrame, false);
+      connection.sendFrame(streamId, requestNFrame);
       return;
     }
 
     if (requestN > initialRequestN) {
       final ByteBuf requestNFrame =
           RequestNFrameCodec.encode(allocator, streamId, requestN - initialRequestN);
-      connection.sendFrame(streamId, requestNFrame, false);
+      connection.sendFrame(streamId, requestNFrame);
     }
   }
 
@@ -214,7 +214,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
-      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId), false);
+      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
     } else if (!hasRequested(previousState)) {
       // no need to send anything, since the first request has not happened
       this.payload.release();

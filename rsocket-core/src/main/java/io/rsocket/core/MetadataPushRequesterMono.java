@@ -109,7 +109,7 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
 
     final ByteBuf requestFrame =
         MetadataPushFrameCodec.encode(this.allocator, metadataRetainedSlice);
-    this.connection.sendFrame(0, requestFrame, true);
+    this.connection.sendFrame(0, requestFrame);
 
     Operators.complete(actual);
   }
@@ -166,7 +166,7 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
 
     final ByteBuf requestFrame =
         MetadataPushFrameCodec.encode(this.allocator, metadataRetainedSlice);
-    this.connection.sendFrame(0, requestFrame, true);
+    this.connection.sendFrame(0, requestFrame);
 
     return null;
   }

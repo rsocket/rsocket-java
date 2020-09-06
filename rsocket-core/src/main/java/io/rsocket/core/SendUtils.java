@@ -85,7 +85,7 @@ final class SendUtils {
         throw e;
       }
 
-      connection.sendFrame(streamId, first, false);
+      connection.sendFrame(streamId, first);
 
       boolean complete = frameType == FrameType.NEXT_COMPLETE;
       while (slicedData.isReadable() || slicedMetadata.isReadable()) {
@@ -98,7 +98,7 @@ final class SendUtils {
           sendTerminalFrame(streamId, frameType, connection, allocator, requester, true, e);
           throw e;
         }
-        connection.sendFrame(streamId, following, false);
+        connection.sendFrame(streamId, following);
       }
 
       try {
@@ -161,7 +161,7 @@ final class SendUtils {
           throw new IllegalArgumentException("Unsupported frame type " + frameType);
       }
 
-      connection.sendFrame(streamId, requestFrame, false);
+      connection.sendFrame(streamId, requestFrame);
     }
   }
 
@@ -208,7 +208,7 @@ final class SendUtils {
         throw e;
       }
 
-      connection.sendFrame(streamId, first, false);
+      connection.sendFrame(streamId, first);
 
       while (slicedData.isReadable() || slicedMetadata.isReadable()) {
         final ByteBuf following;
@@ -220,7 +220,7 @@ final class SendUtils {
           sendTerminalFrame(streamId, frameType, connection, allocator, true, true, e);
           throw e;
         }
-        connection.sendFrame(streamId, following, false);
+        connection.sendFrame(streamId, following);
       }
 
       try {
@@ -281,7 +281,7 @@ final class SendUtils {
           throw new IllegalArgumentException("Unsupported frame type " + frameType);
       }
 
-      connection.sendFrame(streamId, requestFrame, false);
+      connection.sendFrame(streamId, requestFrame);
     }
   }
 
@@ -297,7 +297,7 @@ final class SendUtils {
     if (onFollowingFrame) {
       if (requester) {
         final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-        connection.sendFrame(streamId, cancelFrame, false);
+        connection.sendFrame(streamId, cancelFrame);
       } else {
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
@@ -308,7 +308,7 @@ final class SendUtils {
                         + frameType
                         + " frame. Cause: "
                         + t.getMessage()));
-        connection.sendFrame(streamId, errorFrame, false);
+        connection.sendFrame(streamId, errorFrame);
       }
     } else {
       switch (frameType) {
@@ -317,7 +317,7 @@ final class SendUtils {
         case PAYLOAD:
           if (requester) {
             final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-            connection.sendFrame(streamId, cancelFrame, false);
+            connection.sendFrame(streamId, cancelFrame);
           } else {
             final ByteBuf errorFrame =
                 ErrorFrameCodec.encode(
@@ -325,7 +325,7 @@ final class SendUtils {
                     streamId,
                     new CanceledException(
                         "Failed to encode " + frameType + " frame. Cause: " + t.getMessage()));
-            connection.sendFrame(streamId, errorFrame, false);
+            connection.sendFrame(streamId, errorFrame);
           }
       }
     }

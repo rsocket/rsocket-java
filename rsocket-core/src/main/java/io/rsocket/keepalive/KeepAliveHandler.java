@@ -2,8 +2,10 @@ package io.rsocket.keepalive;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
-import io.rsocket.DuplexConnection;
 import io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
+import io.rsocket.resume.RSocketSession;
+import io.rsocket.resume.ResumableDuplexConnection;
+import io.rsocket.resume.ResumeStateHolder;
 import java.util.function.Consumer;
 
 public interface KeepAliveHandler {
@@ -34,10 +36,18 @@ public interface KeepAliveHandler {
   }
 
   class ResumableKeepAliveHandler implements KeepAliveHandler {
-    //    private final ResumableDuplexConnection resumableDuplexConnection;
 
-    public ResumableKeepAliveHandler(DuplexConnection resumableDuplexConnection) {
-      //      this.resumableDuplexConnection = resumableDuplexConnection;
+    private final ResumableDuplexConnection resumableDuplexConnection;
+    private final RSocketSession rSocketSession;
+    private final ResumeStateHolder resumeStateHolder;
+
+    public ResumableKeepAliveHandler(
+        ResumableDuplexConnection resumableDuplexConnection,
+        RSocketSession rSocketSession,
+        ResumeStateHolder resumeStateHolder) {
+      this.resumableDuplexConnection = resumableDuplexConnection;
+      this.rSocketSession = rSocketSession;
+      this.resumeStateHolder = resumeStateHolder;
     }
 
     @Override
@@ -45,12 +55,13 @@ public interface KeepAliveHandler {
         KeepAliveSupport keepAliveSupport,
         Consumer<ByteBuf> onSendKeepAliveFrame,
         Consumer<KeepAlive> onTimeout) {
-      //      resumableDuplexConnection.onResume(keepAliveSupport::start);
-      //      resumableDuplexConnection.onDisconnect(keepAliveSupport::stop);
+
+      rSocketSession.setKeepAliveSupport(keepAliveSupport);
+
       return keepAliveSupport
-          //          .resumeState(resumableDuplexConnection)
+          .resumeState(resumeStateHolder)
           .onSendKeepAliveFrame(onSendKeepAliveFrame)
-          //          .onTimeout(keepAlive -> resumableDuplexConnection.disconnect())
+          .onTimeout(keepAlive -> resumableDuplexConnection.disconnect())
           .start();
     }
   }

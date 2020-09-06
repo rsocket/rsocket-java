@@ -22,14 +22,11 @@ import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
-import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import org.reactivestreams.Subscription;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -50,21 +47,14 @@ import reactor.core.publisher.Operators;
  */
 class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
-  private static final InitializingInterceptorRegistry emptyInterceptorRegistry =
-      new InitializingInterceptorRegistry();
-
-  private final InternalDuplexConnection setupReceiver;
   private final InternalDuplexConnection serverReceiver;
   private final InternalDuplexConnection clientReceiver;
-  private final DuplexConnection setupConnection;
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
   private final DuplexConnection source;
   private final boolean isClient;
 
   private Subscription s;
-  private boolean setupReceived;
 
   private Throwable t;
 
@@ -72,43 +62,23 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
   private static final AtomicIntegerFieldUpdater<ClientServerInputMultiplexer> STATE =
       AtomicIntegerFieldUpdater.newUpdater(ClientServerInputMultiplexer.class, "state");
 
-  public ClientServerInputMultiplexer(DuplexConnection source) {
-    this(source, emptyInterceptorRegistry, false);
-  }
-
   public ClientServerInputMultiplexer(
       DuplexConnection source, InitializingInterceptorRegistry registry, boolean isClient) {
     this.source = source;
     this.isClient = isClient;
-    source = registry.initConnection(Type.SOURCE, source);
 
-    if (!isClient) {
-      setupReceiver = new InternalDuplexConnection(this, source);
-      setupConnection = registry.initConnection(Type.SETUP, setupReceiver);
-    } else {
-      setupReceiver = null;
-      setupConnection = null;
-    }
-    serverReceiver = new InternalDuplexConnection(this, source);
-    clientReceiver = new InternalDuplexConnection(this, source);
-    serverConnection = registry.initConnection(Type.SERVER, serverReceiver);
-    clientConnection = registry.initConnection(Type.CLIENT, clientReceiver);
+    this.serverReceiver = new InternalDuplexConnection(this, source);
+    this.clientReceiver = new InternalDuplexConnection(this, source);
+    this.serverConnection = registry.initConnection(Type.SERVER, serverReceiver);
+    this.clientConnection = registry.initConnection(Type.CLIENT, clientReceiver);
   }
 
-  DuplexConnection asClientServerConnection() {
-    return source;
-  }
-
-  DuplexConnection asServerConnection() {
+  DuplexConnection asResponderConnection() {
     return serverConnection;
   }
 
-  DuplexConnection asClientConnection() {
+  DuplexConnection asRequesterConnection() {
     return clientConnection;
-  }
-
-  DuplexConnection asSetupConnection() {
-    return setupConnection;
   }
 
   @Override
@@ -130,12 +100,7 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
   public void onSubscribe(Subscription s) {
     if (Operators.validate(this.s, s)) {
       this.s = s;
-      if (isClient) {
-        s.request(Long.MAX_VALUE);
-      } else {
-        // request first SetupFrame
-        s.request(1);
-      }
+      s.request(Long.MAX_VALUE);
     }
   }
 
@@ -145,12 +110,6 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     final Type type;
     if (streamId == 0) {
       switch (FrameHeaderCodec.frameType(frame)) {
-        case SETUP:
-        case RESUME:
-        case RESUME_OK:
-          type = Type.SETUP;
-          setupReceived = true;
-          break;
         case LEASE:
         case KEEPALIVE:
         case ERROR:
@@ -164,19 +123,8 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     } else {
       type = Type.CLIENT;
     }
-    if (!isClient && type != Type.SETUP && !setupReceived) {
-      final IllegalStateException error =
-          new IllegalStateException("SETUP or LEASE frame must be received before any others.");
-      this.s.cancel();
-      onError(error);
-    }
 
     switch (type) {
-      case SETUP:
-        final InternalDuplexConnection setupReceiver = this.setupReceiver;
-        setupReceiver.onNext(frame);
-        setupReceiver.onComplete();
-        break;
       case CLIENT:
         clientReceiver.onNext(frame);
         break;
@@ -191,16 +139,6 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     final int previousState = STATE.getAndSet(this, Integer.MIN_VALUE);
     if (previousState == Integer.MIN_VALUE || previousState == 0) {
       return;
-    }
-
-    if (!isClient) {
-      if (!setupReceived) {
-        setupReceiver.onComplete();
-      }
-
-      if (previousState == 1) {
-        return;
-      }
     }
 
     if (clientReceiver.isSubscribed()) {
@@ -220,16 +158,6 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
       return;
     }
 
-    if (!isClient) {
-      if (!setupReceived) {
-        setupReceiver.onError(t);
-      }
-
-      if (previousState == 1) {
-        return;
-      }
-    }
-
     if (clientReceiver.isSubscribed()) {
       clientReceiver.onError(t);
     }
@@ -244,17 +172,8 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
       return false;
     }
 
-    if (isClient) {
-      if (currentState == 2) {
-        source.receive().subscribe(this);
-      }
-    } else {
-      if (currentState == 1) {
-        source.receive().subscribe(this);
-      } else if (currentState == 3) {
-        // means setup was consumed and we got request from client and server multiplexers
-        s.request(Long.MAX_VALUE);
-      }
+    if (currentState == 2) {
+      source.receive().subscribe(this);
     }
 
     return true;
@@ -280,7 +199,6 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
       implements Subscription, DuplexConnection {
     private final ClientServerInputMultiplexer clientServerInputMultiplexer;
     private final DuplexConnection source;
-    private final boolean debugEnabled;
 
     private volatile int state;
     static final AtomicIntegerFieldUpdater<InternalDuplexConnection> STATE =
@@ -292,7 +210,6 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
         ClientServerInputMultiplexer clientServerInputMultiplexer, DuplexConnection source) {
       this.clientServerInputMultiplexer = clientServerInputMultiplexer;
       this.source = source;
-      this.debugEnabled = LOGGER.isDebugEnabled();
     }
 
     @Override
@@ -340,30 +257,18 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     }
 
     @Override
-    public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
-      if (debugEnabled) {
-        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
-      }
-
-      source.sendFrame(streamId, frame, prioritize);
+    public void sendFrame(int streamId, ByteBuf frame) {
+      source.sendFrame(streamId, frame);
     }
 
     @Override
-    public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
-      if (debugEnabled) {
-        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
-      }
-
-      source.terminate(frame, terminalError);
+    public void sendErrorAndClose(RSocketErrorException e) {
+      source.sendErrorAndClose(e);
     }
 
     @Override
     public Flux<ByteBuf> receive() {
-      if (debugEnabled) {
-        return this.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
-      } else {
-        return this;
-      }
+      return this;
     }
 
     @Override

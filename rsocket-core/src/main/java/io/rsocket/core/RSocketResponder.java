@@ -74,18 +74,11 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
     connection.receive().subscribe(this::handleFrame, e -> {});
-    leaseHandlerDisposable =
-        leaseHandler.send(leaseFrame -> connection.sendFrame(0, leaseFrame, true));
+    leaseHandlerDisposable = leaseHandler.send(leaseFrame -> connection.sendFrame(0, leaseFrame));
 
     connection
         .onClose()
         .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
-  }
-
-  private void handleSendProcessorError(Throwable t) {
-    for (FrameHandler frameHandler : activeStreams.values()) {
-      frameHandler.handleError(t);
-    }
   }
 
   private void tryTerminateOnConnectionError(Throwable e) {
@@ -281,8 +274,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
                   ErrorFrameCodec.encode(
                       super.getAllocator(),
                       streamId,
-                      new IllegalStateException("Setup frame received post setup.")),
-                  false);
+                      new IllegalStateException("Setup frame received post setup.")));
           break;
         case LEASE:
         default:
@@ -293,8 +285,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
                       super.getAllocator(),
                       streamId,
                       new IllegalStateException(
-                          "ServerRSocket: Unexpected frame type: " + frameType)),
-                  false);
+                          "ServerRSocket: Unexpected frame type: " + frameType)));
           break;
       }
     } catch (Throwable t) {
@@ -305,8 +296,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
               ErrorFrameCodec.encode(
                   super.getAllocator(),
                   0,
-                  new ConnectionErrorException("Unexpected error during frame handling", t)),
-              false);
+                  new ConnectionErrorException("Unexpected error during frame handling", t)));
       this.tryTerminateOnConnectionError(t);
     }
   }

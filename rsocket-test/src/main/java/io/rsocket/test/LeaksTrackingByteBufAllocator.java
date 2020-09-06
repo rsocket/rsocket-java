@@ -58,8 +58,7 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
                           bb -> {
                             final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
                             if (!awaitZeroRefCntDuration.isZero()) {
-                              long end =
-                                  awaitZeroRefCntDuration.plusNanos(System.nanoTime()).toNanos();
+                              long end = System.nanoTime() + awaitZeroRefCntDuration.toNanos();
                               while (bb.refCnt() != 0) {
                                 if (System.nanoTime() >= end) {
                                   break;

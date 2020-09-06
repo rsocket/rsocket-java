@@ -28,13 +28,21 @@ public interface DuplexConnection extends Availability, Closeable {
 
   /**
    * Delivers the given frame to the underlying transport connection. This method is non-blocking
-   * and can be safely executed from multiple threads.
+   * and can be safely executed from multiple threads. This method does not provide any flow-control
+   * mechanism.
    *
    * @param streamId to which the given frame relates
    * @param frame with the encoded content
-   * @param prioritize whether the given frame should be sent with priority to others
    */
-  void sendFrame(int streamId, ByteBuf frame, boolean prioritize);
+  void sendFrame(int streamId, ByteBuf frame);
+
+  /**
+   * Sends terminal frame to the underlying connection and dispose the connection once the frame is
+   * delivered
+   *
+   * @param errorFrame with the encoded error
+   */
+  void sendErrorAndClose(RSocketErrorException errorException);
 
   /**
    * Returns a stream of all {@code Frame}s received on this connection.
@@ -60,12 +68,6 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return Stream of all {@code Frame}s received.
    */
   Flux<ByteBuf> receive();
-
-  /**
-   * @param errorFrame
-   * @return
-   */
-  void terminate(ByteBuf frame, RSocketErrorException terminalError);
 
   /**
    * Returns the assigned {@link ByteBufAllocator}.

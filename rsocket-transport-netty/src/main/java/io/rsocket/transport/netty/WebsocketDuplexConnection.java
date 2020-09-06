@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
 import java.util.Objects;
@@ -80,11 +81,22 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
-  public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+  public void sendErrorAndClose(RSocketErrorException e) {
+    final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
     connection
         .outbound()
-        .sendObject(new BinaryWebSocketFrame(frame))
+        .sendObject(new BinaryWebSocketFrame(errorFrame))
         .then()
-        .subscribe(null, t -> onClose.onError(t), () -> onClose.onError(terminalError));
+        .subscribe(
+            null,
+            t -> onClose.onError(t),
+            () -> {
+              final Throwable cause = e.getCause();
+              if (cause == null) {
+                onClose.onComplete();
+              } else {
+                onClose.onError(cause);
+              }
+            });
   }
 }

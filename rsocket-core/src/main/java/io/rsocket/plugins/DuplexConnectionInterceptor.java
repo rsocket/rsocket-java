@@ -27,6 +27,7 @@ public @FunctionalInterface interface DuplexConnectionInterceptor
     extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
 
   enum Type {
+    /** @deprecated since 1.1.0-M2. Will be removed in 1.2 */
     @Deprecated
     SETUP,
     CLIENT,

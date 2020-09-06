@@ -127,7 +127,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
           && !isMaxAllowedRequestN(extractRequestN(previousState))) {
         final int streamId = this.streamId;
         final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
-        this.connection.sendFrame(streamId, requestNFrame, false);
+        this.connection.sendFrame(streamId, requestNFrame);
       }
       return;
     }
@@ -237,7 +237,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-      connection.sendFrame(streamId, cancelFrame, false);
+      connection.sendFrame(streamId, cancelFrame);
 
       return;
     }
@@ -249,14 +249,14 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     long requestN = extractRequestN(previousState);
     if (isMaxAllowedRequestN(requestN)) {
       final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
-      connection.sendFrame(streamId, requestNFrame, false);
+      connection.sendFrame(streamId, requestNFrame);
       return;
     }
 
     if (requestN > initialRequestN) {
       final ByteBuf requestNFrame =
           RequestNFrameCodec.encode(allocator, streamId, requestN - initialRequestN);
-      connection.sendFrame(streamId, requestNFrame, false);
+      connection.sendFrame(streamId, requestNFrame);
     }
   }
 
@@ -340,7 +340,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     ReassemblyUtils.synchronizedRelease(this, previousState);
 
     final ByteBuf cancelFrame = CancelFrameCodec.encode(this.allocator, streamId);
-    this.connection.sendFrame(streamId, cancelFrame, false);
+    this.connection.sendFrame(streamId, cancelFrame);
   }
 
   @Override
@@ -370,7 +370,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     this.requesterResponderSupport.remove(streamId, this);
     // propagates error to remote responder
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.connection.sendFrame(streamId, errorFrame, false);
+    this.connection.sendFrame(streamId, errorFrame);
 
     if (!isInboundTerminated(previousState)) {
       // FIXME: must be scheduled on the connection event-loop to achieve serial
@@ -410,7 +410,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     }
 
     final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(this.allocator, streamId);
-    this.connection.sendFrame(streamId, completeFrame, false);
+    this.connection.sendFrame(streamId, completeFrame);
   }
 
   @Override

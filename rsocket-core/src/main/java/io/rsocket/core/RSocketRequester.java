@@ -92,7 +92,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       this.keepAliveFramesAcceptor =
           keepAliveHandler.start(
               keepAliveSupport,
-              (keepAliveFrame) -> connection.sendFrame(0, keepAliveFrame, true),
+              (keepAliveFrame) -> connection.sendFrame(0, keepAliveFrame),
               this::tryTerminateOnKeepAlive);
     } else {
       keepAliveFramesAcceptor = null;
@@ -198,8 +198,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       LOGGER.error("Unexpected error during frame handling", t);
       final ConnectionErrorException error =
           new ConnectionErrorException("Unexpected error during frame handling", t);
-      getDuplexConnection()
-          .terminate(ErrorFrameCodec.encode(super.getAllocator(), 0, error), error);
+      getDuplexConnection().sendErrorAndClose(error);
     }
   }
 

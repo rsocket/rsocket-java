@@ -163,7 +163,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       sm.remove(streamId, this);
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
-      connection.sendFrame(streamId, cancelFrame, false);
+      connection.sendFrame(streamId, cancelFrame);
     }
   }
 
@@ -180,7 +180,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
-      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId), false);
+      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
     } else if (!hasRequested(previousState)) {
       this.payload.release();
     }

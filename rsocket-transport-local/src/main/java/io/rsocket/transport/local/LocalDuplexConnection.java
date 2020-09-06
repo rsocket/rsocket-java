@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import java.net.SocketAddress;
 import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.internal.UnboundedProcessor;
 import java.util.Objects;
 import org.reactivestreams.Subscription;
@@ -87,8 +88,8 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
-    if (prioritize) {
+  public void sendFrame(int streamId, ByteBuf frame) {
+    if (streamId == 0) {
       out.onNextPrioritized(frame);
     } else {
       out.onNext(frame);
@@ -96,8 +97,10 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public void terminate(ByteBuf frame, RSocketErrorException e) {
-    out.onNext(frame);
+  public void sendErrorAndClose(RSocketErrorException e) {
+    final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, 0, e);
+    out.onNext(errorFrame);
+    dispose();
   }
 
   @Override

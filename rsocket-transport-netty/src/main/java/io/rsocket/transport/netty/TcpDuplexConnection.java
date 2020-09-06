@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
@@ -70,12 +71,23 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
-  public void terminate(ByteBuf errorFrame, RSocketErrorException terminalError) {
+  public void sendErrorAndClose(RSocketErrorException e) {
+    final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
     connection
         .outbound()
         .sendObject(errorFrame)
         .then()
-        .subscribe(null, t -> onClose.onError(t), () -> onClose.onError(terminalError));
+        .subscribe(
+            null,
+            t -> onClose.onError(t),
+            () -> {
+              final Throwable cause = e.getCause();
+              if (cause == null) {
+                onClose.onComplete();
+              } else {
+                onClose.onError(cause);
+              }
+            });
   }
 
   @Override
@@ -84,8 +96,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
-  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
-    super.sendFrame(
-        streamId, FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame), prioritize);
+  public void sendFrame(int streamId, ByteBuf frame) {
+    super.sendFrame(streamId, FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame));
   }
 }

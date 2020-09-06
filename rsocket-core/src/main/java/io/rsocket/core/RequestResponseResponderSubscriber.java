@@ -136,7 +136,7 @@ final class RequestResponseResponderSubscriber
 
     if (p == null) {
       final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-      connection.sendFrame(streamId, completeFrame, false);
+      connection.sendFrame(streamId, completeFrame);
       return;
     }
 
@@ -153,7 +153,7 @@ final class RequestResponseResponderSubscriber
                 streamId,
                 new CanceledException(
                     String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
-        connection.sendFrame(streamId, errorFrame, false);
+        connection.sendFrame(streamId, errorFrame);
         return;
       }
     } catch (IllegalReferenceCountException e) {
@@ -164,7 +164,7 @@ final class RequestResponseResponderSubscriber
               allocator,
               streamId,
               new CanceledException("Failed to validate payload. Cause" + e.getMessage()));
-      connection.sendFrame(streamId, errorFrame, false);
+      connection.sendFrame(streamId, errorFrame);
       return;
     }
 
@@ -196,7 +196,7 @@ final class RequestResponseResponderSubscriber
     this.requesterResponderSupport.remove(streamId, this);
 
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.connection.sendFrame(streamId, errorFrame, false);
+    this.connection.sendFrame(streamId, errorFrame);
   }
 
   @Override
@@ -262,7 +262,7 @@ final class RequestResponseResponderSubscriber
               this.allocator,
               streamId,
               new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-      this.connection.sendFrame(streamId, errorFrame, false);
+      this.connection.sendFrame(streamId, errorFrame);
       return;
     }
 
@@ -288,7 +288,7 @@ final class RequestResponseResponderSubscriber
                 this.allocator,
                 streamId,
                 new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-        this.connection.sendFrame(streamId, errorFrame, false);
+        this.connection.sendFrame(streamId, errorFrame);
         return;
       }
 

@@ -125,7 +125,7 @@ final class RequestStreamResponderSubscriber
 
     if (p == null) {
       final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-      sender.sendFrame(streamId, completeFrame, false);
+      sender.sendFrame(streamId, completeFrame);
       return;
     }
 
@@ -143,7 +143,7 @@ final class RequestStreamResponderSubscriber
                 streamId,
                 new CanceledException(
                     String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
-        sender.sendFrame(streamId, errorFrame, false);
+        sender.sendFrame(streamId, errorFrame);
         return;
       }
     } catch (IllegalReferenceCountException e) {
@@ -154,7 +154,7 @@ final class RequestStreamResponderSubscriber
               allocator,
               streamId,
               new CanceledException("Failed to validate payload. Cause" + e.getMessage()));
-      sender.sendFrame(streamId, errorFrame, false);
+      sender.sendFrame(streamId, errorFrame);
       return;
     }
 
@@ -190,7 +190,7 @@ final class RequestStreamResponderSubscriber
     this.requesterResponderSupport.remove(streamId, this);
 
     final ByteBuf errorFrame = ErrorFrameCodec.encode(this.allocator, streamId, t);
-    this.connection.sendFrame(streamId, errorFrame, false);
+    this.connection.sendFrame(streamId, errorFrame);
   }
 
   @Override
@@ -210,7 +210,7 @@ final class RequestStreamResponderSubscriber
     this.requesterResponderSupport.remove(streamId, this);
 
     final ByteBuf completeFrame = PayloadFrameCodec.encodeComplete(this.allocator, streamId);
-    this.connection.sendFrame(streamId, completeFrame, false);
+    this.connection.sendFrame(streamId, completeFrame);
   }
 
   @Override
@@ -278,7 +278,7 @@ final class RequestStreamResponderSubscriber
               this.allocator,
               this.streamId,
               new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-      this.connection.sendFrame(streamId, errorFrame, false);
+      this.connection.sendFrame(streamId, errorFrame);
       return;
     }
 
@@ -304,7 +304,7 @@ final class RequestStreamResponderSubscriber
                 this.allocator,
                 this.streamId,
                 new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
-        this.connection.sendFrame(streamId, errorFrame, false);
+        this.connection.sendFrame(streamId, errorFrame);
         return;
       }
 

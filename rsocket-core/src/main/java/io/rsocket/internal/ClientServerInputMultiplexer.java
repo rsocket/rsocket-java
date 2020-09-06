@@ -185,21 +185,21 @@ public class ClientServerInputMultiplexer implements Closeable {
     }
 
     @Override
-    public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
+    public void sendFrame(int streamId, ByteBuf frame) {
       if (debugEnabled) {
         LOGGER.debug("sending -> " + FrameUtil.toString(frame));
       }
 
-      source.sendFrame(streamId, frame, prioritize);
+      source.sendFrame(streamId, frame);
     }
 
     @Override
-    public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
+    public void sendErrorAndClose(RSocketErrorException e) {
       if (debugEnabled) {
-        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
+        LOGGER.debug("sending -> " + e.toString());
       }
 
-      source.terminate(frame, terminalError);
+      source.sendErrorAndClose(e);
     }
 
     @Override

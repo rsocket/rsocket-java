@@ -154,23 +154,23 @@ final class MicrometerDuplexConnectionTest {
   @Test
   void send() {
     ArgumentCaptor<ByteBuf> captor = ArgumentCaptor.forClass(ByteBuf.class);
-    doNothing().when(delegate).sendFrame(Mockito.anyInt(), captor.capture(), Mockito.anyBoolean());
+    doNothing().when(delegate).sendFrame(Mockito.anyInt(), captor.capture());
 
     final MicrometerDuplexConnection micrometerDuplexConnection =
         new MicrometerDuplexConnection(
             SERVER, delegate, meterRegistry, Tag.of("test-key", "test-value"));
-    micrometerDuplexConnection.sendFrame(1, createTestCancelFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestErrorFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestKeepaliveFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestLeaseFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestMetadataPushFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestPayloadFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestRequestChannelFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestRequestFireAndForgetFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestRequestNFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestRequestResponseFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestRequestStreamFrame(), false);
-    micrometerDuplexConnection.sendFrame(1, createTestSetupFrame(), false);
+    micrometerDuplexConnection.sendFrame(1, createTestCancelFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestErrorFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestKeepaliveFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestLeaseFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestMetadataPushFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestPayloadFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestRequestChannelFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestRequestFireAndForgetFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestRequestNFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestRequestResponseFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestRequestStreamFrame());
+    micrometerDuplexConnection.sendFrame(1, createTestSetupFrame());
 
     StepVerifier.create(Flux.fromIterable(captor.getAllValues()))
         .expectNextCount(12)

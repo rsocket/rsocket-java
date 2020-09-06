@@ -37,6 +37,7 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.lease.Leases;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
+import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
 import io.rsocket.resume.SessionManager;
@@ -334,69 +335,74 @@ public final class RSocketServer {
   }
 
   private Mono<Void> acceptor(
-      ServerSetup serverSetup, DuplexConnection connection, int maxFrameLength) {
+      ServerSetup serverSetup, DuplexConnection sourceConnection, int maxFrameLength) {
 
-    ClientServerInputMultiplexer multiplexer =
-        new ClientServerInputMultiplexer(connection, interceptors, false);
+    final DuplexConnection interceptedConnection =
+        interceptors.initConnection(DuplexConnectionInterceptor.Type.SOURCE, sourceConnection);
 
-    return multiplexer
-        .asSetupConnection()
-        .receive()
-        .next()
-        .flatMap(startFrame -> accept(serverSetup, startFrame, multiplexer, maxFrameLength));
+    return serverSetup
+        .init(LoggingDuplexConnection.wrapIfEnabled(interceptedConnection))
+        .flatMap(
+            tuple2 -> {
+              final ByteBuf startFrame = tuple2.getT1();
+              final DuplexConnection clientServerConnection = tuple2.getT2();
+
+              return accept(serverSetup, startFrame, clientServerConnection, maxFrameLength);
+            });
   }
 
-  private void acceptResume(
-      ServerSetup serverSetup, ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
-    serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
+  private Mono<Void> acceptResume(
+      ServerSetup serverSetup, ByteBuf resumeFrame, DuplexConnection clientServerConnection) {
+    return serverSetup.acceptRSocketResume(resumeFrame, clientServerConnection);
   }
 
   private Mono<Void> accept(
       ServerSetup serverSetup,
       ByteBuf startFrame,
-      ClientServerInputMultiplexer multiplexer,
+      DuplexConnection clientServerConnection,
       int maxFrameLength) {
     switch (FrameHeaderCodec.frameType(startFrame)) {
       case SETUP:
-        return acceptSetup(serverSetup, startFrame, multiplexer, maxFrameLength);
+        return acceptSetup(serverSetup, startFrame, clientServerConnection, maxFrameLength);
       case RESUME:
-        acceptResume(serverSetup, startFrame, multiplexer);
-        break;
+        return acceptResume(serverSetup, startFrame, clientServerConnection);
       default:
         serverSetup.sendError(
-            multiplexer,
+            clientServerConnection,
             new InvalidSetupException(
                 "invalid setup frame: " + FrameHeaderCodec.frameType(startFrame)));
+        return clientServerConnection.onClose();
     }
-
-    return Mono.empty();
   }
 
   private Mono<Void> acceptSetup(
       ServerSetup serverSetup,
       ByteBuf setupFrame,
-      ClientServerInputMultiplexer multiplexer,
+      DuplexConnection clientServerConnection,
       int maxFrameLength) {
 
     if (!SetupFrameCodec.isSupportedVersion(setupFrame)) {
       serverSetup.sendError(
-          multiplexer,
+          clientServerConnection,
           new InvalidSetupException(
               "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)));
     }
 
     boolean leaseEnabled = leasesSupplier != null;
     if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
-      serverSetup.sendError(multiplexer, new InvalidSetupException("lease is not supported"));
+      serverSetup.sendError(
+          clientServerConnection, new InvalidSetupException("lease is not supported"));
       return Mono.empty();
     }
 
     return serverSetup.acceptRSocketSetup(
         setupFrame,
-        multiplexer,
-        (keepAliveHandler, wrappedMultiplexer) -> {
+        clientServerConnection,
+        (keepAliveHandler, wrappedDuplexConnection) -> {
           ConnectionSetupPayload setupPayload =
               new DefaultConnectionSetupPayload(setupFrame.retain());
+          final ClientServerInputMultiplexer multiplexer =
+              new ClientServerInputMultiplexer(wrappedDuplexConnection, interceptors, false);
 
           Leases<?> leases = leaseEnabled ? leasesSupplier.get() : null;
           RequesterLeaseHandler requesterLeaseHandler =
@@ -406,7 +412,7 @@ public final class RSocketServer {
 
           RSocket rSocketRequester =
               new RSocketRequester(
-                  wrappedMultiplexer.asServerConnection(),
+                  multiplexer.asResponderConnection(),
                   payloadDecoder,
                   StreamIdSupplier.serverSupplier(),
                   mtu,
@@ -422,21 +428,25 @@ public final class RSocketServer {
           return interceptors
               .initSocketAcceptor(acceptor)
               .accept(setupPayload, wrappedRSocketRequester)
-              .doOnError(err -> serverSetup.sendError(multiplexer, rejectedSetupError(err)))
+              .doOnError(
+                  err -> serverSetup.sendError(wrappedDuplexConnection, rejectedSetupError(err)))
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
-                    DuplexConnection connection = wrappedMultiplexer.asClientConnection();
+                    DuplexConnection clientConnection = multiplexer.asRequesterConnection();
 
                     ResponderLeaseHandler responderLeaseHandler =
                         leaseEnabled
                             ? new ResponderLeaseHandler.Impl<>(
-                                SERVER_TAG, connection.alloc(), leases.sender(), leases.stats())
+                                SERVER_TAG,
+                                clientConnection.alloc(),
+                                leases.sender(),
+                                leases.stats())
                             : ResponderLeaseHandler.None;
 
                     RSocket rSocketResponder =
                         new RSocketResponder(
-                            connection,
+                            clientConnection,
                             wrappedRSocketHandler,
                             payloadDecoder,
                             responderLeaseHandler,

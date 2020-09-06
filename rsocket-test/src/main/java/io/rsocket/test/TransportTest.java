@@ -275,10 +275,10 @@ public interface TransportTest {
     Assertions.assertThat(requested.get()).isEqualTo(3L);
   }
 
-  @DisplayName("makes 1 requestChannel request with 512 payloads")
+  @DisplayName("makes 1 requestChannel request with 256 payloads")
   @Test
-  default void requestChannel512() {
-    Flux<Payload> payloads = Flux.range(0, 512).map(this::createTestPayload);
+  default void requestChannel256() {
+    Flux<Payload> payloads = Flux.range(0, 256).map(this::createTestPayload);
     final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(13));
 
     Flux.range(0, 1024)
@@ -291,8 +291,8 @@ public interface TransportTest {
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
-        .expectNextCount(512)
-        .as("expected 512 items")
+        .expectNextCount(256)
+        .as("expected 256 items")
         .expectComplete()
         .verify(getTimeout());
   }
@@ -547,13 +547,13 @@ public interface TransportTest {
       }
 
       @Override
-      public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
-        duplexConnection.sendFrame(streamId, frame, prioritize);
+      public void sendFrame(int streamId, ByteBuf frame) {
+        duplexConnection.sendFrame(streamId, frame);
       }
 
       @Override
-      public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
-        duplexConnection.terminate(frame, terminalError);
+      public void sendErrorAndClose(RSocketErrorException e) {
+        duplexConnection.sendErrorAndClose(e);
       }
 
       @Override

@@ -8,7 +8,6 @@ import reactor.core.publisher.MonoProcessor;
 public abstract class BaseDuplexConnection implements DuplexConnection {
   protected MonoProcessor<Void> onClose = MonoProcessor.create();
 
-  @SuppressWarnings("deprecation")
   protected UnboundedProcessor<ByteBuf> sender = new UnboundedProcessor<>();
 
   public BaseDuplexConnection() {
@@ -16,8 +15,8 @@ public abstract class BaseDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
-    if (prioritize) {
+  public void sendFrame(int streamId, ByteBuf frame) {
+    if (streamId == 0) {
       sender.onNextPrioritized(frame);
     } else {
       sender.onNext(frame);

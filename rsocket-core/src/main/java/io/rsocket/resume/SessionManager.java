@@ -31,6 +31,7 @@ public class SessionManager {
     } else {
       ByteBuf token = session.token().retain();
       session
+          .resumableConnection
           .onClose()
           .doOnSuccess(
               v -> {

@@ -111,15 +111,14 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public void sendFrame(int streamId, ByteBuf frame, boolean prioritize) {
+  public void sendFrame(int streamId, ByteBuf frame) {
     frameCounters.accept(frame);
-    delegate.sendFrame(streamId, frame, prioritize);
+    delegate.sendFrame(streamId, frame);
   }
 
   @Override
-  public void terminate(ByteBuf frame, RSocketErrorException terminalError) {
-    frameCounters.accept(frame);
-    delegate.terminate(frame, terminalError);
+  public void sendErrorAndClose(RSocketErrorException e) {
+    delegate.sendErrorAndClose(e);
   }
 
   private static final class FrameCounters implements Consumer<ByteBuf> {

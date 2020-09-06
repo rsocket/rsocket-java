@@ -17,36 +17,12 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.Closeable;
-import io.rsocket.DuplexConnection;
-import reactor.core.publisher.Mono;
+import io.rsocket.keepalive.KeepAliveSupport;
+import reactor.core.Disposable;
 
-public interface RSocketSession<T> extends Closeable {
+public interface RSocketSession extends Disposable {
+
+  void setKeepAliveSupport(KeepAliveSupport keepAliveSupport);
 
   ByteBuf token();
-
-  //  ResumableDuplexConnection resumableConnection();
-
-  RSocketSession continueWith(T ConnectionFactory);
-
-  RSocketSession resumeWith(ByteBuf resumeFrame);
-
-  void reconnect(DuplexConnection connection);
-
-  @Override
-  default Mono<Void> onClose() {
-    //    return resumableConnection().onClose();
-    return null;
-  }
-
-  @Override
-  default void dispose() {
-    //    resumableConnection().dispose();
-  }
-
-  @Override
-  default boolean isDisposed() {
-    //    return resumableConnection().isDisposed();
-    return true;
-  }
 }
