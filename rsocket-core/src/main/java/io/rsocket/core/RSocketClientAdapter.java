@@ -17,7 +17,6 @@ package io.rsocket.core;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketClient;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,7 +29,7 @@ import reactor.core.publisher.Mono;
  *
  * @since 1.1
  */
-public class RSocketClientAdapter implements RSocketClient {
+class RSocketClientAdapter implements RSocketClient {
 
   private final RSocket rsocket;
 

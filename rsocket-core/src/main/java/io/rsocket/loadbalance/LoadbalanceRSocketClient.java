@@ -17,7 +17,7 @@ package io.rsocket.loadbalance;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketClient;
+import io.rsocket.core.RSocketClient;
 import io.rsocket.core.RSocketConnector;
 import java.util.List;
 import org.reactivestreams.Publisher;

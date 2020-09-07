@@ -1,8 +1,9 @@
 package io.rsocket.examples.transport.tcp.client;
 
 import io.rsocket.Payload;
-import io.rsocket.RSocketClient;
+import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
+import io.rsocket.core.RSocketClient;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
@@ -35,12 +36,12 @@ public class RSocketClientExample {
         .doOnNext(cc -> logger.info("Server started on the address : {}", cc.address()))
         .subscribe();
 
-    RSocketClient rSocketClient =
+    Mono<RSocket> source =
         RSocketConnector.create()
             .reconnect(Retry.backoff(50, Duration.ofMillis(500)))
-            .toRSocketClient(TcpClientTransport.create("localhost", 7000));
+            .connect(TcpClientTransport.create("localhost", 7000));
 
-    rSocketClient
+    RSocketClient.from(source)
         .requestResponse(Mono.just(DefaultPayload.create("Test Request")))
         .doOnSubscribe(s -> logger.info("Executing Request"))
         .doOnNext(
