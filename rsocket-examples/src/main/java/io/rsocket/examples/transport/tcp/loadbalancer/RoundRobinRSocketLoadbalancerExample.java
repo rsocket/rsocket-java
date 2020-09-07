@@ -15,8 +15,8 @@
  */
 package io.rsocket.examples.transport.tcp.loadbalancer;
 
-import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
+import io.rsocket.core.RSocketClient;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.loadbalance.LoadbalanceRSocketClient;
 import io.rsocket.loadbalance.LoadbalanceTarget;

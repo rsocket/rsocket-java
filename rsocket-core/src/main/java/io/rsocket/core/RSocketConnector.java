@@ -25,7 +25,6 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -118,15 +117,6 @@ public class RSocketConnector {
    */
   public static Mono<RSocket> connectWith(ClientTransport transport) {
     return RSocketConnector.create().connect(() -> transport);
-  }
-
-  /**
-   * @param transport
-   * @return
-   * @since 1.0.1
-   */
-  public static RSocketClient createRSocketClient(ClientTransport transport) {
-    return RSocketConnector.create().toRSocketClient(transport);
   }
 
   /**
@@ -486,37 +476,6 @@ public class RSocketConnector {
   }
 
   /**
-   * Create {@link RSocketClient} that will use {@link #connect(ClientTransport)} as its source to
-   * obtain a live, shared {@code RSocket} when the first request is made, and also on subsequent
-   * requests after the connection is lost.
-   *
-   * <p>The following transports are available through additional RSocket Java modules:
-   *
-   * <ul>
-   *   <li>{@link io.rsocket.transport.netty.client.TcpClientTransport TcpClientTransport} via
-   *       {@code rsocket-transport-netty}.
-   *   <li>{@link io.rsocket.transport.netty.client.WebsocketClientTransport
-   *       WebsocketClientTransport} via {@code rsocket-transport-netty}.
-   *   <li>{@link io.rsocket.transport.local.LocalClientTransport LocalClientTransport} via {@code
-   *       rsocket-transport-local}
-   * </ul>
-   *
-   * @param transport the transport of choice to connect with
-   * @return a {@code RSocketClient} with not established connection. Note, connection will be
-   *     established on the first request
-   * @since 1.0.1
-   */
-  public RSocketClient toRSocketClient(ClientTransport transport) {
-    Mono<RSocket> source = connect0(() -> transport);
-
-    if (retrySpec != null) {
-      source = source.retryWhen(retrySpec);
-    }
-
-    return new DefaultRSocketClient(source);
-  }
-
-  /**
    * Connect with the given transport and obtain a live {@link RSocket} to use for making requests.
    * Each subscriber to the returned {@code Mono} receives a new connection, if neither {@link
    * #reconnect(Retry) reconnect} nor {@link #resume(Resume)} are enabled.
@@ -549,19 +508,6 @@ public class RSocketConnector {
    * @return a {@code Mono} with the connected RSocket
    */
   public Mono<RSocket> connect(Supplier<ClientTransport> transportSupplier) {
-    return this.connect0(transportSupplier)
-        .as(
-            source -> {
-              if (retrySpec != null) {
-                return new ReconnectMono<>(
-                    source.retryWhen(retrySpec), Disposable::dispose, INVALIDATE_FUNCTION);
-              } else {
-                return source;
-              }
-            });
-  }
-
-  private Mono<RSocket> connect0(Supplier<ClientTransport> transportSupplier) {
     return Mono.fromSupplier(transportSupplier)
         .flatMap(
             ct -> {
@@ -692,6 +638,15 @@ public class RSocketConnector {
                                 })
                             .doFinally(signalType -> setup.release());
                       });
+            })
+        .as(
+            source -> {
+              if (retrySpec != null) {
+                return new ReconnectMono<>(
+                    source.retryWhen(retrySpec), Disposable::dispose, INVALIDATE_FUNCTION);
+              } else {
+                return source;
+              }
             });
   }
 }

@@ -26,7 +26,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketClient;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;

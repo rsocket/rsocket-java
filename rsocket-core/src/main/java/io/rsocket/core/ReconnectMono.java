@@ -48,6 +48,10 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     this.resolvingInner = new ResolvingInner<>(this);
   }
 
+  public Mono<T> getSource() {
+    return source;
+  }
+
   @Override
   public Object scanUnsafe(Attr key) {
     if (key == Attr.PARENT) return source;
