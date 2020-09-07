@@ -20,18 +20,22 @@ import io.rsocket.RSocket;
 import java.util.List;
 import java.util.SplittableRandom;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Supplier;
 import reactor.util.annotation.Nullable;
 
-class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
+/**
+ * {@link LoadbalanceStrategy} that assigns a weight to each {@code RSocket} based on usage
+ * statistics, and uses this weight to select the {@code RSocket} to use.
+ *
+ * @since 1.1
+ */
+public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
 
   private static final double EXP_FACTOR = 4.0;
 
   private static final int EFFORT = 5;
 
-  final SplittableRandom splittableRandom;
   final int effort;
-  final Supplier<Stats> statsSupplier;
+  final SplittableRandom splittableRandom;
 
   public WeightedLoadbalanceStrategy() {
     this(EFFORT);
@@ -42,14 +46,8 @@ class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
   }
 
   public WeightedLoadbalanceStrategy(int effort, SplittableRandom splittableRandom) {
-    this(effort, splittableRandom, Stats::create);
-  }
-
-  public WeightedLoadbalanceStrategy(
-      int effort, SplittableRandom splittableRandom, Supplier<Stats> statsSupplier) {
-    this.splittableRandom = splittableRandom;
     this.effort = effort;
-    this.statsSupplier = statsSupplier;
+    this.splittableRandom = splittableRandom;
   }
 
   @Override

@@ -19,7 +19,12 @@ import io.rsocket.RSocket;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
+/**
+ * Simple {@link LoadbalanceStrategy} that selects the {@code RSocket} to use in round-robin order.
+ *
+ * @since 1.1
+ */
+public class RoundRobinLoadbalanceStrategy implements LoadbalanceStrategy {
 
   volatile int nextIndex;
 

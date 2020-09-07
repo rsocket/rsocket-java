@@ -146,7 +146,7 @@ public class LoadbalanceRSocketClient implements RSocketClient {
      * Switch to using a strategy that assigns a weight to each pooled {@code RSocket} based on
      * actual usage stats, and uses that to make a choice.
      *
-     * <p>By default this strategy is not used.
+     * <p>By default, {@link RoundRobinLoadbalanceStrategy} is used.
      */
     public Builder weightedLoadbalanceStrategy() {
       this.loadbalanceStrategy = new WeightedLoadbalanceStrategy();
@@ -154,11 +154,11 @@ public class LoadbalanceRSocketClient implements RSocketClient {
     }
 
     /**
-     * Switch to using a custom strategy for loadbalancing.
+     * Provide the {@link LoadbalanceStrategy} to use.
      *
-     * @see #roundRobinLoadbalanceStrategy()
+     * <p>By default, {@link RoundRobinLoadbalanceStrategy} is used.
      */
-    public Builder customLoadbalanceStrategy(LoadbalanceStrategy strategy) {
+    public Builder loadbalanceStrategy(LoadbalanceStrategy strategy) {
       this.loadbalanceStrategy = strategy;
       return this;
     }
