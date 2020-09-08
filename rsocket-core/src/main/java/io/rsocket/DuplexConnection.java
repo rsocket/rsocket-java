@@ -37,8 +37,7 @@ public interface DuplexConnection extends Availability, Closeable {
   void sendFrame(int streamId, ByteBuf frame);
 
   /**
-   * Sends terminal frame to the underlying connection and dispose the connection once the frame is
-   * delivered
+   * Send an error frame and after it is successfully sent, close the connection.
    *
    * @param errorFrame with the encoded error
    */
