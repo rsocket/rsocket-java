@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.internal.BaseDuplexConnection;
+import java.net.SocketAddress;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -57,6 +58,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return connection.channel().alloc();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return connection.channel().remoteAddress();
   }
 
   @Override

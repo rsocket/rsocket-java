@@ -82,10 +82,13 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-          server.apply(new LocalDuplexConnection(allocator, out, in, closeNotifier)).subscribe();
+          server
+              .apply(new LocalDuplexConnection(name, allocator, out, in, closeNotifier))
+              .subscribe();
 
           return Mono.just(
-              (DuplexConnection) new LocalDuplexConnection(allocator, in, out, closeNotifier));
+              (DuplexConnection)
+                  new LocalDuplexConnection(name, allocator, in, out, closeNotifier));
         });
   }
 }

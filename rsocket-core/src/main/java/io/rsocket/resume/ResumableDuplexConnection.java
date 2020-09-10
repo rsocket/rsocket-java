@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderCodec;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Queue;
@@ -109,6 +110,11 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   @Override
   public ByteBufAllocator alloc() {
     return curConnection.alloc();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return curConnection.remoteAddress();
   }
 
   public void disconnect() {

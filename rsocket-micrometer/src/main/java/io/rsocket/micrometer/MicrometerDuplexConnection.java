@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
+import java.net.SocketAddress;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
@@ -86,6 +87,11 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return delegate.alloc();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return delegate.remoteAddress();
   }
 
   @Override

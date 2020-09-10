@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.rsocket.transport.local;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import java.net.SocketAddress;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -33,6 +34,7 @@ import reactor.core.publisher.Operators;
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
 
+  private final LocalSocketAddress address;
   private final ByteBufAllocator allocator;
   private final Flux<ByteBuf> in;
 
@@ -43,16 +45,19 @@ final class LocalDuplexConnection implements DuplexConnection {
   /**
    * Creates a new instance.
    *
+   * @param name the name assigned to this local connection
    * @param in the inbound {@link ByteBuf}s
    * @param out the outbound {@link ByteBuf}s
    * @param onClose the closing notifier
    * @throws NullPointerException if {@code in}, {@code out}, or {@code onClose} are {@code null}
    */
   LocalDuplexConnection(
+      String name,
       ByteBufAllocator allocator,
       Flux<ByteBuf> in,
       Subscriber<ByteBuf> out,
       MonoProcessor<Void> onClose) {
+    this.address = new LocalSocketAddress(name);
     this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");
     this.in = Objects.requireNonNull(in, "in must not be null");
     this.out = Objects.requireNonNull(out, "out must not be null");
@@ -98,6 +103,11 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return allocator;
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return address;
   }
 
   static class ByteBufReleaserOperator

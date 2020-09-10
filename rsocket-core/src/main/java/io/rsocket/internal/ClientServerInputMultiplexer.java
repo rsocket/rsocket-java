@@ -24,6 +24,7 @@ import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
+import java.net.SocketAddress;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -219,6 +220,11 @@ public class ClientServerInputMultiplexer implements Closeable {
     @Override
     public ByteBufAllocator alloc() {
       return source.alloc();
+    }
+
+    @Override
+    public SocketAddress remoteAddress() {
+      return source.remoteAddress();
     }
 
     @Override

@@ -13,16 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package io.rsocket.transport.local;
+package io.rsocket.test.util;
 
 import java.net.SocketAddress;
 import java.util.Objects;
 
-/** An implementation of {@link SocketAddress} representing a local connection. */
-public final class LocalSocketAddress extends SocketAddress {
+public final class TestLocalSocketAddress extends SocketAddress {
 
-  private static final long serialVersionUID = -7513338854585475473L;
+  private static final long serialVersionUID = 2608695156052100164L;
 
   private final String name;
 
@@ -32,7 +30,7 @@ public final class LocalSocketAddress extends SocketAddress {
    * @param name the name representing the address
    * @throws NullPointerException if {@code name} is {@code null}
    */
-  public LocalSocketAddress(String name) {
+  public TestLocalSocketAddress(String name) {
     this.name = Objects.requireNonNull(name, "name must not be null");
   }
 
