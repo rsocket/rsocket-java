@@ -33,6 +33,7 @@ import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
@@ -566,6 +567,11 @@ public interface TransportTest {
       @Override
       public ByteBufAllocator alloc() {
         return duplexConnection.alloc();
+      }
+
+      @Override
+      public SocketAddress remoteAddress() {
+        return duplexConnection.remoteAddress();
       }
 
       @Override

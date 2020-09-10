@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.rsocket.test.util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import java.net.SocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
@@ -109,6 +110,11 @@ public class TestDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return allocator;
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return new TestLocalSocketAddress("TestDuplexConnection");
   }
 
   @Override

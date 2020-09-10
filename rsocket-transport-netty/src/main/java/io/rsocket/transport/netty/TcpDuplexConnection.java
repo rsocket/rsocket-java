@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.internal.BaseDuplexConnection;
+import java.net.SocketAddress;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -52,6 +53,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return connection.channel().alloc();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return connection.channel().remoteAddress();
   }
 
   @Override

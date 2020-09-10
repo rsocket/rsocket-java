@@ -24,6 +24,7 @@ import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
+import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
@@ -370,6 +371,11 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     @Override
     public ByteBufAllocator alloc() {
       return source.alloc();
+    }
+
+    @Override
+    public SocketAddress remoteAddress() {
+      return source.remoteAddress();
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -85,6 +86,17 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return the {@link ByteBufAllocator}
    */
   ByteBufAllocator alloc();
+
+  /**
+   * Return the remote address that this connection is connected to. The returned {@link
+   * SocketAddress} varies by transport type and should be downcast to obtain more detailed
+   * information. For TCP and WebSocket, the address type is {@link java.net.InetSocketAddress}. For
+   * local transport, it is {@link io.rsocket.transport.local.LocalSocketAddress}.
+   *
+   * @return the address
+   * @since 1.1
+   */
+  SocketAddress remoteAddress();
 
   @Override
   default double availability() {
