@@ -16,13 +16,10 @@
 
 package io.rsocket.resume;
 
-import io.netty.buffer.ByteBuf;
 import io.rsocket.keepalive.KeepAliveSupport;
 import reactor.core.Disposable;
 
 public interface RSocketSession extends Disposable {
 
   void setKeepAliveSupport(KeepAliveSupport keepAliveSupport);
-
-  ByteBuf token();
 }

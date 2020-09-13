@@ -22,6 +22,7 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.internal.UnboundedProcessor;
+import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.reactivestreams.Subscription;
@@ -30,17 +31,20 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 
 public class ResumableDuplexConnection extends Flux<ByteBuf>
-    implements DuplexConnection, CoreSubscriber<ByteBuf>, Subscription {
+    implements DuplexConnection, Subscription {
 
   final ResumableFramesStore resumableFramesStore;
 
   final UnboundedProcessor<ByteBuf> savableFramesSender;
   final Disposable framesSaverDisposable;
   final MonoProcessor<Void> onClose;
+  final SocketAddress remoteAddress;
 
   CoreSubscriber<? super ByteBuf> receiveSubscriber;
+  FrameReceivingSubscriber activeReceivingSubscriber;
 
   volatile int state;
   static final AtomicIntegerFieldUpdater<ResumableDuplexConnection> STATE =
@@ -58,11 +62,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     this.savableFramesSender = new UnboundedProcessor<>();
     this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
     this.onClose = MonoProcessor.create();
-
-    resumableFramesStore
-        .resumeStream()
-        .takeUntilOther(initialConnection.onClose())
-        .subscribe(f -> initialConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
+    this.remoteAddress = initialConnection.remoteAddress();
 
     ACTIVE_CONNECTION.lazySet(this, initialConnection);
   }
@@ -73,11 +73,25 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
         && ACTIVE_CONNECTION.compareAndSet(this, activeConnection, nextConnection)) {
 
       activeConnection.dispose();
-      nextConnection.receive().subscribe(this);
-      resumableFramesStore
-          .resumeStream()
-          .takeUntilOther(nextConnection.onClose())
-          .subscribe(f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
+
+      final FrameReceivingSubscriber frameReceivingSubscriber =
+          new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
+      this.activeReceivingSubscriber = frameReceivingSubscriber;
+      final Disposable disposable =
+          resumableFramesStore
+              .resumeStream()
+              .subscribe(f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
+      resumableFramesStore.resumeImplied();
+      nextConnection.receive().subscribe(frameReceivingSubscriber);
+      nextConnection
+          .onClose()
+          .doFinally(
+              __ -> {
+                frameReceivingSubscriber.dispose();
+                disposable.dispose();
+                resumableFramesStore.pauseImplied();
+              })
+          .subscribe();
       return true;
     } else {
       return false;
@@ -114,17 +128,19 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
         .subscribe(
             null,
             t -> {
-              onClose.onError(t);
               framesSaverDisposable.dispose();
+              savableFramesSender.dispose();
+              onClose.onError(t);
             },
             () -> {
+              framesSaverDisposable.dispose();
+              savableFramesSender.dispose();
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
                 onClose.onComplete();
               } else {
                 onClose.onError(cause);
               }
-              framesSaverDisposable.dispose();
             });
   }
 
@@ -155,8 +171,9 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
       activeConnection.dispose();
     }
 
-    onClose.onComplete();
     framesSaverDisposable.dispose();
+    savableFramesSender.dispose();
+    onClose.onComplete();
   }
 
   @Override
@@ -165,47 +182,33 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   }
 
   @Override
-  public void onSubscribe(Subscription s) {
-    s.request(Long.MAX_VALUE);
+  public SocketAddress remoteAddress() {
+    return remoteAddress;
   }
-
-  @Override
-  public void onNext(ByteBuf frame) {
-    if (isResumableFrame(frame)) {
-      resumableFramesStore.resumableFrameReceived(frame);
-    }
-
-    receiveSubscriber.onNext(frame);
-  }
-
-  static boolean isResumableFrame(ByteBuf frame) {
-    switch (FrameHeaderCodec.nativeFrameType(frame)) {
-      case REQUEST_CHANNEL:
-      case REQUEST_STREAM:
-      case REQUEST_RESPONSE:
-      case REQUEST_FNF:
-      case REQUEST_N:
-      case CANCEL:
-      case ERROR:
-      case PAYLOAD:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  @Override
-  public void onError(Throwable t) {}
-
-  @Override
-  public void onComplete() {}
 
   @Override
   public void request(long n) {
     if (state == 1 && STATE.compareAndSet(this, 1, 2)) {
       final DuplexConnection connection = this.activeConnection;
       if (connection != null) {
-        connection.receive().subscribe(this);
+        final FrameReceivingSubscriber frameReceivingSubscriber =
+            new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
+        this.activeReceivingSubscriber = frameReceivingSubscriber;
+        final Disposable disposable =
+            resumableFramesStore
+                .resumeStream()
+                .subscribe(f -> connection.sendFrame(FrameHeaderCodec.streamId(f), f));
+        resumableFramesStore.resumeImplied();
+        connection.receive().subscribe(activeReceivingSubscriber);
+        connection
+            .onClose()
+            .doFinally(
+                __ -> {
+                  frameReceivingSubscriber.dispose();
+                  disposable.dispose();
+                  resumableFramesStore.pauseImplied();
+                })
+            .subscribe();
       }
     }
   }
@@ -221,6 +224,10 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
       receiveSubscriber = receiverSubscriber;
       receiverSubscriber.onSubscribe(this);
     }
+  }
+
+  static boolean isResumableFrame(ByteBuf frame) {
+    return FrameHeaderCodec.streamId(frame) != 0;
   }
 
   private static final class DisposedConnection implements DuplexConnection {
@@ -251,6 +258,76 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     @Override
     public ByteBufAllocator alloc() {
       return ByteBufAllocator.DEFAULT;
+    }
+
+    @Override
+    @SuppressWarnings("ConstantConditions")
+    public SocketAddress remoteAddress() {
+      return null;
+    }
+  }
+
+  private static final class FrameReceivingSubscriber
+      implements CoreSubscriber<ByteBuf>, Disposable {
+
+    final ResumableFramesStore resumableFramesStore;
+    final CoreSubscriber<? super ByteBuf> actual;
+
+    volatile Subscription s;
+    static final AtomicReferenceFieldUpdater<FrameReceivingSubscriber, Subscription> S =
+        AtomicReferenceFieldUpdater.newUpdater(
+            FrameReceivingSubscriber.class, Subscription.class, "s");
+
+    boolean cancelled;
+
+    private FrameReceivingSubscriber(
+        ResumableFramesStore store, CoreSubscriber<? super ByteBuf> actual) {
+      this.resumableFramesStore = store;
+      this.actual = actual;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      if (Operators.setOnce(S, this, s)) {
+        s.request(Long.MAX_VALUE);
+      }
+    }
+
+    @Override
+    public void onNext(ByteBuf frame) {
+      if (cancelled || s == Operators.cancelledSubscription()) {
+        return;
+      }
+
+      if (isResumableFrame(frame)) {
+        if (resumableFramesStore.resumableFrameReceived(frame)) {
+          actual.onNext(frame);
+        }
+        return;
+      }
+
+      actual.onNext(frame);
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      Operators.set(S, this, Operators.cancelledSubscription());
+    }
+
+    @Override
+    public void onComplete() {
+      Operators.set(S, this, Operators.cancelledSubscription());
+    }
+
+    @Override
+    public void dispose() {
+      cancelled = true;
+      Operators.terminate(S, this);
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return cancelled || s == Operators.cancelledSubscription();
     }
   }
 }

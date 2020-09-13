@@ -69,10 +69,8 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   protected void doOnClose() {
-    if (!connection.isDisposed()) {
-      sender.dispose();
-      connection.dispose();
-    }
+    sender.dispose();
+    connection.dispose();
   }
 
   @Override

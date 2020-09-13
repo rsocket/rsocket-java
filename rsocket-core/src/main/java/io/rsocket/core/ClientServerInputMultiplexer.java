@@ -73,11 +73,11 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     this.clientConnection = registry.initConnection(Type.CLIENT, clientReceiver);
   }
 
-  DuplexConnection asResponderConnection() {
+  DuplexConnection asServerConnection() {
     return serverConnection;
   }
 
-  DuplexConnection asRequesterConnection() {
+  DuplexConnection asClientConnection() {
     return clientConnection;
   }
 

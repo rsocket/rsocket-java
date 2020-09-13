@@ -3,6 +3,7 @@ package io.rsocket.core;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
+import java.nio.channels.ClosedChannelException;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -24,7 +25,8 @@ class ResumableClientSetup extends ClientSetup {
 
   @Override
   Mono<Tuple2<ByteBuf, DuplexConnection>> init(DuplexConnection connection) {
-    return Mono.create(
-        sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)));
+    return Mono.<Tuple2<ByteBuf, DuplexConnection>>create(
+            sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)))
+        .or(connection.onClose().then(Mono.error(ClosedChannelException::new)));
   }
 }

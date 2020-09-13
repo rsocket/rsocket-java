@@ -27,6 +27,7 @@ import io.rsocket.frame.ResumeFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.*;
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -36,8 +37,9 @@ import reactor.util.function.Tuple2;
 abstract class ServerSetup {
 
   Mono<Tuple2<ByteBuf, DuplexConnection>> init(DuplexConnection connection) {
-    return Mono.create(
-        sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)));
+    return Mono.<Tuple2<ByteBuf, DuplexConnection>>create(
+            sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)))
+        .or(connection.onClose().then(Mono.error(ClosedChannelException::new)));
   }
 
   abstract Mono<Void> acceptRSocketSetup(
@@ -110,14 +112,14 @@ abstract class ServerSetup {
             new ResumableDuplexConnection(duplexConnection, resumableFramesStore);
         final ServerRSocketSession serverRSocketSession =
             new ServerRSocketSession(
+                resumeToken,
                 duplexConnection,
                 resumableDuplexConnection,
                 resumeSessionDuration,
                 resumableFramesStore,
-                resumeToken,
                 cleanupStoreOnKeepAlive);
 
-        sessionManager.save(serverRSocketSession);
+        sessionManager.save(serverRSocketSession, resumeToken);
 
         return then.apply(
             new ResumableKeepAliveHandler(

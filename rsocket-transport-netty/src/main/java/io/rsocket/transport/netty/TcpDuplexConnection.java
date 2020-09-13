@@ -64,10 +64,8 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   protected void doOnClose() {
-    if (!connection.isDisposed()) {
-      sender.dispose();
-      connection.dispose();
-    }
+    sender.dispose();
+    connection.dispose();
   }
 
   @Override
@@ -75,7 +73,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
     connection
         .outbound()
-        .sendObject(errorFrame)
+        .sendObject(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame))
         .then()
         .subscribe(
             null,

@@ -11,13 +11,14 @@ import reactor.core.publisher.Mono;
 public class TestClientTransport implements ClientTransport {
   private final LeaksTrackingByteBufAllocator allocator =
       LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-  private final TestDuplexConnection testDuplexConnection = new TestDuplexConnection(allocator);
+
+  private volatile TestDuplexConnection testDuplexConnection;
 
   int maxFrameLength = FRAME_LENGTH_MASK;
 
   @Override
   public Mono<DuplexConnection> connect() {
-    return Mono.just(testDuplexConnection);
+    return Mono.fromSupplier(() -> testDuplexConnection = new TestDuplexConnection(allocator));
   }
 
   public TestDuplexConnection testConnection() {

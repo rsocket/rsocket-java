@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -43,6 +44,11 @@ class SetupHandlingDuplexConnection extends Flux<ByteBuf>
   }
 
   @Override
+  public boolean isDisposed() {
+    return source.isDisposed();
+  }
+
+  @Override
   public Mono<Void> onClose() {
     return source.onClose();
   }
@@ -55,6 +61,11 @@ class SetupHandlingDuplexConnection extends Flux<ByteBuf>
   @Override
   public Flux<ByteBuf> receive() {
     return this;
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return source.remoteAddress();
   }
 
   @Override

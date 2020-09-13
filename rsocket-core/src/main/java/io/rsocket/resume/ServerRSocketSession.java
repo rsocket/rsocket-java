@@ -18,7 +18,9 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.CharsetUtil;
 import io.rsocket.DuplexConnection;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.frame.ResumeFrameCodec;
 import io.rsocket.frame.ResumeOkFrameCodec;
@@ -39,8 +41,8 @@ public class ServerRSocketSession
   final ResumableDuplexConnection resumableConnection;
   final Duration resumeSessionDuration;
   final ResumableFramesStore resumableFramesStore;
+  final String resumeToken;
   final ByteBufAllocator allocator;
-  final ByteBuf resumeToken;
   final boolean cleanupStoreOnKeepAlive;
 
   volatile Subscription s;
@@ -50,18 +52,20 @@ public class ServerRSocketSession
   KeepAliveSupport keepAliveSupport;
 
   public ServerRSocketSession(
+      ByteBuf resumeToken,
       DuplexConnection initialDuplexConnection,
       ResumableDuplexConnection resumableDuplexConnection,
       Duration resumeSessionDuration,
       ResumableFramesStore resumableFramesStore,
-      ByteBuf resumeToken,
       boolean cleanupStoreOnKeepAlive) {
+    this.resumeToken = resumeToken.toString(CharsetUtil.UTF_8);
     this.allocator = initialDuplexConnection.alloc();
     this.resumeSessionDuration = resumeSessionDuration;
     this.resumableFramesStore = resumableFramesStore;
-    this.resumableConnection = resumableDuplexConnection;
-    this.resumeToken = resumeToken;
     this.cleanupStoreOnKeepAlive = cleanupStoreOnKeepAlive;
+    this.resumableConnection = resumableDuplexConnection;
+
+    resumableDuplexConnection.onClose().doFinally(__ -> dispose()).subscribe();
 
     observeDisconnection(initialDuplexConnection);
   }
@@ -73,15 +77,28 @@ public class ServerRSocketSession
   void tryTimeoutSession() {
     keepAliveSupport.stop();
     Mono.delay(resumeSessionDuration).subscribe(this);
+    logger.debug("Connection is lost. Trying to timeout the active session[{}]", resumeToken);
   }
 
-  public Mono<Void> resumeWith(ByteBuf resumeFrame, DuplexConnection nextDuplexConnection) {
-    logger.debug("Resume FRAME received");
+  public synchronized Mono<Void> resumeWith(
+      ByteBuf resumeFrame, DuplexConnection nextDuplexConnection) {
+    long remotePos = ResumeFrameCodec.firstAvailableClientPos(resumeFrame);
+    long remoteImpliedPos = ResumeFrameCodec.lastReceivedServerPos(resumeFrame);
+    long impliedPosition = resumableFramesStore.frameImpliedPosition();
+    long position = resumableFramesStore.framePosition();
+
+    logger.debug(
+        "Resume FRAME received. ClientResumeState{observedFramesPosition[{}], sentFramesPosition[{}]}, ServerResumeState{observedFramesPosition[{}], sentFramesPosition[{}]}",
+        remoteImpliedPos,
+        remotePos,
+        impliedPosition,
+        position);
 
     for (; ; ) {
       final Subscription subscription = this.s;
 
       if (subscription == Operators.cancelledSubscription()) {
+        logger.debug("Session has already been expired. Terminating received connection");
         final RejectedResumeException rejectedResumeException =
             new RejectedResumeException("resume_internal_error: Session Expired");
         nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
@@ -94,17 +111,16 @@ public class ServerRSocketSession
       }
     }
 
-    long remotePos = ResumeFrameCodec.firstAvailableClientPos(resumeFrame);
-    long remoteImpliedPos = ResumeFrameCodec.lastReceivedServerPos(resumeFrame);
-    long impliedPosition = resumableFramesStore.frameImpliedPosition();
-    long position = resumableFramesStore.framePosition();
-
     if (remotePos <= impliedPosition && position <= remoteImpliedPos) {
       try {
-        resumableFramesStore.releaseFrames(remoteImpliedPos);
-        nextDuplexConnection.sendFrame(0, ResumeOkFrameCodec.encode(allocator, impliedPosition));
-        logger.debug("ResumeOk has been sent");
+        if (position != remoteImpliedPos) {
+          resumableFramesStore.releaseFrames(remoteImpliedPos);
+        }
+        nextDuplexConnection.sendFrame(
+            0, ResumeOkFrameCodec.encode(allocator, resumableFramesStore.frameImpliedPosition()));
+        logger.debug("ResumeOK Frame has been sent");
       } catch (Throwable t) {
+        logger.debug("Exception occurred while releasing frames in the frameStore", t);
         resumableConnection.dispose();
         nextDuplexConnection.sendErrorAndClose(new RejectedResumeException(t.getMessage(), t));
         return nextDuplexConnection.onClose();
@@ -112,12 +128,20 @@ public class ServerRSocketSession
       if (resumableConnection.connect(nextDuplexConnection)) {
         observeDisconnection(nextDuplexConnection);
         keepAliveSupport.start();
+        logger.debug("Session[{}] has been resumed successfully", resumeToken);
       } else {
-        final RejectedResumeException rejectedResumeException =
-            new RejectedResumeException("resume_internal_error: Session Expired");
-        nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
+        logger.debug("Session has already been expired. Terminating received connection");
+        final ConnectionErrorException connectionErrorException =
+            new ConnectionErrorException("resume_internal_error: Session Expired");
+        nextDuplexConnection.sendErrorAndClose(connectionErrorException);
       }
     } else {
+      logger.debug(
+          "Mismatching remote and local state. Expected RemoteImpliedPosition[{}] to be greater or equal to the LocalPosition[{}] and RemotePosition[{}] to be less or equal to LocalImpliedPosition[{}]. Terminating received connection",
+          remoteImpliedPos,
+          position,
+          remotePos,
+          impliedPosition);
       resumableConnection.dispose();
       final RejectedResumeException rejectedResumeException =
           new RejectedResumeException(
@@ -128,11 +152,6 @@ public class ServerRSocketSession
     }
 
     return nextDuplexConnection.onClose();
-  }
-
-  @Override
-  public ByteBuf token() {
-    return resumeToken;
   }
 
   @Override
@@ -175,29 +194,14 @@ public class ServerRSocketSession
 
   @Override
   public void dispose() {
-    resumableFramesStore.dispose();
-    resumableConnection.dispose();
+    if (Operators.terminate(S, this)) {
+      resumableFramesStore.dispose();
+      resumableConnection.dispose();
+    }
   }
 
   @Override
   public boolean isDisposed() {
     return resumableConnection.isDisposed();
-  }
-
-  private static RejectedResumeException errorFrameThrowable(Throwable err) {
-    String msg;
-    if (err instanceof ResumeStateException) {
-      ResumeStateException resumeException = ((ResumeStateException) err);
-      msg =
-          String.format(
-              "resumption_pos=[ remote: { pos: %d, impliedPos: %d }, local: { pos: %d, impliedPos: %d }]",
-              resumeException.getRemotePos(),
-              resumeException.getRemoteImpliedPos(),
-              resumeException.getLocalPos(),
-              resumeException.getLocalImpliedPos());
-    } else {
-      msg = String.format("resume_internal_error: %s", err.getMessage());
-    }
-    return new RejectedResumeException(msg);
   }
 }

@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameUtil;
+import java.net.SocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -54,6 +55,11 @@ class LoggingDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return source.alloc();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return source.remoteAddress();
   }
 
   static DuplexConnection wrapIfEnabled(DuplexConnection source) {

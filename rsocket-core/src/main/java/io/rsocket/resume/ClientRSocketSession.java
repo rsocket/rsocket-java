@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.ConnectionErrorException;
+import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.ResumeFrameCodec;
@@ -52,8 +53,7 @@ public class ClientRSocketSession
   final Duration resumeSessionDuration;
   final Retry retry;
   final boolean cleanupStoreOnKeepAlive;
-
-  volatile ByteBuf resumeToken;
+  final ByteBuf resumeToken;
 
   volatile Subscription s;
   static final AtomicReferenceFieldUpdater<ClientRSocketSession, Subscription> S =
@@ -80,8 +80,10 @@ public class ClientRSocketSession
                   ResumeFrameCodec.encode(
                       dc.alloc(),
                       resumeToken.retain(),
-                      resumableFramesStore.frameImpliedPosition(),
-                      resumableFramesStore.framePosition()));
+                      resumableFramesStore.frameImpliedPosition(), //  observed on the client side
+                      resumableFramesStore.framePosition() //  sent from the client sent
+                      ));
+              logger.debug("Resume Frame has been sent");
 
               return connectionTransformer.apply(dc);
             });
@@ -91,6 +93,8 @@ public class ClientRSocketSession
     this.retry = retry;
     this.cleanupStoreOnKeepAlive = cleanupStoreOnKeepAlive;
     this.resumableConnection = resumableDuplexConnection;
+
+    resumableDuplexConnection.onClose().doFinally(__ -> dispose()).subscribe();
 
     observeDisconnection(initialDuplexConnection);
 
@@ -102,6 +106,7 @@ public class ClientRSocketSession
         && S.compareAndSet(this, Operators.cancelledSubscription(), null)) {
       keepAliveSupport.stop();
       connectionFactory.retryWhen(retry).timeout(resumeSessionDuration).subscribe(this);
+      logger.debug("Connection is lost. Reconnecting...");
     }
   }
 
@@ -127,9 +132,11 @@ public class ClientRSocketSession
 
   @Override
   public void dispose() {
-    resumableFramesStore.dispose();
-    resumableConnection.dispose();
-    resumeToken.release();
+    if (Operators.terminate(S, this)) {
+      resumableFramesStore.dispose();
+      resumableConnection.dispose();
+      resumeToken.release();
+    }
   }
 
   @Override
@@ -145,14 +152,14 @@ public class ClientRSocketSession
   }
 
   @Override
-  public void onNext(Tuple2<ByteBuf, DuplexConnection> tuple2) {
+  public synchronized void onNext(Tuple2<ByteBuf, DuplexConnection> tuple2) {
     ByteBuf frame = tuple2.getT1();
     DuplexConnection nextDuplexConnection = tuple2.getT2();
 
     if (!Operators.terminate(S, this)) {
-      logger.debug("Terminating received");
+      logger.debug("Session has already been expired. Terminating received connection");
       final ConnectionErrorException connectionErrorException =
-          new ConnectionErrorException("resumption_server_pos=[Session Expired]");
+          new ConnectionErrorException("resumption_server=[Session Expired]");
       nextDuplexConnection.sendErrorAndClose(connectionErrorException);
       return;
     }
@@ -161,20 +168,31 @@ public class ClientRSocketSession
     final int streamId = FrameHeaderCodec.streamId(frame);
 
     if (streamId != 0) {
+      logger.debug(
+          "Illegal first frame received. RESUME_OK frame must be received before any others. Terminating received connection");
       resumableConnection.dispose();
       final ConnectionErrorException connectionErrorException =
-          new ConnectionErrorException("Unexpected first frame");
+          new ConnectionErrorException("RESUME_OK frame must be received before any others");
       nextDuplexConnection.sendErrorAndClose(connectionErrorException);
       return;
     }
 
     if (frameType == FrameType.RESUME_OK) {
-      logger.debug("ResumeOK FRAME received");
       long remoteImpliedPos = ResumeOkFrameCodec.lastReceivedClientPos(frame);
-      if (resumableFramesStore.framePosition() <= remoteImpliedPos) {
+      final long position = resumableFramesStore.framePosition();
+      final long impliedPosition = resumableFramesStore.frameImpliedPosition();
+      logger.debug(
+          "ResumeOK FRAME received. ServerResumeState{observedFramesPosition[{}]}. ClientResumeState{observedFramesPosition[{}], sentFramesPosition[{}]}",
+          remoteImpliedPos,
+          impliedPosition,
+          position);
+      if (position <= remoteImpliedPos) {
         try {
-          resumableFramesStore.releaseFrames(remoteImpliedPos);
+          if (position != remoteImpliedPos) {
+            resumableFramesStore.releaseFrames(remoteImpliedPos);
+          }
         } catch (IllegalStateException e) {
+          logger.debug("Exception occurred while releasing frames in the frameStore", e);
           resumableConnection.dispose();
           final ConnectionErrorException t = new ConnectionErrorException(e.getMessage(), e);
           nextDuplexConnection.sendErrorAndClose(t);
@@ -184,23 +202,33 @@ public class ClientRSocketSession
         if (resumableConnection.connect(nextDuplexConnection)) {
           observeDisconnection(nextDuplexConnection);
           keepAliveSupport.start();
+          logger.debug("Session has been resumed successfully");
         } else {
+          logger.debug("Session has already been expired. Terminating received connection");
           final ConnectionErrorException connectionErrorException =
               new ConnectionErrorException("resumption_server_pos=[Session Expired]");
           nextDuplexConnection.sendErrorAndClose(connectionErrorException);
         }
       } else {
+        logger.debug(
+            "Mismatching remote and local state. Expected RemoteImpliedPosition[{}] to be greater or equal to the LocalPosition[{}]. Terminating received connection",
+            remoteImpliedPos,
+            position);
         resumableConnection.dispose();
         final ConnectionErrorException connectionErrorException =
             new ConnectionErrorException("resumption_server_pos=[" + remoteImpliedPos + "]");
         nextDuplexConnection.sendErrorAndClose(connectionErrorException);
       }
     } else if (frameType == FrameType.ERROR) {
+      final RuntimeException exception = Exceptions.from(0, frame);
+      logger.debug("Received error frame. Terminating received connection", exception);
       resumableConnection.dispose();
     } else {
+      logger.debug(
+          "Illegal first frame received. RESUME_OK frame must be received before any others. Terminating received connection");
       resumableConnection.dispose();
       final ConnectionErrorException connectionErrorException =
-          new ConnectionErrorException("Unexpected first frame");
+          new ConnectionErrorException("RESUME_OK frame must be received before any others");
       nextDuplexConnection.sendErrorAndClose(connectionErrorException);
     }
   }
@@ -219,10 +247,5 @@ public class ClientRSocketSession
 
   public void setKeepAliveSupport(KeepAliveSupport keepAliveSupport) {
     this.keepAliveSupport = keepAliveSupport;
-  }
-
-  @Override
-  public ByteBuf token() {
-    return resumeToken;
   }
 }

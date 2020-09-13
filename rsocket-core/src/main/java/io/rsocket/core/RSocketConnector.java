@@ -621,7 +621,7 @@ public class RSocketConnector {
 
                                   RSocket rSocketRequester =
                                       new RSocketRequester(
-                                          multiplexer.asRequesterConnection(),
+                                          multiplexer.asClientConnection(),
                                           payloadDecoder,
                                           StreamIdSupplier.clientSupplier(),
                                           mtu,
@@ -662,7 +662,7 @@ public class RSocketConnector {
 
                                             RSocket rSocketResponder =
                                                 new RSocketResponder(
-                                                    multiplexer.asResponderConnection(),
+                                                    multiplexer.asServerConnection(),
                                                     wrappedRSocketHandler,
                                                     payloadDecoder,
                                                     responderLeaseHandler,

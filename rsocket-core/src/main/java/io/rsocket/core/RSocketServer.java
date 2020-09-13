@@ -369,8 +369,7 @@ public final class RSocketServer {
       default:
         serverSetup.sendError(
             clientServerConnection,
-            new InvalidSetupException(
-                "invalid setup frame: " + FrameHeaderCodec.frameType(startFrame)));
+            new InvalidSetupException("SETUP or RESUME frame must be received before any others"));
         return clientServerConnection.onClose();
     }
   }
@@ -412,7 +411,7 @@ public final class RSocketServer {
 
           RSocket rSocketRequester =
               new RSocketRequester(
-                  multiplexer.asResponderConnection(),
+                  multiplexer.asServerConnection(),
                   payloadDecoder,
                   StreamIdSupplier.serverSupplier(),
                   mtu,
@@ -433,7 +432,7 @@ public final class RSocketServer {
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
-                    DuplexConnection clientConnection = multiplexer.asRequesterConnection();
+                    DuplexConnection clientConnection = multiplexer.asClientConnection();
 
                     ResponderLeaseHandler responderLeaseHandler =
                         leaseEnabled

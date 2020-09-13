@@ -3,23 +3,89 @@ package io.rsocket.core;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.ConnectionSetupPayload;
+import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.KeepAliveFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.test.util.TestClientTransport;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.test.StepVerifier;
+import reactor.util.retry.Retry;
 
 public class RSocketConnectorTest {
+
+  @ParameterizedTest
+  @ValueSource(strings = {"KEEPALIVE", "REQUEST_RESPONSE"})
+  public void unexpectedFramesBeforeResumeOKFrame(String frameType) {
+    TestClientTransport transport = new TestClientTransport();
+    RSocketConnector.create()
+        .resume(new Resume().retry(Retry.indefinitely()))
+        .connect(transport)
+        .block();
+
+    final TestDuplexConnection duplexConnection = transport.testConnection();
+
+    duplexConnection.addToReceivedBuffer(
+        KeepAliveFrameCodec.encode(duplexConnection.alloc(), false, 1, Unpooled.EMPTY_BUFFER));
+    FrameAssert.assertThat(duplexConnection.pollFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
+    FrameAssert.assertThat(duplexConnection.pollFrame()).isNull();
+
+    duplexConnection.dispose();
+
+    final TestDuplexConnection duplexConnection2 = transport.testConnection();
+
+    final ByteBuf frame;
+    switch (frameType) {
+      case "KEEPALIVE":
+        frame =
+            KeepAliveFrameCodec.encode(duplexConnection2.alloc(), false, 1, Unpooled.EMPTY_BUFFER);
+        break;
+      case "REQUEST_RESPONSE":
+      default:
+        frame =
+            RequestResponseFrameCodec.encode(
+                duplexConnection2.alloc(), 2, false, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+    }
+    duplexConnection2.addToReceivedBuffer(frame);
+
+    StepVerifier.create(duplexConnection2.onClose())
+        .expectSubscription()
+        .expectComplete()
+        .verify(Duration.ofSeconds(10));
+
+    FrameAssert.assertThat(duplexConnection2.pollFrame())
+        .typeOf(FrameType.RESUME)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
+    FrameAssert.assertThat(duplexConnection2.pollFrame())
+        .isNotNull()
+        .typeOf(FrameType.ERROR)
+        .hasData("RESUME_OK frame must be received before any others")
+        .hasStreamIdZero()
+        .hasNoLeaks();
+  }
 
   @Test
   public void ensuresThatSetupPayloadCanBeRetained() {
@@ -86,6 +152,16 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
+    Assertions.assertThat(testClientTransport.testConnection().getSent())
+        .hasSize(1)
+        .allMatch(
+            bb -> {
+              DefaultConnectionSetupPayload payload = new DefaultConnectionSetupPayload(bb);
+              return payload.getDataUtf8().equals("TestData")
+                  && payload.getMetadataUtf8().equals("TestMetadata");
+            })
+        .allMatch(ReferenceCounted::release);
+
     connectionMono
         .as(StepVerifier::create)
         .expectNextCount(1)
@@ -93,7 +169,7 @@ public class RSocketConnectorTest {
         .verify(Duration.ofMillis(100));
 
     Assertions.assertThat(testClientTransport.testConnection().getSent())
-        .hasSize(2)
+        .hasSize(1)
         .allMatch(
             bb -> {
               DefaultConnectionSetupPayload payload = new DefaultConnectionSetupPayload(bb);
@@ -107,10 +183,13 @@ public class RSocketConnectorTest {
   @Test
   public void ensuresThatSetupPayloadProvidedAsMonoIsReleased() {
     List<Payload> saved = new ArrayList<>();
+    AtomicLong subscriptions = new AtomicLong();
     Mono<Payload> setupPayloadMono =
         Mono.create(
             sink -> {
-              Payload payload = ByteBufPayload.create("TestData", "TestMetadata");
+              final long subscriptionN = subscriptions.getAndIncrement();
+              Payload payload =
+                  ByteBufPayload.create("TestData" + subscriptionN, "TestMetadata" + subscriptionN);
               saved.add(payload);
               sink.success(payload);
             });
@@ -125,6 +204,16 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
+    Assertions.assertThat(testClientTransport.testConnection().getSent())
+        .hasSize(1)
+        .allMatch(
+            bb -> {
+              DefaultConnectionSetupPayload payload = new DefaultConnectionSetupPayload(bb);
+              return payload.getDataUtf8().equals("TestData0")
+                  && payload.getMetadataUtf8().equals("TestMetadata0");
+            })
+        .allMatch(ReferenceCounted::release);
+
     connectionMono
         .as(StepVerifier::create)
         .expectNextCount(1)
@@ -132,12 +221,12 @@ public class RSocketConnectorTest {
         .verify(Duration.ofMillis(100));
 
     Assertions.assertThat(testClientTransport.testConnection().getSent())
-        .hasSize(2)
+        .hasSize(1)
         .allMatch(
             bb -> {
               DefaultConnectionSetupPayload payload = new DefaultConnectionSetupPayload(bb);
-              return payload.getDataUtf8().equals("TestData")
-                  && payload.getMetadataUtf8().equals("TestMetadata");
+              return payload.getDataUtf8().equals("TestData1")
+                  && payload.getMetadataUtf8().equals("TestMetadata1");
             })
         .allMatch(ReferenceCounted::release);
 

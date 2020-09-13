@@ -6,6 +6,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
 
@@ -50,25 +51,35 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
   public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
     try {
-      Assertions.assertThat(tracker)
-          .allSatisfy(
-              buf ->
-                  Assertions.assertThat(buf)
-                      .matches(
-                          bb -> {
-                            final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
-                            if (!awaitZeroRefCntDuration.isZero()) {
-                              long end = System.nanoTime() + awaitZeroRefCntDuration.toNanos();
-                              while (bb.refCnt() != 0) {
-                                if (System.nanoTime() >= end) {
-                                  break;
-                                }
-                                parkNanos(100);
-                              }
-                            }
-                            return bb.refCnt() == 0;
-                          },
-                          "buffer should be released"));
+      ArrayList<ByteBuf> unreleased = new ArrayList<>();
+      for (ByteBuf bb : tracker) {
+        if (bb.refCnt() != 0) {
+          unreleased.add(bb);
+        }
+      }
+
+      final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
+      if (!unreleased.isEmpty() && !awaitZeroRefCntDuration.isZero()) {
+        long end = System.nanoTime() + awaitZeroRefCntDuration.toNanos();
+        boolean hasUnreleased;
+        while (System.nanoTime() < end) {
+          hasUnreleased = false;
+          for (ByteBuf bb : unreleased) {
+            if (bb.refCnt() != 0) {
+              hasUnreleased = true;
+              break;
+            }
+          }
+
+          if (!hasUnreleased) {
+            break;
+          }
+
+          parkNanos(100);
+        }
+      }
+
+      Assertions.assertThat(unreleased).allMatch(bb -> bb.refCnt() == 0);
     } finally {
       tracker.clear();
     }

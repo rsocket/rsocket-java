@@ -17,28 +17,36 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.CharsetUtil;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.util.annotation.Nullable;
 
 public class SessionManager {
-  private volatile boolean isDisposed;
-  private final Map<ByteBuf, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
+  static final Logger logger = LoggerFactory.getLogger(SessionManager.class);
 
-  public ServerRSocketSession save(ServerRSocketSession session) {
+  private volatile boolean isDisposed;
+  private final Map<String, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
+
+  public ServerRSocketSession save(ServerRSocketSession session, ByteBuf resumeToken) {
     if (isDisposed) {
       session.dispose();
     } else {
-      ByteBuf token = session.token().retain();
+      final String token = resumeToken.toString(CharsetUtil.UTF_8);
       session
           .resumableConnection
           .onClose()
-          .doOnSuccess(
-              v -> {
+          .doFinally(
+              __ -> {
+                logger.debug(
+                    "ResumableConnection has been closed. Removing associated session {"
+                        + token
+                        + "}");
                 if (isDisposed || sessions.get(token) == session) {
                   sessions.remove(token);
                 }
-                token.release();
               })
           .subscribe();
       ServerRSocketSession prevSession = sessions.remove(token);
@@ -52,7 +60,7 @@ public class SessionManager {
 
   @Nullable
   public ServerRSocketSession get(ByteBuf resumeToken) {
-    return sessions.get(resumeToken);
+    return sessions.get(resumeToken.toString(CharsetUtil.UTF_8));
   }
 
   public void dispose() {

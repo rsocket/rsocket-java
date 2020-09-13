@@ -46,6 +46,8 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
   final int cacheLimit;
 
   volatile long impliedPosition;
+  static final AtomicLongFieldUpdater<InMemoryResumableFramesStore> IMPLIED_POSITION =
+      AtomicLongFieldUpdater.newUpdater(InMemoryResumableFramesStore.class, "impliedPosition");
 
   volatile long position;
   static final AtomicLongFieldUpdater<InMemoryResumableFramesStore> POSITION =
@@ -92,10 +94,14 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       while (toRemoveBytes > removedBytes && frames.size() > 0) {
         ByteBuf cachedFrame = frames.remove(0);
         int frameSize = cachedFrame.readableBytes();
+        //                logger.debug(
+        //                        "{} Removing frame {}", tag,
+        // cachedFrame.toString(CharsetUtil.UTF_8));
         cachedFrame.release();
         removedBytes += frameSize;
       }
     }
+
     if (toRemoveBytes > removedBytes) {
       throw new IllegalStateException(
           String.format(
@@ -107,8 +113,10 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
           "Local and remote state disagreement: " + "local and remote frame sizes are not equal");
     } else {
       POSITION.addAndGet(this, removedBytes);
-      CACHE_SIZE.addAndGet(this, -removedBytes);
-      logger.debug("{} Removed frames. Current cache size: {}", tag, cacheSize);
+      if (cacheLimit != Integer.MAX_VALUE) {
+        CACHE_SIZE.addAndGet(this, -removedBytes);
+        logger.debug("{} Removed frames. Current cache size: {}", tag, cacheSize);
+      }
     }
   }
 
@@ -124,14 +132,48 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public long frameImpliedPosition() {
-    return impliedPosition;
+    return impliedPosition & Long.MAX_VALUE;
   }
 
   @Override
-  public void resumableFrameReceived(ByteBuf frame) {
-    /*called on transport thread so non-atomic on volatile is safe*/
-    //noinspection NonAtomicOperationOnVolatileField
-    impliedPosition += frame.readableBytes();
+  public boolean resumableFrameReceived(ByteBuf frame) {
+    final int frameSize = frame.readableBytes();
+    for (; ; ) {
+      final long impliedPosition = this.impliedPosition;
+
+      if (impliedPosition < 0) {
+        return false;
+      }
+
+      if (IMPLIED_POSITION.compareAndSet(this, impliedPosition, impliedPosition + frameSize)) {
+        return true;
+      }
+    }
+  }
+
+  @Override
+  public void pauseImplied() {
+    for (; ; ) {
+      final long impliedPosition = this.impliedPosition;
+
+      if (IMPLIED_POSITION.compareAndSet(this, impliedPosition, impliedPosition | Long.MIN_VALUE)) {
+        logger.debug("Tag {}. Paused at position[{}]", tag, impliedPosition);
+        return;
+      }
+    }
+  }
+
+  @Override
+  public void resumeImplied() {
+    for (; ; ) {
+      final long impliedPosition = this.impliedPosition;
+
+      final long restoredImpliedPosition = impliedPosition & Long.MAX_VALUE;
+      if (IMPLIED_POSITION.compareAndSet(this, impliedPosition, restoredImpliedPosition)) {
+        logger.debug("Tag {}. Resumed at position[{}]", tag, restoredImpliedPosition);
+        return;
+      }
+    }
   }
 
   @Override
@@ -141,15 +183,18 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void dispose() {
-    cacheSize = 0;
-    synchronized (this) {
-      for (ByteBuf frame : cachedFrames) {
-        if (frame != null) {
-          frame.release();
+    if (STATE.getAndSet(this, 2) != 2) {
+      cacheSize = 0;
+      synchronized (this) {
+        for (ByteBuf frame : cachedFrames) {
+          if (frame != null) {
+            frame.release();
+          }
         }
+        cachedFrames.clear();
       }
+      disposed.onComplete();
     }
-    disposed.onComplete();
   }
 
   @Override
@@ -179,27 +224,33 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     if (isResumable) {
       final ArrayList<ByteBuf> frames = cachedFrames;
       int incomingFrameSize = frame.readableBytes();
-      long availableSize = cacheLimit - cacheSize;
-      if (availableSize < incomingFrameSize) {
-        int removedBytes = 0;
-        while (availableSize < incomingFrameSize) {
-          if (frames.size() == 0) {
-            break;
-          }
-          ByteBuf cachedFrame;
+      final int cacheLimit = this.cacheLimit;
+      if (cacheLimit != Integer.MAX_VALUE) {
+        long availableSize = cacheLimit - cacheSize;
+        if (availableSize < incomingFrameSize) {
+          int removedBytes = 0;
           synchronized (this) {
-            cachedFrame = frames.remove(0);
+            while (availableSize < incomingFrameSize) {
+              if (frames.size() == 0) {
+                break;
+              }
+              ByteBuf cachedFrame;
+              cachedFrame = frames.remove(0);
+              final int frameSize = cachedFrame.readableBytes();
+              availableSize += frameSize;
+              removedBytes += frameSize;
+              cachedFrame.release();
+            }
           }
-          final int frameSize = cachedFrame.readableBytes();
-          availableSize += frameSize;
-          removedBytes += frameSize;
-          cachedFrame.release();
+          CACHE_SIZE.addAndGet(this, -removedBytes);
+          POSITION.addAndGet(this, removedBytes);
         }
-        CACHE_SIZE.addAndGet(this, -removedBytes);
-        POSITION.addAndGet(this, removedBytes);
       }
+
       synchronized (this) {
         frames.add(frame);
+      }
+      if (cacheLimit != Integer.MAX_VALUE) {
         CACHE_SIZE.addAndGet(this, incomingFrameSize);
       }
     }
@@ -218,12 +269,13 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void cancel() {
-    STATE.set(this, 2);
+    state = 0;
   }
 
   @Override
   public void subscribe(CoreSubscriber<? super ByteBuf> actual) {
-    STATE.lazySet(this, 0);
+    final int state = this.state;
+    logger.debug("Tag: {}. Subscribed State[{}]", tag, state);
     actual.onSubscribe(this);
     if (state != 2) {
       synchronized (this) {
