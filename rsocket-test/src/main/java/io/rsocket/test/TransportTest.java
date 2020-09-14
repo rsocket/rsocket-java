@@ -101,6 +101,7 @@ public interface TransportTest {
   default void close() {
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
+    getTransportPair().awaitClosed();
     getTransportPair().byteBufAllocator.assertHasNoLeaks();
     Hooks.resetOnOperatorDebug();
   }
@@ -609,6 +610,10 @@ public interface TransportTest {
 
     public String expectedPayloadMetadata() {
       return metadata;
+    }
+
+    public void awaitClosed() {
+      server.onClose().and(client.onClose()).block(Duration.ofMinutes(1));
     }
 
     private static class AsyncDuplexConnection implements DuplexConnection {

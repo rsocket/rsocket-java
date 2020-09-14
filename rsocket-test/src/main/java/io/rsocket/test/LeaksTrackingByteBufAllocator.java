@@ -60,7 +60,8 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
       final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
       if (!unreleased.isEmpty() && !awaitZeroRefCntDuration.isZero()) {
-        long endTimeInMillis = System.currentTimeMillis() + awaitZeroRefCntDuration.toMillis();
+        final long startTime = System.currentTimeMillis();
+        final long endTimeInMillis = startTime + awaitZeroRefCntDuration.toMillis();
         boolean hasUnreleased;
         while (System.currentTimeMillis() <= endTimeInMillis) {
           hasUnreleased = false;
@@ -72,14 +73,21 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           }
 
           if (!hasUnreleased) {
-            break;
+            System.out.println("all the buffers are released...");
+            return this;
           }
 
-          parkNanos(100);
+          System.out.println("await buffers to be released");
+          for (int i = 0; i < 100; i++) {
+            System.gc();
+            parkNanos(1000);
+            System.gc();
+          }
         }
       }
 
       Assertions.assertThat(unreleased).allMatch(bb -> bb.refCnt() == 0);
+      System.out.println("all the buffers are released...");
     } finally {
       tracker.clear();
     }

@@ -19,7 +19,6 @@ import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
@@ -47,7 +46,6 @@ public class SetupRejectionTest {
   }
 
   @Test
-  @Disabled("FIXME: needs to be revised")
   void requesterStreamsTerminatedOnZeroErrorFrame() {
     LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
