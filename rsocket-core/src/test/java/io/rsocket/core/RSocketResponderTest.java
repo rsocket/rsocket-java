@@ -132,7 +132,7 @@ public class RSocketResponderTest {
   public void testHandleKeepAlive() throws Exception {
     rule.connection.addToReceivedBuffer(
         KeepAliveFrameCodec.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
-    ByteBuf sent = rule.connection.awaitSend();
+    ByteBuf sent = rule.connection.awaitFrame();
     assertThat("Unexpected frame sent.", frameType(sent), is(FrameType.KEEPALIVE));
     /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
     assertThat(
@@ -158,7 +158,7 @@ public class RSocketResponderTest {
     testPublisher.complete();
     assertThat(
         "Unexpected frame sent.",
-        frameType(rule.connection.awaitSend()),
+        frameType(rule.connection.awaitFrame()),
         anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
     testPublisher.assertWasNotCancelled();
   }
@@ -170,7 +170,7 @@ public class RSocketResponderTest {
     final int streamId = 4;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
     assertThat(
-        "Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(FrameType.ERROR));
+        "Unexpected frame sent.", frameType(rule.connection.awaitFrame()), is(FrameType.ERROR));
   }
 
   @Test

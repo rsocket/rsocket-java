@@ -25,9 +25,13 @@ import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.core.Resume;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.DuplexConnectionInterceptor;
+import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ByteBufPayload;
@@ -38,19 +42,18 @@ import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.logging.Logger;
-import org.junit.platform.commons.logging.LoggerFactory;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
@@ -58,14 +61,17 @@ import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
+import reactor.util.Logger;
+import reactor.util.Loggers;
 
 public interface TransportTest {
 
-  Logger logger = LoggerFactory.getLogger(TransportTest.class);
+  Logger logger = Loggers.getLogger(TransportTest.class);
 
   String MOCK_DATA = "test-data";
   String MOCK_METADATA = "metadata";
@@ -153,6 +159,7 @@ public interface TransportTest {
   @DisplayName("makes 10 metadataPush requests")
   @Test
   default void metadataPush10() {
+    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
     Flux.range(1, 10)
         .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", "test-metadata")))
         .as(StepVerifier::create)
@@ -165,6 +172,7 @@ public interface TransportTest {
   @DisplayName("makes 10 metadataPush with Large Metadata in requests")
   @Test
   default void largePayloadMetadataPush10() {
+    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
     Flux.range(1, 10)
         .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", LARGE_DATA)))
         .as(StepVerifier::create)
@@ -275,10 +283,19 @@ public interface TransportTest {
     Assertions.assertThat(requested.get()).isEqualTo(3L);
   }
 
-  @DisplayName("makes 1 requestChannel request with 512 payloads")
+  @DisplayName("makes 1 requestChannel request with 256 payloads")
   @Test
-  default void requestChannel512() {
-    Flux<Payload> payloads = Flux.range(0, 512).map(this::createTestPayload);
+  default void requestChannel256() {
+    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
+    AtomicInteger counter = new AtomicInteger();
+    Flux<Payload> payloads =
+        Flux.defer(
+            () -> {
+              final int subscription = counter.getAndIncrement();
+              return Flux.range(0, 256)
+                  .map(i -> "S{" + subscription + "}: Data{" + i + "}")
+                  .map(data -> ByteBufPayload.create(data));
+            });
     final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(13));
 
     Flux.range(0, 1024)
@@ -289,10 +306,15 @@ public interface TransportTest {
   default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
-        .doOnNext(Payload::release)
+        .map(
+            payload -> {
+              final String data = payload.getDataUtf8();
+              payload.release();
+              return data;
+            })
         .as(StepVerifier::create)
-        .expectNextCount(512)
-        .as("expected 512 items")
+        .expectNextCount(256)
+        .as("expected 256 items")
         .expectComplete()
         .verify(getTimeout());
   }
@@ -418,6 +440,8 @@ public interface TransportTest {
   }
 
   class TransportPair<T, S extends Closeable> implements Disposable {
+
+    private final boolean withResumability;
     private static final String data = "hello world";
     private static final String metadata = "metadata";
 
@@ -442,6 +466,21 @@ public interface TransportTest {
         TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
         BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
         boolean withRandomFragmentation) {
+      this(
+          addressSupplier,
+          clientTransportSupplier,
+          serverTransportSupplier,
+          withRandomFragmentation,
+          false);
+    }
+
+    public TransportPair(
+        Supplier<T> addressSupplier,
+        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
+        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
+        boolean withRandomFragmentation,
+        boolean withResumability) {
+      this.withResumability = withResumability;
 
       T address = addressSupplier.get();
 
@@ -451,7 +490,7 @@ public interface TransportTest {
       ByteBufAllocator allocatorToSupply;
       if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
           || ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.PARANOID) {
-        logger.info(() -> "Using LeakTrackingByteBufAllocator");
+        logger.info("Using LeakTrackingByteBufAllocator");
         allocatorToSupply = byteBufAllocator;
       } else {
         allocatorToSupply = ByteBufAllocator.DEFAULT;
@@ -462,10 +501,9 @@ public interface TransportTest {
               .payloadDecoder(PayloadDecoder.ZERO_COPY)
               .interceptors(
                   registry -> {
-                    if (runServerWithAsyncInterceptors) {
+                    if (runServerWithAsyncInterceptors && !withResumability) {
                       logger.info(
-                          () ->
-                              "Perform Integration Test with Async Interceptors Enabled For Server");
+                          "Perform Integration Test with Async Interceptors Enabled For Server");
                       registry
                           .forConnection(
                               (type, duplexConnection) ->
@@ -477,7 +515,25 @@ public interface TransportTest {
                                           .accept(connectionSetupPayload, sendingSocket)
                                           .subscribeOn(Schedulers.parallel()));
                     }
+
+                    if (withResumability) {
+                      registry.forConnection(
+                          (type, duplexConnection) ->
+                              type == DuplexConnectionInterceptor.Type.SOURCE
+                                  ? new DisconnectingDuplexConnection(
+                                      "Server",
+                                      duplexConnection,
+                                      Duration.ofMillis(
+                                          ThreadLocalRandom.current().nextInt(200, 500)))
+                                  : duplexConnection);
+                    }
                   });
+
+      if (withResumability) {
+        rSocketServer.resume(
+            new Resume()
+                .storeFactory(__ -> new InMemoryResumableFramesStore("server", Integer.MAX_VALUE)));
+      }
 
       if (withRandomFragmentation) {
         rSocketServer.fragment(ThreadLocalRandom.current().nextInt(256, 512));
@@ -492,10 +548,9 @@ public interface TransportTest {
               .keepAlive(Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE))
               .interceptors(
                   registry -> {
-                    if (runClientWithAsyncInterceptors) {
+                    if (runClientWithAsyncInterceptors && !withResumability) {
                       logger.info(
-                          () ->
-                              "Perform Integration Test with Async Interceptors Enabled For Client");
+                          "Perform Integration Test with Async Interceptors Enabled For Client");
                       registry
                           .forConnection(
                               (type, duplexConnection) ->
@@ -507,7 +562,25 @@ public interface TransportTest {
                                           .accept(connectionSetupPayload, sendingSocket)
                                           .subscribeOn(Schedulers.parallel()));
                     }
+
+                    if (withResumability) {
+                      registry.forConnection(
+                          (type, duplexConnection) ->
+                              type == DuplexConnectionInterceptor.Type.SOURCE
+                                  ? new DisconnectingDuplexConnection(
+                                      "Client",
+                                      duplexConnection,
+                                      Duration.ofMillis(
+                                          ThreadLocalRandom.current().nextInt(200, 500)))
+                                  : duplexConnection);
+                    }
                   });
+
+      if (withResumability) {
+        rSocketConnector.resume(
+            new Resume()
+                .storeFactory(__ -> new InMemoryResumableFramesStore("client", Integer.MAX_VALUE)));
+      }
 
       if (withRandomFragmentation) {
         rSocketConnector.fragment(ThreadLocalRandom.current().nextInt(256, 512));
@@ -541,27 +614,37 @@ public interface TransportTest {
     private static class AsyncDuplexConnection implements DuplexConnection {
 
       private final DuplexConnection duplexConnection;
+      private final ByteBufReleaserOperator bufReleaserOperator;
 
       public AsyncDuplexConnection(DuplexConnection duplexConnection) {
         this.duplexConnection = duplexConnection;
+        this.bufReleaserOperator = new ByteBufReleaserOperator();
       }
 
       @Override
-      public Mono<Void> send(Publisher<ByteBuf> frames) {
-        return duplexConnection.send(frames);
+      public void sendFrame(int streamId, ByteBuf frame) {
+        duplexConnection.sendFrame(streamId, frame);
+      }
+
+      @Override
+      public void sendErrorAndClose(RSocketErrorException e) {
+        duplexConnection.sendErrorAndClose(e);
       }
 
       @Override
       public Flux<ByteBuf> receive() {
         return duplexConnection
             .receive()
-            .subscribeOn(Schedulers.parallel())
+            .subscribeOn(Schedulers.boundedElastic())
             .doOnNext(ByteBuf::retain)
-            .publishOn(Schedulers.parallel(), Integer.MAX_VALUE)
+            .publishOn(Schedulers.boundedElastic(), Integer.MAX_VALUE)
             .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::safeRelease)
             .transform(
                 Operators.<ByteBuf, ByteBuf>lift(
-                    (__, actual) -> new ByteBufReleaserOperator(actual)));
+                    (__, actual) -> {
+                      bufReleaserOperator.actual = actual;
+                      return bufReleaserOperator;
+                    }));
       }
 
       @Override
@@ -576,7 +659,7 @@ public interface TransportTest {
 
       @Override
       public Mono<Void> onClose() {
-        return duplexConnection.onClose();
+        return duplexConnection.onClose().and(bufReleaserOperator.onClose());
       }
 
       @Override
@@ -585,15 +668,79 @@ public interface TransportTest {
       }
     }
 
+    private static class DisconnectingDuplexConnection implements DuplexConnection {
+
+      private final String tag;
+      final DuplexConnection source;
+      final Duration delay;
+
+      DisconnectingDuplexConnection(String tag, DuplexConnection source, Duration delay) {
+        this.tag = tag;
+        this.source = source;
+        this.delay = delay;
+      }
+
+      @Override
+      public void dispose() {
+        source.dispose();
+      }
+
+      @Override
+      public Mono<Void> onClose() {
+        return source.onClose();
+      }
+
+      @Override
+      public void sendFrame(int streamId, ByteBuf frame) {
+        source.sendFrame(streamId, frame);
+      }
+
+      @Override
+      public void sendErrorAndClose(RSocketErrorException errorException) {
+        source.sendErrorAndClose(errorException);
+      }
+
+      boolean receivedFirst;
+
+      @Override
+      public Flux<ByteBuf> receive() {
+        return source
+            .receive()
+            .doOnNext(
+                bb -> {
+                  if (!receivedFirst) {
+                    receivedFirst = true;
+                    Mono.delay(delay)
+                        .subscribe(
+                            __ -> {
+                              logger.warn("Tag {}. Disposing Connection", tag);
+                              source.dispose();
+                            });
+                  }
+                });
+      }
+
+      @Override
+      public ByteBufAllocator alloc() {
+        return source.alloc();
+      }
+
+      @Override
+      public SocketAddress remoteAddress() {
+        return source.remoteAddress();
+      }
+    }
+
     private static class ByteBufReleaserOperator
         implements CoreSubscriber<ByteBuf>, Subscription, Fuseable.QueueSubscription<ByteBuf> {
 
-      final CoreSubscriber<? super ByteBuf> actual;
+      CoreSubscriber<? super ByteBuf> actual;
+      final MonoProcessor<Void> closeableMono;
 
       Subscription s;
 
-      public ByteBufReleaserOperator(CoreSubscriber<? super ByteBuf> actual) {
-        this.actual = actual;
+      public ByteBufReleaserOperator() {
+        this.closeableMono = MonoProcessor.create();
       }
 
       @Override
@@ -610,14 +757,20 @@ public interface TransportTest {
         buf.release();
       }
 
+      Mono<Void> onClose() {
+        return closeableMono;
+      }
+
       @Override
       public void onError(Throwable t) {
         actual.onError(t);
+        closeableMono.onError(t);
       }
 
       @Override
       public void onComplete() {
         actual.onComplete();
+        closeableMono.onComplete();
       }
 
       @Override
@@ -628,6 +781,7 @@ public interface TransportTest {
       @Override
       public void cancel() {
         s.cancel();
+        closeableMono.onComplete();
       }
 
       @Override

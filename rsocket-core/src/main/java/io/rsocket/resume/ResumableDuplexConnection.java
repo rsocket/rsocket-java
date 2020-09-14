@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,439 +18,300 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.internal.UnboundedProcessor;
 import java.net.SocketAddress;
-import java.nio.channels.ClosedChannelException;
-import java.time.Duration;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import org.reactivestreams.Publisher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
-import reactor.core.Disposables;
-import reactor.core.publisher.*;
-import reactor.util.concurrent.Queues;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 
-public class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
-  private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
-  private static final Throwable closedChannelException = new ClosedChannelException();
+public class ResumableDuplexConnection extends Flux<ByteBuf>
+    implements DuplexConnection, Subscription {
 
-  private final String tag;
-  private final ResumableFramesStore resumableFramesStore;
-  private final Duration resumeStreamTimeout;
-  private final boolean cleanupOnKeepAlive;
+  final ResumableFramesStore resumableFramesStore;
 
-  private final ReplayProcessor<DuplexConnection> connections = ReplayProcessor.create(1);
-  private final EmitterProcessor<Throwable> connectionErrors = EmitterProcessor.create();
-  private volatile DuplexConnection curConnection;
-  /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
-  private final FluxProcessor<ByteBuf, ByteBuf> downStreamFrames = ReplayProcessor.create(0);
-  private final FluxProcessor<ByteBuf, ByteBuf> resumeSaveFrames = EmitterProcessor.create();
-  private final MonoProcessor<Void> resumeSaveCompleted = MonoProcessor.create();
-  private final Queue<Object> actions = Queues.unboundedMultiproducer().get();
-  private final AtomicInteger actionsWip = new AtomicInteger();
-  private final AtomicBoolean disposed = new AtomicBoolean();
+  final UnboundedProcessor<ByteBuf> savableFramesSender;
+  final Disposable framesSaverDisposable;
+  final MonoProcessor<Void> onClose;
+  final SocketAddress remoteAddress;
 
-  private final Mono<Void> framesSent;
-  private final RequestListener downStreamRequestListener = new RequestListener();
-  private final RequestListener resumeSaveStreamRequestListener = new RequestListener();
-  private final UnicastProcessor<Flux<ByteBuf>> upstreams = UnicastProcessor.create();
-  private final UpstreamFramesSubscriber upstreamSubscriber =
-      new UpstreamFramesSubscriber(
-          Queues.SMALL_BUFFER_SIZE,
-          downStreamRequestListener.requests(),
-          resumeSaveStreamRequestListener.requests(),
-          this::dispatch);
+  CoreSubscriber<? super ByteBuf> receiveSubscriber;
+  FrameReceivingSubscriber activeReceivingSubscriber;
 
-  private volatile Runnable onResume;
-  private volatile Runnable onDisconnect;
-  private volatile int state;
-  private volatile Disposable resumedStreamDisposable = Disposables.disposed();
+  volatile int state;
+  static final AtomicIntegerFieldUpdater<ResumableDuplexConnection> STATE =
+      AtomicIntegerFieldUpdater.newUpdater(ResumableDuplexConnection.class, "state");
+
+  volatile DuplexConnection activeConnection;
+  static final AtomicReferenceFieldUpdater<ResumableDuplexConnection, DuplexConnection>
+      ACTIVE_CONNECTION =
+          AtomicReferenceFieldUpdater.newUpdater(
+              ResumableDuplexConnection.class, DuplexConnection.class, "activeConnection");
 
   public ResumableDuplexConnection(
-      String tag,
-      DuplexConnection duplexConnection,
-      ResumableFramesStore resumableFramesStore,
-      Duration resumeStreamTimeout,
-      boolean cleanupOnKeepAlive) {
-    this.tag = tag;
+      DuplexConnection initialConnection, ResumableFramesStore resumableFramesStore) {
     this.resumableFramesStore = resumableFramesStore;
-    this.resumeStreamTimeout = resumeStreamTimeout;
-    this.cleanupOnKeepAlive = cleanupOnKeepAlive;
+    this.savableFramesSender = new UnboundedProcessor<>();
+    this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
+    this.onClose = MonoProcessor.create();
+    this.remoteAddress = initialConnection.remoteAddress();
 
-    resumableFramesStore
-        .saveFrames(resumeSaveStreamRequestListener.apply(resumeSaveFrames))
-        .subscribe(resumeSaveCompleted);
-
-    upstreams.flatMap(Function.identity()).subscribe(upstreamSubscriber);
-
-    framesSent =
-        connections
-            .switchMap(
-                c -> {
-                  logger.debug("Switching transport: {}", tag);
-                  return c.send(downStreamRequestListener.apply(downStreamFrames))
-                      .doFinally(
-                          s ->
-                              logger.debug(
-                                  "{} Transport send completed: {}, {}", tag, s, c.toString()))
-                      .onErrorResume(err -> Mono.never());
-                })
-            .then()
-            .cache();
-
-    reconnect(duplexConnection);
+    ACTIVE_CONNECTION.lazySet(this, initialConnection);
   }
 
-  @Override
-  public ByteBufAllocator alloc() {
-    return curConnection.alloc();
+  public boolean connect(DuplexConnection nextConnection) {
+    final DuplexConnection activeConnection = this.activeConnection;
+    if (activeConnection != DisposedConnection.INSTANCE
+        && ACTIVE_CONNECTION.compareAndSet(this, activeConnection, nextConnection)) {
+
+      activeConnection.dispose();
+
+      initConnection(nextConnection);
+
+      return true;
+    } else {
+      return false;
+    }
   }
 
-  @Override
-  public SocketAddress remoteAddress() {
-    return curConnection.remoteAddress();
+  void initConnection(DuplexConnection nextConnection) {
+    final FrameReceivingSubscriber frameReceivingSubscriber =
+        new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
+    this.activeReceivingSubscriber = frameReceivingSubscriber;
+    final Disposable disposable =
+        resumableFramesStore
+            .resumeStream()
+            .subscribe(f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
+    nextConnection.receive().subscribe(frameReceivingSubscriber);
+    nextConnection
+        .onClose()
+        .doFinally(
+            __ -> {
+              frameReceivingSubscriber.dispose();
+              disposable.dispose();
+            })
+        .subscribe();
   }
 
   public void disconnect() {
-    DuplexConnection c = this.curConnection;
-    if (c != null) {
-      disconnect(c);
+    final DuplexConnection activeConnection = this.activeConnection;
+    if (activeConnection != DisposedConnection.INSTANCE) {
+      activeConnection.dispose();
     }
   }
 
-  public void onDisconnect(Runnable onDisconnectAction) {
-    this.onDisconnect = onDisconnectAction;
-  }
-
-  public void onResume(Runnable onResumeAction) {
-    this.onResume = onResumeAction;
-  }
-
-  /*reconnected by session after error. After this downstream can receive frames,
-   * but sending in suppressed until resume() is called*/
-  public void reconnect(DuplexConnection connection) {
-    if (curConnection == null) {
-      logger.debug("{} Resumable duplex connection started with connection: {}", tag, connection);
-      state = State.CONNECTED;
-      onNewConnection(connection);
+  @Override
+  public void sendFrame(int streamId, ByteBuf frame) {
+    if (streamId == 0) {
+      savableFramesSender.onNextPrioritized(frame);
     } else {
-      logger.debug(
-          "{} Resumable duplex connection reconnected with connection: {}", tag, connection);
-      /*race between sendFrame and doResumeStart may lead to ongoing upstream frames
-      written before resume complete*/
-      dispatch(new ResumeStart(connection));
+      savableFramesSender.onNext(frame);
     }
   }
 
-  /*after receiving RESUME (Server) or RESUME_OK (Client)
-  calculate and send resume frames */
-  public void resume(
-      long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
-    /*race between sendFrame and doResume may lead to duplicate frames on resume store*/
-    dispatch(new Resume(remotePos, remoteImpliedPos, resumeFrameSent));
-  }
-
   @Override
-  public Mono<Void> sendOne(ByteBuf frame) {
-    return curConnection.sendOne(frame);
-  }
+  public void sendErrorAndClose(RSocketErrorException rSocketErrorException) {
+    final DuplexConnection activeConnection =
+        ACTIVE_CONNECTION.getAndSet(this, DisposedConnection.INSTANCE);
+    if (activeConnection == DisposedConnection.INSTANCE) {
+      return;
+    }
 
-  @Override
-  public Mono<Void> send(Publisher<ByteBuf> frames) {
-    upstreams.onNext(Flux.from(frames));
-    return framesSent;
+    activeConnection.sendErrorAndClose(rSocketErrorException);
+    activeConnection
+        .onClose()
+        .subscribe(
+            null,
+            t -> {
+              framesSaverDisposable.dispose();
+              savableFramesSender.dispose();
+              onClose.onError(t);
+            },
+            () -> {
+              framesSaverDisposable.dispose();
+              savableFramesSender.dispose();
+              final Throwable cause = rSocketErrorException.getCause();
+              if (cause == null) {
+                onClose.onComplete();
+              } else {
+                onClose.onError(cause);
+              }
+            });
   }
 
   @Override
   public Flux<ByteBuf> receive() {
-    return connections.switchMap(
-        c ->
-            c.receive()
-                .doOnNext(
-                    f -> {
-                      if (isResumableFrame(f)) {
-                        resumableFramesStore.resumableFrameReceived(f);
-                      }
-                    })
-                .onErrorResume(err -> Mono.never()));
-  }
-
-  public long position() {
-    return resumableFramesStore.framePosition();
+    return this;
   }
 
   @Override
-  public long impliedPosition() {
-    return resumableFramesStore.frameImpliedPosition();
-  }
-
-  @Override
-  public void onImpliedPosition(long remoteImpliedPos) {
-    logger.debug("Got remote position from keep-alive: {}", remoteImpliedPos);
-    if (cleanupOnKeepAlive) {
-      dispatch(new ReleaseFrames(remoteImpliedPos));
-    }
+  public ByteBufAllocator alloc() {
+    return activeConnection.alloc();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return Flux.merge(connections.last().flatMap(Closeable::onClose), resumeSaveCompleted).then();
+    return onClose;
   }
 
   @Override
   public void dispose() {
-    if (disposed.compareAndSet(false, true)) {
-      logger.debug("Resumable connection disposed: {}, {}", tag, this);
-      upstreams.onComplete();
-      connections.onComplete();
-      connectionErrors.onComplete();
-      resumeSaveFrames.onComplete();
-      curConnection.dispose();
-      upstreamSubscriber.dispose();
-      resumedStreamDisposable.dispose();
-      resumableFramesStore.dispose();
+    final DuplexConnection activeConnection =
+        ACTIVE_CONNECTION.getAndSet(this, DisposedConnection.INSTANCE);
+    if (activeConnection == DisposedConnection.INSTANCE) {
+      return;
     }
-  }
 
-  @Override
-  public double availability() {
-    return curConnection.availability();
+    if (activeConnection != null) {
+      activeConnection.dispose();
+    }
+
+    framesSaverDisposable.dispose();
+    activeReceivingSubscriber.dispose();
+    savableFramesSender.dispose();
+    onClose.onComplete();
   }
 
   @Override
   public boolean isDisposed() {
-    return disposed.get();
+    return onClose.isDisposed();
   }
 
-  private void sendFrame(ByteBuf f) {
-    if (disposed.get()) {
-      f.release();
-      return;
-    }
-    /*resuming from store so no need to save again*/
-    if (state != State.RESUME && isResumableFrame(f)) {
-      resumeSaveFrames.onNext(f);
-    }
-    /*filter frames coming from upstream before actual resumption began,
-     *  to preserve frames ordering*/
-    if (state != State.RESUME_STARTED) {
-      downStreamFrames.onNext(f);
+  @Override
+  public SocketAddress remoteAddress() {
+    return remoteAddress;
+  }
+
+  @Override
+  public void request(long n) {
+    if (state == 1 && STATE.compareAndSet(this, 1, 2)) {
+      initConnection(this.activeConnection);
     }
   }
 
-  Flux<Throwable> connectionErrors() {
-    return connectionErrors;
+  @Override
+  public void cancel() {
+    dispose();
   }
 
-  private void dispatch(Object action) {
-    actions.offer(action);
-    if (actionsWip.getAndIncrement() == 0) {
-      do {
-        Object a = actions.poll();
-        if (a instanceof ByteBuf) {
-          sendFrame((ByteBuf) a);
-        } else {
-          ((Runnable) a).run();
-        }
-      } while (actionsWip.decrementAndGet() != 0);
+  @Override
+  public void subscribe(CoreSubscriber<? super ByteBuf> receiverSubscriber) {
+    if (state == 0 && STATE.compareAndSet(this, 0, 1)) {
+      receiveSubscriber = receiverSubscriber;
+      receiverSubscriber.onSubscribe(this);
     }
-  }
-
-  private void doResumeStart(DuplexConnection connection) {
-    state = State.RESUME_STARTED;
-    resumedStreamDisposable.dispose();
-    upstreamSubscriber.resumeStart();
-    onNewConnection(connection);
-  }
-
-  private void doResume(
-      long remotePosition,
-      long remoteImpliedPosition,
-      Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
-    long localPosition = position();
-    long localImpliedPosition = impliedPosition();
-
-    logger.debug("Resumption start");
-    logger.debug(
-        "Resumption states. local: [pos: {}, impliedPos: {}], remote: [pos: {}, impliedPos: {}]",
-        localPosition,
-        localImpliedPosition,
-        remotePosition,
-        remoteImpliedPosition);
-
-    long remoteImpliedPos =
-        calculateRemoteImpliedPos(
-            localPosition, localImpliedPosition,
-            remotePosition, remoteImpliedPosition);
-
-    Mono<Long> impliedPositionOrError;
-    if (remoteImpliedPos >= 0) {
-      state = State.RESUME;
-      releaseFramesToPosition(remoteImpliedPos);
-      impliedPositionOrError = Mono.just(localImpliedPosition);
-    } else {
-      impliedPositionOrError =
-          Mono.error(
-              new ResumeStateException(
-                  localPosition, localImpliedPosition,
-                  remotePosition, remoteImpliedPosition));
-    }
-
-    sendResumeFrame
-        .apply(impliedPositionOrError)
-        .doOnSuccess(
-            v -> {
-              Runnable r = this.onResume;
-              if (r != null) {
-                r.run();
-              }
-            })
-        .then(
-            streamResumedFrames(
-                    resumableFramesStore
-                        .resumeStream()
-                        .timeout(resumeStreamTimeout)
-                        .doFinally(s -> dispatch(new ResumeComplete())))
-                .doOnError(err -> dispose()))
-        .onErrorResume(err -> Mono.empty())
-        .subscribe();
-  }
-
-  static long calculateRemoteImpliedPos(
-      long pos, long impliedPos, long remotePos, long remoteImpliedPos) {
-    if (remotePos <= impliedPos && pos <= remoteImpliedPos) {
-      return remoteImpliedPos;
-    } else {
-      return -1L;
-    }
-  }
-
-  private void doResumeComplete() {
-    logger.debug("Completing resumption");
-    state = State.RESUME_COMPLETED;
-    upstreamSubscriber.resumeComplete();
-  }
-
-  private Mono<Void> streamResumedFrames(Flux<ByteBuf> frames) {
-    return Mono.create(
-        s -> {
-          ResumeFramesSubscriber subscriber =
-              new ResumeFramesSubscriber(
-                  downStreamRequestListener.requests(), this::dispatch, s::error, s::success);
-          s.onDispose(subscriber);
-          resumedStreamDisposable = subscriber;
-          frames.subscribe(subscriber);
-        });
-  }
-
-  private void onNewConnection(DuplexConnection connection) {
-    curConnection = connection;
-    connection.onClose().doFinally(v -> disconnect(connection)).subscribe();
-    connections.onNext(connection);
-  }
-
-  private void disconnect(DuplexConnection connection) {
-    /*do not report late disconnects on old connection if new one is available*/
-    if (curConnection == connection && state != State.DISCONNECTED) {
-      connection.dispose();
-      state = State.DISCONNECTED;
-      logger.debug(
-          "{} Inner connection disconnected: {}",
-          tag,
-          closedChannelException.getClass().getSimpleName());
-      connectionErrors.onNext(closedChannelException);
-      Runnable r = this.onDisconnect;
-      if (r != null) {
-        r.run();
-      }
-    }
-  }
-
-  /*remove frames confirmed by implied pos,
-  set current pos accordingly*/
-  private void releaseFramesToPosition(long remoteImpliedPos) {
-    resumableFramesStore.releaseFrames(remoteImpliedPos);
   }
 
   static boolean isResumableFrame(ByteBuf frame) {
-    switch (FrameHeaderCodec.nativeFrameType(frame)) {
-      case REQUEST_CHANNEL:
-      case REQUEST_STREAM:
-      case REQUEST_RESPONSE:
-      case REQUEST_FNF:
-      case REQUEST_N:
-      case CANCEL:
-      case ERROR:
-      case PAYLOAD:
-        return true;
-      default:
-        return false;
-    }
+    return FrameHeaderCodec.streamId(frame) != 0;
   }
 
-  static class State {
-    static int CONNECTED = 0;
-    static int RESUME_STARTED = 1;
-    static int RESUME = 2;
-    static int RESUME_COMPLETED = 3;
-    static int DISCONNECTED = 4;
-  }
+  private static final class DisposedConnection implements DuplexConnection {
 
-  class ResumeStart implements Runnable {
-    private final DuplexConnection connection;
+    static final DisposedConnection INSTANCE = new DisposedConnection();
 
-    public ResumeStart(DuplexConnection connection) {
-      this.connection = connection;
+    private DisposedConnection() {}
+
+    @Override
+    public void dispose() {}
+
+    @Override
+    public Mono<Void> onClose() {
+      return Mono.never();
     }
 
     @Override
-    public void run() {
-      doResumeStart(connection);
-    }
-  }
+    public void sendFrame(int streamId, ByteBuf frame) {}
 
-  class Resume implements Runnable {
-    private final long remotePos;
-    private final long remoteImpliedPos;
-    private final Function<Mono<Long>, Mono<Void>> resumeFrameSent;
-
-    public Resume(
-        long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
-      this.remotePos = remotePos;
-      this.remoteImpliedPos = remoteImpliedPos;
-      this.resumeFrameSent = resumeFrameSent;
+    @Override
+    public Flux<ByteBuf> receive() {
+      return Flux.never();
     }
 
     @Override
-    public void run() {
-      doResume(remotePos, remoteImpliedPos, resumeFrameSent);
-    }
-  }
-
-  private class ResumeComplete implements Runnable {
+    public void sendErrorAndClose(RSocketErrorException e) {}
 
     @Override
-    public void run() {
-      doResumeComplete();
-    }
-  }
-
-  private class ReleaseFrames implements Runnable {
-    private final long remoteImpliedPos;
-
-    public ReleaseFrames(long remoteImpliedPos) {
-      this.remoteImpliedPos = remoteImpliedPos;
+    public ByteBufAllocator alloc() {
+      return ByteBufAllocator.DEFAULT;
     }
 
     @Override
-    public void run() {
-      releaseFramesToPosition(remoteImpliedPos);
+    @SuppressWarnings("ConstantConditions")
+    public SocketAddress remoteAddress() {
+      return null;
+    }
+  }
+
+  private static final class FrameReceivingSubscriber
+      implements CoreSubscriber<ByteBuf>, Disposable {
+
+    final ResumableFramesStore resumableFramesStore;
+    final CoreSubscriber<? super ByteBuf> actual;
+
+    volatile Subscription s;
+    static final AtomicReferenceFieldUpdater<FrameReceivingSubscriber, Subscription> S =
+        AtomicReferenceFieldUpdater.newUpdater(
+            FrameReceivingSubscriber.class, Subscription.class, "s");
+
+    boolean cancelled;
+
+    private FrameReceivingSubscriber(
+        ResumableFramesStore store, CoreSubscriber<? super ByteBuf> actual) {
+      this.resumableFramesStore = store;
+      this.actual = actual;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      if (Operators.setOnce(S, this, s)) {
+        s.request(Long.MAX_VALUE);
+      }
+    }
+
+    @Override
+    public void onNext(ByteBuf frame) {
+      if (cancelled || s == Operators.cancelledSubscription()) {
+        return;
+      }
+
+      if (isResumableFrame(frame)) {
+        if (resumableFramesStore.resumableFrameReceived(frame)) {
+          actual.onNext(frame);
+        }
+        return;
+      }
+
+      actual.onNext(frame);
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      Operators.set(S, this, Operators.cancelledSubscription());
+    }
+
+    @Override
+    public void onComplete() {
+      Operators.set(S, this, Operators.cancelledSubscription());
+    }
+
+    @Override
+    public void dispose() {
+      cancelled = true;
+      Operators.terminate(S, this);
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return cancelled || s == Operators.cancelledSubscription();
     }
   }
 }

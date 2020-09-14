@@ -73,7 +73,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
 
   protected abstract T newRSocket();
 
-  public ByteBufAllocator alloc() {
+  public LeaksTrackingByteBufAllocator alloc() {
     return allocator;
   }
 

@@ -22,13 +22,13 @@ import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import java.net.SocketAddress;
 import java.util.Objects;
 import java.util.function.Consumer;
-import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -111,10 +111,14 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<ByteBuf> frames) {
-    Objects.requireNonNull(frames, "frames must not be null");
+  public void sendFrame(int streamId, ByteBuf frame) {
+    frameCounters.accept(frame);
+    delegate.sendFrame(streamId, frame);
+  }
 
-    return delegate.send(Flux.from(frames).doOnNext(frameCounters));
+  @Override
+  public void sendErrorAndClose(RSocketErrorException e) {
+    delegate.sendErrorAndClose(e);
   }
 
   private static final class FrameCounters implements Consumer<ByteBuf> {

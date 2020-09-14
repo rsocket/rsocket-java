@@ -28,7 +28,6 @@ import io.rsocket.frame.RequestChannelFrameCodec;
 import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CancellationException;
@@ -48,7 +47,6 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
 
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
-  private final DuplexConnection connection;
   private final RSocket requestHandler;
 
   private final ResponderLeaseHandler leaseHandler;
@@ -67,8 +65,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
       int mtu,
       int maxFrameLength,
       int maxInboundPayloadSize) {
-    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection.alloc(), null);
-    this.connection = connection;
+    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection, null);
 
     this.requestHandler = requestHandler;
 
@@ -76,22 +73,12 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
-    UnboundedProcessor<ByteBuf> sendProcessor = super.getSendProcessor();
-
-    connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
-
     connection.receive().subscribe(this::handleFrame, e -> {});
-    leaseHandlerDisposable = leaseHandler.send(sendProcessor::onNextPrioritized);
+    leaseHandlerDisposable = leaseHandler.send(leaseFrame -> connection.sendFrame(0, leaseFrame));
 
-    this.connection
+    connection
         .onClose()
         .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
-  }
-
-  private void handleSendProcessorError(Throwable t) {
-    for (FrameHandler frameHandler : activeStreams.values()) {
-      frameHandler.handleError(t);
-    }
   }
 
   private void tryTerminateOnConnectionError(Throwable e) {
@@ -106,7 +93,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     if (terminationError == null) {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        cleanup(e);
+        cleanup();
       }
     }
   }
@@ -195,21 +182,20 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed();
+    return getDuplexConnection().isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return connection.onClose();
+    return getDuplexConnection().onClose();
   }
 
-  private void cleanup(Throwable e) {
+  private void cleanup() {
     cleanUpSendingSubscriptions();
 
-    connection.dispose();
+    getDuplexConnection().dispose();
     leaseHandlerDisposable.dispose();
     requestHandler.dispose();
-    super.getSendProcessor().dispose();
   }
 
   private synchronized void cleanUpSendingSubscriptions() {
@@ -282,8 +268,9 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
           }
           break;
         case SETUP:
-          super.getSendProcessor()
-              .onNext(
+          getDuplexConnection()
+              .sendFrame(
+                  streamId,
                   ErrorFrameCodec.encode(
                       super.getAllocator(),
                       streamId,
@@ -291,8 +278,9 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
           break;
         case LEASE:
         default:
-          super.getSendProcessor()
-              .onNext(
+          getDuplexConnection()
+              .sendFrame(
+                  streamId,
                   ErrorFrameCodec.encode(
                       super.getAllocator(),
                       streamId,
@@ -302,8 +290,9 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
       }
     } catch (Throwable t) {
       LOGGER.error("Unexpected error during frame handling", t);
-      super.getSendProcessor()
-          .onNext(
+      getDuplexConnection()
+          .sendFrame(
+              0,
               ErrorFrameCodec.encode(
                   super.getAllocator(),
                   0,

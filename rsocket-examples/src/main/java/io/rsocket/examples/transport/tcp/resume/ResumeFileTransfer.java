@@ -62,7 +62,8 @@ public class ResumeFileTransfer {
 
                       return Files.fileSource(fileName, chunkSize)
                           .map(DefaultPayload::create)
-                          .zipWith(ticks, (p, tick) -> p);
+                          .zipWith(ticks, (p, tick) -> p)
+                          .log("server");
                     }))
             .resume(resume)
             .bind(TcpServerTransport.create("localhost", 8000))
@@ -76,8 +77,9 @@ public class ResumeFileTransfer {
 
     client
         .requestStream(codec.encode(new Request(16, "lorem.txt")))
+        .log("client")
         .doFinally(s -> server.dispose())
-        .subscribe(Files.fileSink("rsocket-examples/out/lorem_output.txt", PREFETCH_WINDOW_SIZE));
+        .subscribe(Files.fileSink("rsocket-examples/build/lorem_output.txt", PREFETCH_WINDOW_SIZE));
 
     server.onClose().block();
   }

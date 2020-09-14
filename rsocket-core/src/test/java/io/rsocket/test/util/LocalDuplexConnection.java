@@ -19,8 +19,9 @@ package io.rsocket.test.util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
 import java.net.SocketAddress;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.DirectProcessor;
@@ -49,12 +50,17 @@ public class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<ByteBuf> frame) {
-    return Flux.from(frame)
-        .doOnNext(f -> System.out.println(name + " - " + f.toString()))
-        .doOnNext(send::onNext)
-        .doOnError(send::onError)
-        .then();
+  public void sendFrame(int streamId, ByteBuf frame) {
+    System.out.println(name + " - " + frame.toString());
+    send.onNext(frame);
+  }
+
+  @Override
+  public void sendErrorAndClose(RSocketErrorException e) {
+    final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, 0, e);
+    System.out.println(name + " - " + errorFrame.toString());
+    send.onNext(errorFrame);
+    onClose.onComplete();
   }
 
   @Override

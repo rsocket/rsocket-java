@@ -1,11 +1,10 @@
 package io.rsocket.core;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
+import io.rsocket.DuplexConnection;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.UnboundedProcessor;
 import reactor.util.annotation.Nullable;
 
 class RequesterResponderSupport {
@@ -15,18 +14,17 @@ class RequesterResponderSupport {
   private final int maxInboundPayloadSize;
   private final PayloadDecoder payloadDecoder;
   private final ByteBufAllocator allocator;
+  private final DuplexConnection connection;
 
   @Nullable final StreamIdSupplier streamIdSupplier;
   final IntObjectMap<FrameHandler> activeStreams;
-
-  private final UnboundedProcessor<ByteBuf> sendProcessor;
 
   public RequesterResponderSupport(
       int mtu,
       int maxFrameLength,
       int maxInboundPayloadSize,
       PayloadDecoder payloadDecoder,
-      ByteBufAllocator allocator,
+      DuplexConnection connection,
       @Nullable StreamIdSupplier streamIdSupplier) {
 
     this.activeStreams = new IntObjectHashMap<>();
@@ -34,9 +32,9 @@ class RequesterResponderSupport {
     this.maxFrameLength = maxFrameLength;
     this.maxInboundPayloadSize = maxInboundPayloadSize;
     this.payloadDecoder = payloadDecoder;
-    this.allocator = allocator;
+    this.allocator = connection.alloc();
     this.streamIdSupplier = streamIdSupplier;
-    this.sendProcessor = new UnboundedProcessor<>();
+    this.connection = connection;
   }
 
   public int getMtu() {
@@ -59,8 +57,8 @@ class RequesterResponderSupport {
     return allocator;
   }
 
-  public UnboundedProcessor<ByteBuf> getSendProcessor() {
-    return sendProcessor;
+  public DuplexConnection getDuplexConnection() {
+    return connection;
   }
 
   /**

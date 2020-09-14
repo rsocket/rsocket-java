@@ -20,40 +20,28 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 /** Represents a connection with input/output that the protocol uses. */
 public interface DuplexConnection extends Availability, Closeable {
 
   /**
-   * Sends the source of Frames on this connection and returns the {@code Publisher} representing
-   * the result of this send.
+   * Delivers the given frame to the underlying transport connection. This method is non-blocking
+   * and can be safely executed from multiple threads. This method does not provide any flow-control
+   * mechanism.
    *
-   * <p><strong>Flow control</strong>
-   *
-   * <p>The passed {@code Publisher} must
-   *
-   * @param frames Stream of {@code Frame}s to send on the connection.
-   * @return {@code Publisher} that completes when all the frames are written on the connection
-   *     successfully and errors when it fails.
-   * @throws NullPointerException if {@code frames} is {@code null}
+   * @param streamId to which the given frame relates
+   * @param frame with the encoded content
    */
-  Mono<Void> send(Publisher<ByteBuf> frames);
+  void sendFrame(int streamId, ByteBuf frame);
 
   /**
-   * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing
-   * the result of this send.
+   * Send an error frame and after it is successfully sent, close the connection.
    *
-   * @param frame {@code Frame} to send.
-   * @return {@code Publisher} that completes when the frame is written on the connection
-   *     successfully and errors when it fails.
+   * @param errorException to encode in the error frame
    */
-  default Mono<Void> sendOne(ByteBuf frame) {
-    return send(Mono.just(frame));
-  }
+  void sendErrorAndClose(RSocketErrorException errorException);
 
   /**
    * Returns a stream of all {@code Frame}s received on this connection.

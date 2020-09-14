@@ -95,7 +95,7 @@ public class TestRSocket implements RSocket {
   }
 
   public boolean awaitUntilObserved(int interactions, Duration duration) {
-    long end = duration.plusNanos(System.nanoTime()).toNanos();
+    long end = System.nanoTime() + duration.toNanos();
     long observed;
     while ((observed = observedInteractions.get()) < interactions) {
       if (System.nanoTime() >= end) {

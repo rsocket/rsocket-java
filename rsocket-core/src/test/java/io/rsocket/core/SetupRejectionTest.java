@@ -145,11 +145,7 @@ public class SetupRejectionTest {
     }
 
     public ByteBuf awaitSent() {
-      try {
-        return conn.awaitSend();
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
+      return conn.awaitFrame();
     }
 
     public void connect() {

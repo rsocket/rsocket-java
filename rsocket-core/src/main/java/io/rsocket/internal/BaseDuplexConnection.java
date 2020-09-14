@@ -1,14 +1,26 @@
 package io.rsocket.internal;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public abstract class BaseDuplexConnection implements DuplexConnection {
-  private MonoProcessor<Void> onClose = MonoProcessor.create();
+  protected MonoProcessor<Void> onClose = MonoProcessor.create();
+
+  protected UnboundedProcessor<ByteBuf> sender = new UnboundedProcessor<>();
 
   public BaseDuplexConnection() {
     onClose.doFinally(s -> doOnClose()).subscribe();
+  }
+
+  @Override
+  public void sendFrame(int streamId, ByteBuf frame) {
+    if (streamId == 0) {
+      sender.onNextPrioritized(frame);
+    } else {
+      sender.onNext(frame);
+    }
   }
 
   protected abstract void doOnClose();

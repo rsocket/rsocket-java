@@ -39,7 +39,6 @@ import io.rsocket.frame.LeaseFrameCodec;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.*;
 import io.rsocket.lease.MissingLeaseException;

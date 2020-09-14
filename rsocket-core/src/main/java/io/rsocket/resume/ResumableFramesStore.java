@@ -50,6 +50,8 @@ public interface ResumableFramesStore extends Closeable {
   /**
    * Received resumable frame as defined by RSocket protocol. Implementation must increment frame
    * implied position
+   *
+   * @return {@code true} if information about the frame has been stored
    */
-  void resumableFrameReceived(ByteBuf frame);
+  boolean resumableFrameReceived(ByteBuf frame);
 }
