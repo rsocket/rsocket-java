@@ -39,7 +39,7 @@ public interface DuplexConnection extends Availability, Closeable {
   /**
    * Send an error frame and after it is successfully sent, close the connection.
    *
-   * @param errorFrame with the encoded error
+   * @param errorException to encode in the error frame
    */
   void sendErrorAndClose(RSocketErrorException errorException);
 
