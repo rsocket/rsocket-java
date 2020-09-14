@@ -446,7 +446,7 @@ public interface TransportTest {
     private static final String metadata = "metadata";
 
     private final LeaksTrackingByteBufAllocator byteBufAllocator =
-        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT, Duration.ofSeconds(10));
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT, Duration.ofMinutes(1));
 
     private final TestRSocket responder;
 

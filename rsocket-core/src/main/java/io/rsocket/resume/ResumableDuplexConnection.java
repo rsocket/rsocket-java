@@ -74,28 +74,31 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
       activeConnection.dispose();
 
-      final FrameReceivingSubscriber frameReceivingSubscriber =
-          new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
-      this.activeReceivingSubscriber = frameReceivingSubscriber;
-      final Disposable disposable =
-          resumableFramesStore
-              .resumeStream()
-              .subscribe(f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
-      resumableFramesStore.resumeImplied();
-      nextConnection.receive().subscribe(frameReceivingSubscriber);
-      nextConnection
-          .onClose()
-          .doFinally(
-              __ -> {
-                frameReceivingSubscriber.dispose();
-                disposable.dispose();
-                resumableFramesStore.pauseImplied();
-              })
-          .subscribe();
+      initConnection(nextConnection);
+
       return true;
     } else {
       return false;
     }
+  }
+
+  void initConnection(DuplexConnection nextConnection) {
+    final FrameReceivingSubscriber frameReceivingSubscriber =
+        new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
+    this.activeReceivingSubscriber = frameReceivingSubscriber;
+    final Disposable disposable =
+        resumableFramesStore
+            .resumeStream()
+            .subscribe(f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f));
+    nextConnection.receive().subscribe(frameReceivingSubscriber);
+    nextConnection
+        .onClose()
+        .doFinally(
+            __ -> {
+              frameReceivingSubscriber.dispose();
+              disposable.dispose();
+            })
+        .subscribe();
   }
 
   public void disconnect() {
@@ -172,6 +175,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     }
 
     framesSaverDisposable.dispose();
+    activeReceivingSubscriber.dispose();
     savableFramesSender.dispose();
     onClose.onComplete();
   }
@@ -189,27 +193,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   @Override
   public void request(long n) {
     if (state == 1 && STATE.compareAndSet(this, 1, 2)) {
-      final DuplexConnection connection = this.activeConnection;
-      if (connection != null) {
-        final FrameReceivingSubscriber frameReceivingSubscriber =
-            new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
-        this.activeReceivingSubscriber = frameReceivingSubscriber;
-        final Disposable disposable =
-            resumableFramesStore
-                .resumeStream()
-                .subscribe(f -> connection.sendFrame(FrameHeaderCodec.streamId(f), f));
-        resumableFramesStore.resumeImplied();
-        connection.receive().subscribe(activeReceivingSubscriber);
-        connection
-            .onClose()
-            .doFinally(
-                __ -> {
-                  frameReceivingSubscriber.dispose();
-                  disposable.dispose();
-                  resumableFramesStore.pauseImplied();
-                })
-            .subscribe();
-      }
+      initConnection(this.activeConnection);
     }
   }
 

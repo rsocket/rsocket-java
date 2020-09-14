@@ -60,9 +60,9 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
       final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
       if (!unreleased.isEmpty() && !awaitZeroRefCntDuration.isZero()) {
-        long end = System.nanoTime() + awaitZeroRefCntDuration.toNanos();
+        long endTimeInMillis = System.currentTimeMillis() + awaitZeroRefCntDuration.toMillis();
         boolean hasUnreleased;
-        while (System.nanoTime() < end) {
+        while (System.currentTimeMillis() <= endTimeInMillis) {
           hasUnreleased = false;
           for (ByteBuf bb : unreleased) {
             if (bb.refCnt() != 0) {

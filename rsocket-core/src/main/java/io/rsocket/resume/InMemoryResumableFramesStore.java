@@ -151,8 +151,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     }
   }
 
-  @Override
-  public void pauseImplied() {
+  void pauseImplied() {
     for (; ; ) {
       final long impliedPosition = this.impliedPosition;
 
@@ -163,8 +162,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     }
   }
 
-  @Override
-  public void resumeImplied() {
+  void resumeImplied() {
     for (; ; ) {
       final long impliedPosition = this.impliedPosition;
 
@@ -269,6 +267,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void cancel() {
+    pauseImplied();
     state = 0;
   }
 
@@ -285,6 +284,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       }
 
       this.actual = actual;
+      resumeImplied();
       STATE.compareAndSet(this, 0, 1);
     }
   }
