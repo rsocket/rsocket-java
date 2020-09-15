@@ -48,9 +48,8 @@ import reactor.util.concurrent.Queues;
 public class TaskProcessingWithServerSideNotificationsExample {
 
   public static void main(String[] args) throws InterruptedException {
-    Sinks.Many<Task> tasksProcessor = Sinks.many()
-            .unicast()
-            .onBackpressureBuffer(Queues.<Task>unboundedMultiproducer().get());
+    Sinks.Many<Task> tasksProcessor =
+        Sinks.many().unicast().onBackpressureBuffer(Queues.<Task>unboundedMultiproducer().get());
     ConcurrentMap<String, BlockingQueue<Task>> idToCompletedTasksMap = new ConcurrentHashMap<>();
     ConcurrentMap<String, RSocket> idToRSocketMap = new ConcurrentHashMap<>();
     BackgroundWorker backgroundWorker =
