@@ -213,9 +213,11 @@ public class TaskProcessingWithServerSideNotificationsExample {
       @Override
       public Mono<Void> fireAndForget(Payload payload) {
         logger.info("Received a Task[{}] from Client.ID[{}]", payload.getDataUtf8(), id);
-        tasksToProcess.tryEmitNext(new Task(id, payload.getDataUtf8()));
+        Sinks.Emission emission = tasksToProcess.tryEmitNext(new Task(id, payload.getDataUtf8()));
         payload.release();
-        return Mono.empty();
+        return emission.hasFailed()
+            ? Mono.error(new Sinks.EmissionException(emission))
+            : Mono.empty();
       }
 
       @Override
