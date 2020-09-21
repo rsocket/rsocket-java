@@ -63,7 +63,6 @@ public class ClientRSocketSession
 
   public ClientRSocketSession(
       ByteBuf resumeToken,
-      DuplexConnection initialDuplexConnection,
       ResumableDuplexConnection resumableDuplexConnection,
       Mono<DuplexConnection> connectionFactory,
       Function<DuplexConnection, Mono<Tuple2<ByteBuf, DuplexConnection>>> connectionTransformer,
@@ -80,7 +79,9 @@ public class ClientRSocketSession
                   ResumeFrameCodec.encode(
                       dc.alloc(),
                       resumeToken.retain(),
+                      // server uses this to release its cache
                       resumableFramesStore.frameImpliedPosition(), //  observed on the client side
+                      // server uses this to check whether there is no mismatch
                       resumableFramesStore.framePosition() //  sent from the client sent
                       ));
               logger.debug("Resume Frame has been sent");
@@ -95,23 +96,18 @@ public class ClientRSocketSession
     this.resumableConnection = resumableDuplexConnection;
 
     resumableDuplexConnection.onClose().doFinally(__ -> dispose()).subscribe();
-
-    observeDisconnection(initialDuplexConnection);
+    resumableDuplexConnection.onActiveConnectionClosed().subscribe(this::reconnect);
 
     S.lazySet(this, Operators.cancelledSubscription());
   }
 
-  void reconnect() {
+  void reconnect(int index) {
     if (this.s == Operators.cancelledSubscription()
         && S.compareAndSet(this, Operators.cancelledSubscription(), null)) {
       keepAliveSupport.stop();
+      logger.debug("Connection[" + index + "] is lost. Reconnecting...");
       connectionFactory.retryWhen(retry).timeout(resumeSessionDuration).subscribe(this);
-      logger.debug("Connection is lost. Reconnecting...");
     }
-  }
-
-  void observeDisconnection(DuplexConnection activeConnection) {
-    activeConnection.onClose().subscribe(null, e -> reconnect(), () -> reconnect());
   }
 
   @Override
@@ -132,9 +128,11 @@ public class ClientRSocketSession
 
   @Override
   public void dispose() {
-    if (Operators.terminate(S, this)) {
-      resumableFramesStore.dispose();
-      resumableConnection.dispose();
+    Operators.terminate(S, this);
+    resumableConnection.dispose();
+    resumableFramesStore.dispose();
+
+    if (resumeToken.refCnt() > 0) {
       resumeToken.release();
     }
   }
@@ -152,8 +150,8 @@ public class ClientRSocketSession
   }
 
   @Override
-  public synchronized void onNext(Tuple2<ByteBuf, DuplexConnection> tuple2) {
-    ByteBuf frame = tuple2.getT1();
+  public void onNext(Tuple2<ByteBuf, DuplexConnection> tuple2) {
+    ByteBuf shouldBeResumeOKFrame = tuple2.getT1();
     DuplexConnection nextDuplexConnection = tuple2.getT2();
 
     if (!Operators.terminate(S, this)) {
@@ -164,9 +162,7 @@ public class ClientRSocketSession
       return;
     }
 
-    final FrameType frameType = FrameHeaderCodec.nativeFrameType(frame);
-    final int streamId = FrameHeaderCodec.streamId(frame);
-
+    final int streamId = FrameHeaderCodec.streamId(shouldBeResumeOKFrame);
     if (streamId != 0) {
       logger.debug(
           "Illegal first frame received. RESUME_OK frame must be received before any others. Terminating received connection");
@@ -177,8 +173,13 @@ public class ClientRSocketSession
       return;
     }
 
+    final FrameType frameType = FrameHeaderCodec.nativeFrameType(shouldBeResumeOKFrame);
     if (frameType == FrameType.RESUME_OK) {
-      long remoteImpliedPos = ResumeOkFrameCodec.lastReceivedClientPos(frame);
+      // how  many frames the server has received from the client
+      // so the client can release cached frames by this point
+      long remoteImpliedPos = ResumeOkFrameCodec.lastReceivedClientPos(shouldBeResumeOKFrame);
+      // what was the last notification from the server about number of frames being
+      // observed
       final long position = resumableFramesStore.framePosition();
       final long impliedPosition = resumableFramesStore.frameImpliedPosition();
       logger.debug(
@@ -200,7 +201,6 @@ public class ClientRSocketSession
         }
 
         if (resumableConnection.connect(nextDuplexConnection)) {
-          observeDisconnection(nextDuplexConnection);
           keepAliveSupport.start();
           logger.debug("Session has been resumed successfully");
         } else {
@@ -220,7 +220,7 @@ public class ClientRSocketSession
         nextDuplexConnection.sendErrorAndClose(connectionErrorException);
       }
     } else if (frameType == FrameType.ERROR) {
-      final RuntimeException exception = Exceptions.from(0, frame);
+      final RuntimeException exception = Exceptions.from(0, shouldBeResumeOKFrame);
       logger.debug("Received error frame. Terminating received connection", exception);
       resumableConnection.dispose();
     } else {

@@ -109,7 +109,7 @@ abstract class ServerSetup {
 
         final ResumableFramesStore resumableFramesStore = resumeStoreFactory.apply(resumeToken);
         final ResumableDuplexConnection resumableDuplexConnection =
-            new ResumableDuplexConnection(duplexConnection, resumableFramesStore);
+            new ResumableDuplexConnection("server", duplexConnection, resumableFramesStore);
         final ServerRSocketSession serverRSocketSession =
             new ServerRSocketSession(
                 resumeToken,
@@ -134,7 +134,8 @@ abstract class ServerSetup {
     public Mono<Void> acceptRSocketResume(ByteBuf frame, DuplexConnection duplexConnection) {
       ServerRSocketSession session = sessionManager.get(ResumeFrameCodec.token(frame));
       if (session != null) {
-        return session.resumeWith(frame, duplexConnection);
+        session.resumeWith(frame, duplexConnection);
+        return duplexConnection.onClose();
       } else {
         sendError(duplexConnection, new RejectedResumeException("unknown resume token"));
         return duplexConnection.onClose();
