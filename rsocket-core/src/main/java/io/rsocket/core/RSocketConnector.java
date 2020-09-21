@@ -583,15 +583,16 @@ public class RSocketConnector {
                                         resume.getStoreFactory(CLIENT_TAG).apply(resumeToken);
                                     final ResumableDuplexConnection resumableDuplexConnection =
                                         new ResumableDuplexConnection(
-                                            clientServerConnection, resumableFramesStore);
+                                            CLIENT_TAG,
+                                            clientServerConnection,
+                                            resumableFramesStore);
                                     final ResumableClientSetup resumableClientSetup =
                                         new ResumableClientSetup();
                                     final ClientRSocketSession session =
                                         new ClientRSocketSession(
                                             resumeToken,
-                                            clientServerConnection,
                                             resumableDuplexConnection,
-                                            connectionMono,
+                                            connectionMono, // supplies pure
                                             resumableClientSetup::init,
                                             resumableFramesStore,
                                             resume.getSessionDuration(),

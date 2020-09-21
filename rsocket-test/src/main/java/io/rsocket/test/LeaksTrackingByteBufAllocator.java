@@ -5,8 +5,12 @@ import static java.util.concurrent.locks.LockSupport.parkNanos;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.util.ResourceLeakDetector;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
 
@@ -23,7 +27,7 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
    * @return
    */
   public static LeaksTrackingByteBufAllocator instrument(ByteBufAllocator allocator) {
-    return new LeaksTrackingByteBufAllocator(allocator, Duration.ZERO);
+    return new LeaksTrackingByteBufAllocator(allocator, Duration.ZERO, "");
   }
 
   /**
@@ -33,8 +37,8 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
    * @return
    */
   public static LeaksTrackingByteBufAllocator instrument(
-      ByteBufAllocator allocator, Duration awaitZeroRefCntDuration) {
-    return new LeaksTrackingByteBufAllocator(allocator, awaitZeroRefCntDuration);
+      ByteBufAllocator allocator, Duration awaitZeroRefCntDuration, String tag) {
+    return new LeaksTrackingByteBufAllocator(allocator, awaitZeroRefCntDuration, tag);
   }
 
   final ConcurrentLinkedQueue<ByteBuf> tracker = new ConcurrentLinkedQueue<>();
@@ -43,10 +47,13 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
   final Duration awaitZeroRefCntDuration;
 
+  final String tag;
+
   private LeaksTrackingByteBufAllocator(
-      ByteBufAllocator delegate, Duration awaitZeroRefCntDuration) {
+      ByteBufAllocator delegate, Duration awaitZeroRefCntDuration, String tag) {
     this.delegate = delegate;
     this.awaitZeroRefCntDuration = awaitZeroRefCntDuration;
+    this.tag = tag;
   }
 
   public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
@@ -73,11 +80,11 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           }
 
           if (!hasUnreleased) {
-            System.out.println("all the buffers are released...");
+            System.out.println(tag + " all the buffers are released...");
             return this;
           }
 
-          System.out.println("await buffers to be released");
+          System.out.println(tag + " await buffers to be released");
           for (int i = 0; i < 100; i++) {
             System.gc();
             parkNanos(1000);
@@ -86,8 +93,23 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
         }
       }
 
-      Assertions.assertThat(unreleased).allMatch(bb -> bb.refCnt() == 0);
-      System.out.println("all the buffers are released...");
+      Assertions.assertThat(unreleased)
+          .allMatch(
+              bb -> {
+                final boolean checkResult = bb.refCnt() == 0;
+
+                if (!checkResult) {
+                  try {
+                    System.out.println(tag + " " + resolveTrackingInfo(bb));
+                  } catch (Exception e) {
+                    e.printStackTrace();
+                  }
+                }
+
+                return checkResult;
+              },
+              tag);
+      System.out.println(tag + " all the buffers are released...");
     } finally {
       tracker.clear();
     }
@@ -200,5 +222,61 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
     tracker.offer(buffer);
 
     return buffer;
+  }
+
+  static final Class<?> simpleLeakAwareCompositeByteBufClass;
+  static final Field leakFieldForComposite;
+  static final Class<?> simpleLeakAwareByteBufClass;
+  static final Field leakFieldForNormal;
+  static final Field allLeaksField;
+
+  static {
+    try {
+      {
+        final Class<?> aClass = Class.forName("io.netty.buffer.SimpleLeakAwareCompositeByteBuf");
+        final Field leakField = aClass.getDeclaredField("leak");
+
+        leakField.setAccessible(true);
+
+        simpleLeakAwareCompositeByteBufClass = aClass;
+        leakFieldForComposite = leakField;
+      }
+
+      {
+        final Class<?> aClass = Class.forName("io.netty.buffer.SimpleLeakAwareByteBuf");
+        final Field leakField = aClass.getDeclaredField("leak");
+
+        leakField.setAccessible(true);
+
+        simpleLeakAwareByteBufClass = aClass;
+        leakFieldForNormal = leakField;
+      }
+
+      {
+        final Class<?> aClass =
+            Class.forName("io.netty.util.ResourceLeakDetector$DefaultResourceLeak");
+        final Field field = aClass.getDeclaredField("allLeaks");
+
+        field.setAccessible(true);
+
+        allLeaksField = field;
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  static Set<Object> resolveTrackingInfo(ByteBuf byteBuf) throws Exception {
+    if (ResourceLeakDetector.getLevel().ordinal()
+        >= ResourceLeakDetector.Level.ADVANCED.ordinal()) {
+      if (simpleLeakAwareCompositeByteBufClass.isInstance(byteBuf)) {
+        return (Set<Object>) allLeaksField.get(leakFieldForComposite.get(byteBuf));
+      } else if (simpleLeakAwareByteBufClass.isInstance(byteBuf)) {
+        return (Set<Object>) allLeaksField.get(leakFieldForNormal.get(byteBuf));
+      }
+    }
+
+    return Collections.emptySet();
   }
 }

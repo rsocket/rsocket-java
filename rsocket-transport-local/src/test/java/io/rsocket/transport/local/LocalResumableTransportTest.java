@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.Disabled;
 
-@Disabled
+@Disabled("leaking somewhere for no clear reason")
 final class LocalResumableTransportTest implements TransportTest {
 
   private final TransportPair transportPair =

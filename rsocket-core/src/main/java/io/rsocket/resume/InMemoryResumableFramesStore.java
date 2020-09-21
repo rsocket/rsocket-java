@@ -61,6 +61,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   CoreSubscriber<? super ByteBuf> actual;
 
+  // indicates whether there is active connection or not
   volatile int state;
   static final AtomicIntegerFieldUpdater<InMemoryResumableFramesStore> STATE =
       AtomicIntegerFieldUpdater.newUpdater(InMemoryResumableFramesStore.class, "state");
@@ -94,9 +95,6 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       while (toRemoveBytes > removedBytes && frames.size() > 0) {
         ByteBuf cachedFrame = frames.remove(0);
         int frameSize = cachedFrame.readableBytes();
-        //                logger.debug(
-        //                        "{} Removing frame {}", tag,
-        // cachedFrame.toString(CharsetUtil.UTF_8));
         cachedFrame.release();
         removedBytes += frameSize;
       }
@@ -110,7 +108,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
               toRemoveBytes));
     } else if (toRemoveBytes < removedBytes) {
       throw new IllegalStateException(
-          "Local and remote state disagreement: " + "local and remote frame sizes are not equal");
+          "Local and remote state disagreement: local and remote frame sizes are not equal");
     } else {
       POSITION.addAndGet(this, removedBytes);
       if (cacheLimit != Integer.MAX_VALUE) {
@@ -184,6 +182,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     if (STATE.getAndSet(this, 2) != 2) {
       cacheSize = 0;
       synchronized (this) {
+        logger.debug("Tag {}.Disposing InMemoryFrameStore", tag);
         for (ByteBuf frame : cachedFrames) {
           if (frame != null) {
             frame.release();
@@ -197,7 +196,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public boolean isDisposed() {
-    return disposed.isTerminated();
+    return state == 2;
   }
 
   @Override
@@ -218,6 +217,9 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void onNext(ByteBuf frame) {
+    frame.touch("Tag : " + tag + ". InMemoryResumableFramesStore:onNext");
+
+    final int state;
     final boolean isResumable = isResumableFrame(frame);
     if (isResumable) {
       final ArrayList<ByteBuf> frames = cachedFrames;
@@ -244,20 +246,23 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
           POSITION.addAndGet(this, removedBytes);
         }
       }
-
       synchronized (this) {
-        frames.add(frame);
+        state = this.state;
+        if (state != 2) {
+          frames.add(frame);
+        }
       }
       if (cacheLimit != Integer.MAX_VALUE) {
         CACHE_SIZE.addAndGet(this, incomingFrameSize);
       }
+    } else {
+      state = this.state;
     }
 
-    final int state = this.state;
     final CoreSubscriber<? super ByteBuf> actual = this.actual;
     if (state == 1) {
       actual.onNext(frame.retain());
-    } else if (!isResumable) {
+    } else if (!isResumable || state == 2) {
       frame.release();
     }
   }
@@ -274,18 +279,25 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
   @Override
   public void subscribe(CoreSubscriber<? super ByteBuf> actual) {
     final int state = this.state;
-    logger.debug("Tag: {}. Subscribed State[{}]", tag, state);
-    actual.onSubscribe(this);
     if (state != 2) {
+      resumeImplied();
+      logger.debug(
+          "Tag: {}. Subscribed at Position[{}] and ImpliedPosition[{}]",
+          tag,
+          position,
+          impliedPosition);
+      actual.onSubscribe(this);
       synchronized (this) {
         for (final ByteBuf frame : cachedFrames) {
+          frame.touch("Tag : " + tag + ". InMemoryResumableFramesStore:subscribe");
           actual.onNext(frame.retain());
         }
       }
 
       this.actual = actual;
-      resumeImplied();
       STATE.compareAndSet(this, 0, 1);
+    } else {
+      Operators.complete(actual);
     }
   }
 }

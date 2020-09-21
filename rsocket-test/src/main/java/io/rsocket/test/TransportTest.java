@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
+import reactor.core.Exceptions;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
@@ -99,11 +100,27 @@ public interface TransportTest {
 
   @AfterEach
   default void close() {
+    Hooks.resetOnOperatorDebug();
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
-    getTransportPair().byteBufAllocator.assertHasNoLeaks();
-    Hooks.resetOnOperatorDebug();
+    RuntimeException throwable = new RuntimeException();
+
+    try {
+      getTransportPair().byteBufAllocator2.assertHasNoLeaks();
+    } catch (Throwable t) {
+      throwable = Exceptions.addSuppressed(throwable, t);
+    }
+
+    try {
+      getTransportPair().byteBufAllocator1.assertHasNoLeaks();
+    } catch (Throwable t) {
+      throwable = Exceptions.addSuppressed(throwable, t);
+    }
+
+    if (throwable.getSuppressed().length > 0) {
+      throw throwable;
+    }
   }
 
   default Payload createTestPayload(int metadataPresent) {
@@ -217,6 +234,7 @@ public interface TransportTest {
     getClient()
         .requestChannel(payloads)
         .doOnNext(Payload::release)
+        .limitRate(8)
         .as(StepVerifier::create)
         .expectNextCount(200_000)
         .expectComplete()
@@ -260,6 +278,7 @@ public interface TransportTest {
     getClient()
         .requestChannel(payloads)
         .doOnNext(Payload::release)
+        .limitRate(8)
         .as(StepVerifier::create)
         .expectNextCount(2_000_000)
         .expectComplete()
@@ -287,7 +306,6 @@ public interface TransportTest {
   @DisplayName("makes 1 requestChannel request with 256 payloads")
   @Test
   default void requestChannel256() {
-    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
     AtomicInteger counter = new AtomicInteger();
     Flux<Payload> payloads =
         Flux.defer(
@@ -297,7 +315,7 @@ public interface TransportTest {
                   .map(i -> "S{" + subscription + "}: Data{" + i + "}")
                   .map(data -> ByteBufPayload.create(data));
             });
-    final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(13));
+    final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(12));
 
     Flux.range(0, 1024)
         .flatMap(v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(scheduler), 12)
@@ -307,12 +325,8 @@ public interface TransportTest {
   default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
-        .map(
-            payload -> {
-              final String data = payload.getDataUtf8();
-              payload.release();
-              return data;
-            })
+        .doOnNext(ReferenceCounted::release)
+        .limitRate(8)
         .as(StepVerifier::create)
         .expectNextCount(256)
         .as("expected 256 items")
@@ -442,12 +456,17 @@ public interface TransportTest {
 
   class TransportPair<T, S extends Closeable> implements Disposable {
 
-    private final boolean withResumability;
     private static final String data = "hello world";
     private static final String metadata = "metadata";
 
-    private final LeaksTrackingByteBufAllocator byteBufAllocator =
-        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT, Duration.ofMinutes(1));
+    private final boolean withResumability;
+
+    private final LeaksTrackingByteBufAllocator byteBufAllocator1 =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Client");
+    private final LeaksTrackingByteBufAllocator byteBufAllocator2 =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Server");
 
     private final TestRSocket responder;
 
@@ -488,13 +507,16 @@ public interface TransportTest {
       final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
       final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
 
-      ByteBufAllocator allocatorToSupply;
+      ByteBufAllocator allocatorToSupply1;
+      ByteBufAllocator allocatorToSupply2;
       if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
           || ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.PARANOID) {
         logger.info("Using LeakTrackingByteBufAllocator");
-        allocatorToSupply = byteBufAllocator;
+        allocatorToSupply1 = byteBufAllocator1;
+        allocatorToSupply2 = byteBufAllocator2;
       } else {
-        allocatorToSupply = ByteBufAllocator.DEFAULT;
+        allocatorToSupply1 = ByteBufAllocator.DEFAULT;
+        allocatorToSupply2 = ByteBufAllocator.DEFAULT;
       }
       responder = new TestRSocket(TransportPair.data, metadata);
       final RSocketServer rSocketServer =
@@ -525,7 +547,7 @@ public interface TransportTest {
                                       "Server",
                                       duplexConnection,
                                       Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(200, 500)))
+                                          ThreadLocalRandom.current().nextInt(10, 1500)))
                                   : duplexConnection);
                     }
                   });
@@ -541,7 +563,7 @@ public interface TransportTest {
       }
 
       server =
-          rSocketServer.bind(serverTransportSupplier.apply(address, allocatorToSupply)).block();
+          rSocketServer.bind(serverTransportSupplier.apply(address, allocatorToSupply2)).block();
 
       final RSocketConnector rSocketConnector =
           RSocketConnector.create()
@@ -572,7 +594,7 @@ public interface TransportTest {
                                       "Client",
                                       duplexConnection,
                                       Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(200, 500)))
+                                          ThreadLocalRandom.current().nextInt(1, 2000)))
                                   : duplexConnection);
                     }
                   });
@@ -589,7 +611,7 @@ public interface TransportTest {
 
       client =
           rSocketConnector
-              .connect(clientTransportSupplier.apply(address, server, allocatorToSupply))
+              .connect(clientTransportSupplier.apply(address, server, allocatorToSupply1))
               .doOnError(Throwable::printStackTrace)
               .block();
     }
@@ -716,9 +738,11 @@ public interface TransportTest {
                   if (!receivedFirst) {
                     receivedFirst = true;
                     Mono.delay(delay)
+                        .takeUntilOther(source.onClose())
                         .subscribe(
                             __ -> {
-                              logger.warn("Tag {}. Disposing Connection", tag);
+                              logger.warn(
+                                  "Tag {}. Disposing Connection[{}]", tag, source.hashCode());
                               source.dispose();
                             });
                   }

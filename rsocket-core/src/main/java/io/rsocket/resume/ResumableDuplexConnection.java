@@ -26,22 +26,29 @@ import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 
 public class ResumableDuplexConnection extends Flux<ByteBuf>
     implements DuplexConnection, Subscription {
 
+  static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
+
+  final String tag;
   final ResumableFramesStore resumableFramesStore;
 
   final UnboundedProcessor<ByteBuf> savableFramesSender;
   final Disposable framesSaverDisposable;
   final MonoProcessor<Void> onClose;
   final SocketAddress remoteAddress;
+  final Sinks.Many<Integer> onConnectionClosedSink;
 
   CoreSubscriber<? super ByteBuf> receiveSubscriber;
   FrameReceivingSubscriber activeReceivingSubscriber;
@@ -56,8 +63,12 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
           AtomicReferenceFieldUpdater.newUpdater(
               ResumableDuplexConnection.class, DuplexConnection.class, "activeConnection");
 
+  int connectionIndex = 0;
+
   public ResumableDuplexConnection(
-      DuplexConnection initialConnection, ResumableFramesStore resumableFramesStore) {
+      String tag, DuplexConnection initialConnection, ResumableFramesStore resumableFramesStore) {
+    this.tag = tag;
+    this.onConnectionClosedSink = Sinks.many().unsafe().unicast().onBackpressureBuffer();
     this.resumableFramesStore = resumableFramesStore;
     this.savableFramesSender = new UnboundedProcessor<>();
     this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
@@ -83,9 +94,15 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   }
 
   void initConnection(DuplexConnection nextConnection) {
+    logger.debug("Tag {}. Initializing connection {}", tag, nextConnection);
+
+    final int currentConnectionIndex = connectionIndex;
     final FrameReceivingSubscriber frameReceivingSubscriber =
-        new FrameReceivingSubscriber(resumableFramesStore, receiveSubscriber);
+        new FrameReceivingSubscriber(tag, resumableFramesStore, receiveSubscriber);
+
+    this.connectionIndex = currentConnectionIndex + 1;
     this.activeReceivingSubscriber = frameReceivingSubscriber;
+
     final Disposable disposable =
         resumableFramesStore
             .resumeStream()
@@ -97,6 +114,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             __ -> {
               frameReceivingSubscriber.dispose();
               disposable.dispose();
+              onConnectionClosedSink.emitNext(currentConnectionIndex);
             })
         .subscribe();
   }
@@ -117,6 +135,10 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     }
   }
 
+  Flux<Integer> onActiveConnectionClosed() {
+    return onConnectionClosedSink.asFlux();
+  }
+
   @Override
   public void sendErrorAndClose(RSocketErrorException rSocketErrorException) {
     final DuplexConnection activeConnection =
@@ -133,11 +155,13 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             t -> {
               framesSaverDisposable.dispose();
               savableFramesSender.dispose();
+              onConnectionClosedSink.emitComplete();
               onClose.onError(t);
             },
             () -> {
               framesSaverDisposable.dispose();
               savableFramesSender.dispose();
+              onConnectionClosedSink.emitComplete();
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
                 onClose.onComplete();
@@ -177,6 +201,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     framesSaverDisposable.dispose();
     activeReceivingSubscriber.dispose();
     savableFramesSender.dispose();
+    onConnectionClosedSink.emitComplete();
     onClose.onComplete();
   }
 
@@ -256,6 +281,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
     final ResumableFramesStore resumableFramesStore;
     final CoreSubscriber<? super ByteBuf> actual;
+    final String tag;
 
     volatile Subscription s;
     static final AtomicReferenceFieldUpdater<FrameReceivingSubscriber, Subscription> S =
@@ -265,7 +291,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     boolean cancelled;
 
     private FrameReceivingSubscriber(
-        ResumableFramesStore store, CoreSubscriber<? super ByteBuf> actual) {
+        String tag, ResumableFramesStore store, CoreSubscriber<? super ByteBuf> actual) {
+      this.tag = tag;
       this.resumableFramesStore = store;
       this.actual = actual;
     }
@@ -279,6 +306,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
     @Override
     public void onNext(ByteBuf frame) {
+      frame.touch("Tag : " + tag + ". FrameReceivingSubscriber#onNext");
       if (cancelled || s == Operators.cancelledSubscription()) {
         return;
       }

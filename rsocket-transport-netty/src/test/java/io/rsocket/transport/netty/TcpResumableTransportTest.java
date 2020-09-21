@@ -22,11 +22,9 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
 import java.time.Duration;
-import org.junit.jupiter.api.Disabled;
 import reactor.netty.tcp.TcpClient;
 import reactor.netty.tcp.TcpServer;
 
-@Disabled
 final class TcpResumableTransportTest implements TransportTest {
 
   private final TransportPair transportPair =

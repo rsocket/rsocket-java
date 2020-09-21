@@ -23,10 +23,27 @@
         </encoder>
     </appender>
 
-    <logger name="io.rsocket.transport.local" level="INFO"/>
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>./test-out.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%-5relative %-5level %logger{35} - %msg%n</pattern>
+        </encoder>
+    </appender>
 
-    <root level="ERROR">
+    <logger name="io.rsocket.transport.local" level="INFO"/>
+    <logger name="io.rsocket.FrameLogger" level="INFO"/>
+    <logger name="io.rsocket.core.RSocketRequester" level="DEBUG"/>
+    <logger name="io.rsocket.core.RSocketResponder" level="DEBUG"/>
+    <logger name="io.rsocket.test.TransportTest" level="DEBUG"/>
+    <logger name="io.rsocket.resume.ClientRSocketSession" level="DEBUG"/>
+    <logger name="io.rsocket.resume.ServerRSocketSession" level="DEBUG"/>
+    <logger name="io.rsocket.resume.ResumableDuplexConnection" level="DEBUG"/>
+    <logger name="io.rsocket.resume.InMemoryResumableFramesStore" level="DEBUG"/>
+
+    <root level="INFO">
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
     </root>
 
 </configuration>
