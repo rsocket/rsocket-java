@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 import reactor.util.annotation.Nullable;
+import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements RSocket {
@@ -537,7 +538,7 @@ class RSocketResponder implements RSocket {
   }
 
   private void handleChannel(int streamId, Payload payload, long initialRequestN) {
-    UnicastProcessor<Payload> frames = UnicastProcessor.create();
+    UnicastProcessor<Payload> frames = UnicastProcessor.create(Queues.<Payload>one().get());
     channelProcessors.put(streamId, frames);
 
     Flux<Payload> payloads =
