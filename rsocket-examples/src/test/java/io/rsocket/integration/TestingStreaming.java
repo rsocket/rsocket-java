@@ -49,6 +49,7 @@ public class TestingStreaming {
                                     }
                                   })
                               .map(l -> DefaultPayload.create("l -> " + l))
+                              .delaySubscription(Duration.ofMillis(100))
                               .cast(Payload.class)))
               .bind(serverTransport)
               .block();
@@ -71,6 +72,7 @@ public class TestingStreaming {
                       payload ->
                           Flux.range(1, 1000)
                               .map(l -> DefaultPayload.create("l -> " + l))
+                              .delaySubscription(Duration.ofMillis(100))
                               .cast(Payload.class)))
               .bind(serverTransport)
               .block();
@@ -104,6 +106,7 @@ public class TestingStreaming {
                       payload ->
                           Flux.range(1, 10_000)
                               .map(l -> DefaultPayload.create("l -> " + l))
+                              .delaySubscription(Duration.ofMillis(100))
                               .cast(Payload.class)))
               .bind(serverTransport)
               .block();

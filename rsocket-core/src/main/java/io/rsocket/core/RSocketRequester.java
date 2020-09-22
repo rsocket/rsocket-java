@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -348,7 +348,7 @@ class RSocketRequester implements RSocket {
     }
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+    final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
     final AtomicBoolean once = new AtomicBoolean();
 
     return Flux.defer(
@@ -456,7 +456,7 @@ class RSocketRequester implements RSocket {
   private Flux<? extends Payload> handleChannel(Payload initialPayload, Flux<Payload> inboundFlux) {
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
 
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+    final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
 
     return receiver
         .transform(
