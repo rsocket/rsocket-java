@@ -16,8 +16,6 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Payload;
@@ -33,10 +31,6 @@ import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
-import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,6 +45,13 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 public class RSocketTest {
 
@@ -543,7 +544,6 @@ public class RSocketTest {
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
                   return Flux.range(1, 10)
-                      .delaySubscription(Duration.ofMillis(100))
                       .map(
                           i -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
                 }
@@ -557,7 +557,6 @@ public class RSocketTest {
                       .subscribe();
 
                   return Flux.range(1, 10)
-                      .delaySubscription(Duration.ofMillis(100))
                       .map(
                           payload ->
                               DefaultPayload.create("server got -> [" + payload.toString() + "]"));

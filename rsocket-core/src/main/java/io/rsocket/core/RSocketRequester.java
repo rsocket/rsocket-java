@@ -64,7 +64,6 @@ import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Scheduler;
@@ -267,68 +266,54 @@ class RSocketRequester implements RSocket {
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
-    final AtomicBoolean once = new AtomicBoolean();
+    return Mono.fromDirect(
+            new RequestOperator(
+                receiver.next(), "RequestResponseMono allows only a single subscriber") {
 
-    return Mono.defer(
-        () -> {
-          if (once.getAndSet(true)) {
-            return Mono.error(
-                new IllegalStateException("RequestResponseMono allows only a single subscriber"));
-          }
+              @Override
+              void hookOnFirstRequest(long n) {
+                if (isDisposed()) {
+                  payload.release();
+                  final Throwable t = terminationError;
+                  receiver.onError(t);
+                  return;
+                }
 
-          return receiver
-              .next()
-              .transform(
-                  Operators.<Payload, Payload>lift(
-                      (s, actual) ->
-                          new RequestOperator(actual) {
+                RequesterLeaseHandler lh = leaseHandler;
+                if (!lh.useLease()) {
+                  payload.release();
+                  receiver.onError(lh.leaseError());
+                  return;
+                }
 
-                            @Override
-                            void hookOnFirstRequest(long n) {
-                              if (isDisposed()) {
-                                payload.release();
-                                final Throwable t = terminationError;
-                                receiver.onError(t);
-                                return;
-                              }
+                int streamId = streamIdSupplier.nextStreamId(receivers);
+                this.streamId = streamId;
 
-                              RequesterLeaseHandler lh = leaseHandler;
-                              if (!lh.useLease()) {
-                                payload.release();
-                                receiver.onError(lh.leaseError());
-                                return;
-                              }
+                ByteBuf requestResponseFrame =
+                    RequestResponseFrameCodec.encodeReleasingPayload(allocator, streamId, payload);
 
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
-                              this.streamId = streamId;
+                receivers.put(streamId, receiver);
+                sendProcessor.onNext(requestResponseFrame);
+              }
 
-                              ByteBuf requestResponseFrame =
-                                  RequestResponseFrameCodec.encodeReleasingPayload(
-                                      allocator, streamId, payload);
+              @Override
+              void hookOnCancel() {
+                if (receivers.remove(streamId, receiver)) {
+                  sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
+                } else {
+                  if (this.firstRequest) {
+                    payload.release();
+                  }
+                }
+              }
 
-                              receivers.put(streamId, receiver);
-                              sendProcessor.onNext(requestResponseFrame);
-                            }
-
-                            @Override
-                            void hookOnCancel() {
-                              if (receivers.remove(streamId, receiver)) {
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                              } else {
-                                if (this.firstRequest) {
-                                  payload.release();
-                                }
-                              }
-                            }
-
-                            @Override
-                            public void hookOnTerminal(SignalType signalType) {
-                              receivers.remove(streamId, receiver);
-                            }
-                          }))
-              .subscribeOn(serialScheduler)
-              .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
-        });
+              @Override
+              public void hookOnTerminal(SignalType signalType) {
+                receivers.remove(streamId, receiver);
+              }
+            })
+        .subscribeOn(serialScheduler)
+        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
@@ -349,78 +334,64 @@ class RSocketRequester implements RSocket {
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
-    final AtomicBoolean once = new AtomicBoolean();
 
-    return Flux.defer(
-        () -> {
-          if (once.getAndSet(true)) {
-            return Flux.error(
-                new IllegalStateException("RequestStreamFlux allows only a single subscriber"));
-          }
+    return Flux.from(
+            new RequestOperator(receiver, "RequestStreamFlux allows only a single subscriber") {
 
-          return receiver
-              .transform(
-                  Operators.<Payload, Payload>lift(
-                      (s, actual) ->
-                          new RequestOperator(actual) {
+              @Override
+              void hookOnFirstRequest(long n) {
+                if (isDisposed()) {
+                  payload.release();
+                  final Throwable t = terminationError;
+                  receiver.onError(t);
+                  return;
+                }
 
-                            @Override
-                            void hookOnFirstRequest(long n) {
-                              if (isDisposed()) {
-                                payload.release();
-                                final Throwable t = terminationError;
-                                receiver.onError(t);
-                                return;
-                              }
+                RequesterLeaseHandler lh = leaseHandler;
+                if (!lh.useLease()) {
+                  payload.release();
+                  receiver.onError(lh.leaseError());
+                  return;
+                }
 
-                              RequesterLeaseHandler lh = leaseHandler;
-                              if (!lh.useLease()) {
-                                payload.release();
-                                receiver.onError(lh.leaseError());
-                                return;
-                              }
+                int streamId = streamIdSupplier.nextStreamId(receivers);
+                this.streamId = streamId;
 
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
-                              this.streamId = streamId;
+                ByteBuf requestStreamFrame =
+                    RequestStreamFrameCodec.encodeReleasingPayload(allocator, streamId, n, payload);
 
-                              ByteBuf requestStreamFrame =
-                                  RequestStreamFrameCodec.encodeReleasingPayload(
-                                      allocator, streamId, n, payload);
+                receivers.put(streamId, receiver);
 
-                              receivers.put(streamId, receiver);
+                sendProcessor.onNext(requestStreamFrame);
+              }
 
-                              sendProcessor.onNext(requestStreamFrame);
-                            }
+              @Override
+              void hookOnRemainingRequests(long n) {
+                if (receiver.isDisposed()) {
+                  return;
+                }
 
-                            @Override
-                            void hookOnRemainingRequests(long n) {
-                              if (receiver.isDisposed()) {
-                                return;
-                              }
+                sendProcessor.onNext(RequestNFrameCodec.encode(allocator, streamId, n));
+              }
 
-                              sendProcessor.onNext(
-                                  RequestNFrameCodec.encode(allocator, streamId, n));
-                            }
+              @Override
+              void hookOnCancel() {
+                if (receivers.remove(streamId, receiver)) {
+                  sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
+                } else {
+                  if (this.firstRequest) {
+                    payload.release();
+                  }
+                }
+              }
 
-                            @Override
-                            void hookOnCancel() {
-                              if (receivers.remove(streamId, receiver)) {
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                              } else {
-                                if (this.firstRequest) {
-                                  payload.release();
-                                }
-                              }
-                            }
-
-                            @Override
-                            void hookOnTerminal(SignalType signalType) {
-                              receivers.remove(streamId);
-                            }
-                          }))
-              .subscribeOn(serialScheduler, false)
-              .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
-        });
+              @Override
+              void hookOnTerminal(SignalType signalType) {
+                receivers.remove(streamId);
+              }
+            })
+        .subscribeOn(serialScheduler, false)
+        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
@@ -458,135 +429,133 @@ class RSocketRequester implements RSocket {
 
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
 
-    return receiver
-        .transform(
-            Operators.<Payload, Payload>lift(
-                (s, actual) ->
-                    new RequestOperator(actual) {
+    return Flux.from(
+            new RequestOperator(
+                receiver, "RequestStreamFlux allows only a " + "single subscriber") {
 
-                      final BaseSubscriber<Payload> upstreamSubscriber =
-                          new BaseSubscriber<Payload>() {
+              final BaseSubscriber<Payload> upstreamSubscriber =
+                  new BaseSubscriber<Payload>() {
 
-                            boolean first = true;
+                    boolean first = true;
 
-                            @Override
-                            protected void hookOnSubscribe(Subscription subscription) {
-                              // noops
-                            }
+                    @Override
+                    protected void hookOnSubscribe(Subscription subscription) {
+                      // noops
+                    }
 
-                            @Override
-                            protected void hookOnNext(Payload payload) {
-                              if (first) {
-                                // need to skip first since we have already sent it
-                                // no need to release it since it was released earlier on the
-                                // request
-                                // establishment
-                                // phase
-                                first = false;
-                                request(1);
-                                return;
-                              }
-                              if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
-                                payload.release();
-                                cancel();
-                                final IllegalArgumentException t =
-                                    new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-                                // no need to send any errors.
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                                receiver.onError(t);
-                                return;
-                              }
-                              final ByteBuf frame =
-                                  PayloadFrameCodec.encodeNextReleasingPayload(
-                                      allocator, streamId, payload);
-
-                              sendProcessor.onNext(frame);
-                            }
-
-                            @Override
-                            protected void hookOnComplete() {
-                              ByteBuf frame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-                              sendProcessor.onNext(frame);
-                            }
-
-                            @Override
-                            protected void hookOnError(Throwable t) {
-                              ByteBuf frame = ErrorFrameCodec.encode(allocator, streamId, t);
-                              sendProcessor.onNext(frame);
-                              receiver.onError(t);
-                            }
-
-                            @Override
-                            protected void hookFinally(SignalType type) {
-                              senders.remove(streamId, this);
-                            }
-                          };
-
-                      @Override
-                      void hookOnFirstRequest(long n) {
-                        if (isDisposed()) {
-                          initialPayload.release();
-                          final Throwable t = terminationError;
-                          upstreamSubscriber.cancel();
-                          receiver.onError(t);
-                          return;
-                        }
-
-                        RequesterLeaseHandler lh = leaseHandler;
-                        if (!lh.useLease()) {
-                          initialPayload.release();
-                          receiver.onError(lh.leaseError());
-                          return;
-                        }
-
-                        final int streamId = streamIdSupplier.nextStreamId(receivers);
-                        this.streamId = streamId;
-
-                        final ByteBuf frame =
-                            RequestChannelFrameCodec.encodeReleasingPayload(
-                                allocator, streamId, false, n, initialPayload);
-
-                        senders.put(streamId, upstreamSubscriber);
-                        receivers.put(streamId, receiver);
-
-                        inboundFlux
-                            .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
-                            .subscribe(upstreamSubscriber);
-
-                        sendProcessor.onNext(frame);
+                    @Override
+                    protected void hookOnNext(Payload payload) {
+                      if (first) {
+                        // need to skip first since we have already sent it
+                        // no need to release it since it was released earlier on the
+                        // request
+                        // establishment
+                        // phase
+                        first = false;
+                        request(1);
+                        return;
                       }
-
-                      @Override
-                      void hookOnRemainingRequests(long n) {
-                        if (receiver.isDisposed()) {
-                          return;
-                        }
-
-                        sendProcessor.onNext(RequestNFrameCodec.encode(allocator, streamId, n));
+                      if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
+                        payload.release();
+                        cancel();
+                        final IllegalArgumentException t =
+                            new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
+                        // no need to send any errors.
+                        sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
+                        receiver.onError(t);
+                        return;
                       }
+                      final ByteBuf frame =
+                          PayloadFrameCodec.encodeNextReleasingPayload(
+                              allocator, streamId, payload);
 
-                      @Override
-                      void hookOnCancel() {
-                        senders.remove(streamId, upstreamSubscriber);
-                        if (receivers.remove(streamId, receiver)) {
-                          sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                        }
-                      }
+                      sendProcessor.onNext(frame);
+                    }
 
-                      @Override
-                      void hookOnTerminal(SignalType signalType) {
-                        if (signalType == SignalType.ON_ERROR) {
-                          upstreamSubscriber.cancel();
-                        }
-                        receivers.remove(streamId, receiver);
-                      }
+                    @Override
+                    protected void hookOnComplete() {
+                      ByteBuf frame = PayloadFrameCodec.encodeComplete(allocator, streamId);
+                      sendProcessor.onNext(frame);
+                    }
 
-                      @Override
-                      public void cancel() {
-                        upstreamSubscriber.cancel();
-                        super.cancel();
-                      }
-                    }))
+                    @Override
+                    protected void hookOnError(Throwable t) {
+                      ByteBuf frame = ErrorFrameCodec.encode(allocator, streamId, t);
+                      sendProcessor.onNext(frame);
+                      receiver.onError(t);
+                    }
+
+                    @Override
+                    protected void hookFinally(SignalType type) {
+                      senders.remove(streamId, this);
+                    }
+                  };
+
+              @Override
+              void hookOnFirstRequest(long n) {
+                if (isDisposed()) {
+                  initialPayload.release();
+                  final Throwable t = terminationError;
+                  upstreamSubscriber.cancel();
+                  receiver.onError(t);
+                  return;
+                }
+
+                RequesterLeaseHandler lh = leaseHandler;
+                if (!lh.useLease()) {
+                  initialPayload.release();
+                  receiver.onError(lh.leaseError());
+                  return;
+                }
+
+                final int streamId = streamIdSupplier.nextStreamId(receivers);
+                this.streamId = streamId;
+
+                final ByteBuf frame =
+                    RequestChannelFrameCodec.encodeReleasingPayload(
+                        allocator, streamId, false, n, initialPayload);
+
+                senders.put(streamId, upstreamSubscriber);
+                receivers.put(streamId, receiver);
+
+                inboundFlux
+                    .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
+                    .subscribe(upstreamSubscriber);
+
+                sendProcessor.onNext(frame);
+              }
+
+              @Override
+              void hookOnRemainingRequests(long n) {
+                if (receiver.isDisposed()) {
+                  return;
+                }
+
+                sendProcessor.onNext(RequestNFrameCodec.encode(allocator, streamId, n));
+              }
+
+              @Override
+              void hookOnCancel() {
+                senders.remove(streamId, upstreamSubscriber);
+                if (receivers.remove(streamId, receiver)) {
+                  sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
+                }
+              }
+
+              @Override
+              void hookOnTerminal(SignalType signalType) {
+                if (signalType == SignalType.ON_ERROR) {
+                  upstreamSubscriber.cancel();
+                }
+                receivers.remove(streamId, receiver);
+              }
+
+              @Override
+              public void cancel() {
+                upstreamSubscriber.cancel();
+                super.cancel();
+              }
+            })
         .subscribeOn(serialScheduler, false);
   }
 

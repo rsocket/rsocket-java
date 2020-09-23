@@ -1,13 +1,16 @@
 package io.rsocket.core;
 
 import io.rsocket.Payload;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.CorePublisher;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.util.context.Context;
+
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * This is a support class for handling of request input, intended for use with {@link
@@ -16,9 +19,14 @@ import reactor.util.context.Context;
  * invocations.
  */
 abstract class RequestOperator
-    implements CoreSubscriber<Payload>, Fuseable.QueueSubscription<Payload> {
+    implements CoreSubscriber<Payload>,
+        CorePublisher<Payload>,
+        Fuseable.QueueSubscription<Payload>,
+        Fuseable {
 
-  final CoreSubscriber<? super Payload> actual;
+  final String errorMessageOnSecondSubscription;
+
+  CoreSubscriber<? super Payload> actual;
 
   Subscription s;
   Fuseable.QueueSubscription<Payload> qs;
@@ -30,8 +38,25 @@ abstract class RequestOperator
   static final AtomicIntegerFieldUpdater<RequestOperator> WIP =
       AtomicIntegerFieldUpdater.newUpdater(RequestOperator.class, "wip");
 
-  RequestOperator(CoreSubscriber<? super Payload> actual) {
-    this.actual = actual;
+  RequestOperator(CorePublisher<Payload> source, String errorMessageOnSecondSubscription) {
+    this.errorMessageOnSecondSubscription = errorMessageOnSecondSubscription;
+    source.subscribe(this);
+    WIP.lazySet(this, -1);
+  }
+
+  @Override
+  public void subscribe(Subscriber<? super Payload> actual) {
+    subscribe(Operators.toCoreSubscriber(actual));
+  }
+
+  @Override
+  public void subscribe(CoreSubscriber<? super Payload> actual) {
+    if (this.wip == -1 && WIP.compareAndSet(this, -1, 0)) {
+      this.actual = actual;
+      actual.onSubscribe(this);
+    } else {
+      Operators.error(actual, new IllegalStateException(this.errorMessageOnSecondSubscription));
+    }
   }
 
   /**
@@ -129,7 +154,6 @@ abstract class RequestOperator
       if (s instanceof Fuseable.QueueSubscription) {
         this.qs = (Fuseable.QueueSubscription<Payload>) s;
       }
-      this.actual.onSubscribe(this);
     }
   }
 
