@@ -23,23 +23,25 @@ import reactor.core.publisher.Mono;
 /**
  * Package private class with default implementations for use in {@link RSocket}. The main purpose
  * is to hide static {@link UnsupportedOperationException} declarations.
+ *
+ * @since 1.0.3
  */
 class RSocketAdapter {
 
   private static final Mono<Void> UNSUPPORTED_FIRE_AND_FORGET =
-      Mono.error(new UnsupportedOperationException("Fire-and-Forget not implemented."));
+      Mono.error(new UnsupportedInteractionException("Fire-and-Forget"));
 
   private static final Mono<Payload> UNSUPPORTED_REQUEST_RESPONSE =
-      Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
+      Mono.error(new UnsupportedInteractionException("Request-Response"));
 
   private static final Flux<Payload> UNSUPPORTED_REQUEST_STREAM =
-      Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
+      Flux.error(new UnsupportedInteractionException("Request-Stream"));
 
   private static final Flux<Payload> UNSUPPORTED_REQUEST_CHANNEL =
-      Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
+      Flux.error(new UnsupportedInteractionException("Request-Channel"));
 
   private static final Mono<Void> UNSUPPORTED_METADATA_PUSH =
-      Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
+      Mono.error(new UnsupportedInteractionException("Metadata-Push"));
 
   static Mono<Void> fireAndForget(Payload payload) {
     payload.release();
@@ -63,5 +65,14 @@ class RSocketAdapter {
   static Mono<Void> metadataPush(Payload payload) {
     payload.release();
     return RSocketAdapter.UNSUPPORTED_METADATA_PUSH;
+  }
+
+  private static class UnsupportedInteractionException extends RuntimeException {
+
+    private static final long serialVersionUID = 5084623297446471999L;
+
+    UnsupportedInteractionException(String interactionName) {
+      super(interactionName + " not implemented.", null, false, false);
+    }
   }
 }
