@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,7 @@ public interface RSocket extends Availability, Closeable {
    *     handled, otherwise errors.
    */
   default Mono<Void> fireAndForget(Payload payload) {
-    payload.release();
-    return Mono.error(new UnsupportedOperationException("Fire-and-Forget not implemented."));
+    return RSocketAdapter.fireAndForget(payload);
   }
 
   /**
@@ -46,8 +45,7 @@ public interface RSocket extends Availability, Closeable {
    *     response.
    */
   default Mono<Payload> requestResponse(Payload payload) {
-    payload.release();
-    return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
+    return RSocketAdapter.requestResponse(payload);
   }
 
   /**
@@ -57,8 +55,7 @@ public interface RSocket extends Availability, Closeable {
    * @return {@code Publisher} containing the stream of {@code Payload}s representing the response.
    */
   default Flux<Payload> requestStream(Payload payload) {
-    payload.release();
-    return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
+    return RSocketAdapter.requestStream(payload);
   }
 
   /**
@@ -68,7 +65,7 @@ public interface RSocket extends Availability, Closeable {
    * @return Stream of response payloads.
    */
   default Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
+    return RSocketAdapter.requestChannel(payloads);
   }
 
   /**
@@ -79,8 +76,7 @@ public interface RSocket extends Availability, Closeable {
    *     handled, otherwise errors.
    */
   default Mono<Void> metadataPush(Payload payload) {
-    payload.release();
-    return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
+    return RSocketAdapter.metadataPush(payload);
   }
 
   @Override
