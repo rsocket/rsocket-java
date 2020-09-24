@@ -32,10 +32,10 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Dysprosium-SR11'
+    ext['reactor-bom.version'] = 'Dysprosium-SR12'
     ext['logback.version'] = '1.2.3'
-    ext['netty-bom.version'] = '4.1.51.Final'
-    ext['netty-boringssl.version'] = '2.0.31.Final'
+    ext['netty-bom.version'] = '4.1.52.Final'
+    ext['netty-boringssl.version'] = '2.0.34.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '3.2.0'
     ext['slf4j.version'] = '1.7.25'
