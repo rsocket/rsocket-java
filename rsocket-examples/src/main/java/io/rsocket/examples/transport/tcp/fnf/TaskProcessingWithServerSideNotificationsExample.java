@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.util.concurrent.Queues;
 
 /**
@@ -48,12 +48,12 @@ import reactor.util.concurrent.Queues;
 public class TaskProcessingWithServerSideNotificationsExample {
 
   public static void main(String[] args) throws InterruptedException {
-    UnicastProcessor<Task> tasksProcessor =
-        UnicastProcessor.create(Queues.<Task>unboundedMultiproducer().get());
+    Sinks.Many<Task> tasksProcessor =
+        Sinks.many().unicast().onBackpressureBuffer(Queues.<Task>unboundedMultiproducer().get());
     ConcurrentMap<String, BlockingQueue<Task>> idToCompletedTasksMap = new ConcurrentHashMap<>();
     ConcurrentMap<String, RSocket> idToRSocketMap = new ConcurrentHashMap<>();
     BackgroundWorker backgroundWorker =
-        new BackgroundWorker(tasksProcessor, idToCompletedTasksMap, idToRSocketMap);
+        new BackgroundWorker(tasksProcessor.asFlux(), idToCompletedTasksMap, idToRSocketMap);
 
     RSocketServer.create(new TasksAcceptor(tasksProcessor, idToCompletedTasksMap, idToRSocketMap))
         .bindNow(TcpServerTransport.create(9991));
@@ -132,12 +132,12 @@ public class TaskProcessingWithServerSideNotificationsExample {
 
     static final Logger logger = LoggerFactory.getLogger(TasksAcceptor.class);
 
-    final UnicastProcessor<Task> tasksToProcess;
+    final Sinks.Many<Task> tasksToProcess;
     final ConcurrentMap<String, BlockingQueue<Task>> idToCompletedTasksMap;
     final ConcurrentMap<String, RSocket> idToRSocketMap;
 
     TasksAcceptor(
-        UnicastProcessor<Task> tasksToProcess,
+        Sinks.Many<Task> tasksToProcess,
         ConcurrentMap<String, BlockingQueue<Task>> idToCompletedTasksMap,
         ConcurrentMap<String, RSocket> idToRSocketMap) {
       this.tasksToProcess = tasksToProcess;
@@ -197,11 +197,11 @@ public class TaskProcessingWithServerSideNotificationsExample {
       private final String id;
       private final RSocket sendingSocket;
       private ConcurrentMap<String, RSocket> idToRSocketMap;
-      private UnicastProcessor<Task> tasksToProcess;
+      private Sinks.Many<Task> tasksToProcess;
 
       public RSocketTaskHandler(
           ConcurrentMap<String, RSocket> idToRSocketMap,
-          UnicastProcessor<Task> tasksToProcess,
+          Sinks.Many<Task> tasksToProcess,
           String id,
           RSocket sendingSocket) {
         this.id = id;
@@ -213,9 +213,11 @@ public class TaskProcessingWithServerSideNotificationsExample {
       @Override
       public Mono<Void> fireAndForget(Payload payload) {
         logger.info("Received a Task[{}] from Client.ID[{}]", payload.getDataUtf8(), id);
-        tasksToProcess.onNext(new Task(id, payload.getDataUtf8()));
+        Sinks.Emission emission = tasksToProcess.tryEmitNext(new Task(id, payload.getDataUtf8()));
         payload.release();
-        return Mono.empty();
+        return emission.hasFailed()
+            ? Mono.error(new Sinks.EmissionException(emission))
+            : Mono.empty();
       }
 
       @Override
