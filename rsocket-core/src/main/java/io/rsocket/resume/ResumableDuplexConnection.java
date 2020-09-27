@@ -44,7 +44,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   final String tag;
   final ResumableFramesStore resumableFramesStore;
 
-  final UnboundedProcessor<ByteBuf> savableFramesSender;
+  final UnboundedProcessor savableFramesSender;
   final Disposable framesSaverDisposable;
   final MonoProcessor<Void> onClose;
   final SocketAddress remoteAddress;
@@ -70,7 +70,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     this.tag = tag;
     this.onConnectionClosedSink = Sinks.many().unsafe().unicast().onBackpressureBuffer();
     this.resumableFramesStore = resumableFramesStore;
-    this.savableFramesSender = new UnboundedProcessor<>();
+    this.savableFramesSender = new UnboundedProcessor();
     this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
     this.onClose = MonoProcessor.create();
     this.remoteAddress = initialConnection.remoteAddress();

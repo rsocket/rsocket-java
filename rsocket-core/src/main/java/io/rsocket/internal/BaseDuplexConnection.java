@@ -8,7 +8,7 @@ import reactor.core.publisher.MonoProcessor;
 public abstract class BaseDuplexConnection implements DuplexConnection {
   protected MonoProcessor<Void> onClose = MonoProcessor.create();
 
-  protected UnboundedProcessor<ByteBuf> sender = new UnboundedProcessor<>();
+  protected UnboundedProcessor sender = new UnboundedProcessor();
 
   public BaseDuplexConnection() {
     onClose.doFinally(s -> doOnClose()).subscribe();
