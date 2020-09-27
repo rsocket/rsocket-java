@@ -16,7 +16,6 @@
 
 package io.rsocket.transport.local;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.internal.UnboundedProcessor;
@@ -78,8 +77,8 @@ public final class LocalClientTransport implements ClientTransport {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
 
-          UnboundedProcessor<ByteBuf> in = new UnboundedProcessor<>();
-          UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
+          UnboundedProcessor in = new UnboundedProcessor();
+          UnboundedProcessor out = new UnboundedProcessor();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
           server

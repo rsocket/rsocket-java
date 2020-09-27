@@ -41,7 +41,7 @@ final class LocalDuplexConnection implements DuplexConnection {
 
   private final MonoProcessor<Void> onClose;
 
-  private final UnboundedProcessor<ByteBuf> out;
+  private final UnboundedProcessor out;
 
   /**
    * Creates a new instance.
@@ -56,7 +56,7 @@ final class LocalDuplexConnection implements DuplexConnection {
       String name,
       ByteBufAllocator allocator,
       Flux<ByteBuf> in,
-      UnboundedProcessor<ByteBuf> out,
+      UnboundedProcessor out,
       MonoProcessor<Void> onClose) {
     this.address = new LocalSocketAddress(name);
     this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");

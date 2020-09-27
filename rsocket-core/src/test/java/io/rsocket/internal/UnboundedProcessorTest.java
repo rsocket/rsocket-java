@@ -16,9 +16,9 @@
 
 package io.rsocket.internal;
 
-import io.rsocket.Payload;
-import io.rsocket.util.ByteBufPayload;
-import io.rsocket.util.EmptyPayload;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.util.CharsetUtil;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.Test;
@@ -55,10 +55,10 @@ public class UnboundedProcessorTest {
   }
 
   public void testOnNextBeforeSubscribeN(int n) {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < n; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
     processor.onComplete();
@@ -85,42 +85,42 @@ public class UnboundedProcessorTest {
 
   @Test
   public void testPrioritizedSending() {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < 1000; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
-    processor.onNextPrioritized(ByteBufPayload.create("test"));
+    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
 
-    Payload closestPayload = processor.next().block();
+    ByteBuf byteBuf = processor.next().block();
 
-    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
+    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
   }
 
   @Test
   public void testPrioritizedFused() {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < 1000; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
-    processor.onNextPrioritized(ByteBufPayload.create("test"));
+    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
 
-    Payload closestPayload = processor.poll();
+    ByteBuf byteBuf = processor.poll();
 
-    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
+    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
   }
 
   public void testOnNextAfterSubscribeN(int n) throws Exception {
     CountDownLatch latch = new CountDownLatch(n);
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
     processor.log().doOnNext(integer -> latch.countDown()).subscribe();
 
     for (int i = 0; i < n; i++) {
       System.out.println("onNexting -> " + i);
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
     processor.drain();
