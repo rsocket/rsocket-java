@@ -48,6 +48,11 @@ public class ServerRSocketSession
   final ByteBufAllocator allocator;
   final boolean cleanupStoreOnKeepAlive;
 
+  /**
+   * All incoming connections with the Resume intent are enqueued in this queue. Such an approach
+   * ensure that the new connection will affect the resumption state anyhow until the previous
+   * (active) connection is finally closed
+   */
   final Queue<Runnable> connectionsQueue;
 
   volatile int wip;

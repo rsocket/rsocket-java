@@ -105,7 +105,7 @@ public class ClientRSocketSession
     if (this.s == Operators.cancelledSubscription()
         && S.compareAndSet(this, Operators.cancelledSubscription(), null)) {
       keepAliveSupport.stop();
-      logger.debug("Connection[" + index + "] is lost. Reconnecting...");
+      logger.debug("Connection[" + index + "] is lost. Reconnecting to resume...");
       connectionFactory.retryWhen(retry).timeout(resumeSessionDuration).subscribe(this);
     }
   }
