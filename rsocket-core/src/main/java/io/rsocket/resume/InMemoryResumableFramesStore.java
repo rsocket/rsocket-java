@@ -61,8 +61,23 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   CoreSubscriber<? super ByteBuf> actual;
 
-  // indicates whether there is active connection or not
+  /**
+   * Indicates whether there is an active connection or not.
+   *
+   * <ul>
+   *   <li>0 - no active connection
+   *   <li>1 - active connection
+   *   <li>2 - disposed
+   * </ul>
+   *
+   * <pre>
+   * 0 <-----> 1
+   * |         |
+   * +--> 2 <--+
+   * </pre>
+   */
   volatile int state;
+
   static final AtomicIntegerFieldUpdater<InMemoryResumableFramesStore> STATE =
       AtomicIntegerFieldUpdater.newUpdater(InMemoryResumableFramesStore.class, "state");
 
@@ -217,8 +232,6 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void onNext(ByteBuf frame) {
-    frame.touch("Tag : " + tag + ". InMemoryResumableFramesStore:onNext");
-
     final int state;
     final boolean isResumable = isResumableFrame(frame);
     if (isResumable) {
@@ -289,7 +302,6 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       actual.onSubscribe(this);
       synchronized (this) {
         for (final ByteBuf frame : cachedFrames) {
-          frame.touch("Tag : " + tag + ". InMemoryResumableFramesStore:subscribe");
           actual.onNext(frame.retain());
         }
       }

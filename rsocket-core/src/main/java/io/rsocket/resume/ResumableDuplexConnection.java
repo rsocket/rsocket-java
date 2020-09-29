@@ -135,6 +135,11 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     }
   }
 
+  /**
+   * Publisher for a sequence of integers starting at 1, with each next number emitted when the
+   * currently active connection is closed and should be resumed. The Publisher never emits an error
+   * and completes when the connection is disposed and not resumed.
+   */
   Flux<Integer> onActiveConnectionClosed() {
     return onConnectionClosedSink.asFlux();
   }
@@ -306,7 +311,6 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
     @Override
     public void onNext(ByteBuf frame) {
-      frame.touch("Tag : " + tag + ". FrameReceivingSubscriber#onNext");
       if (cancelled || s == Operators.cancelledSubscription()) {
         return;
       }

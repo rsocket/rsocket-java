@@ -592,7 +592,7 @@ public class RSocketConnector {
                                         new ClientRSocketSession(
                                             resumeToken,
                                             resumableDuplexConnection,
-                                            connectionMono, // supplies pure
+                                            connectionMono,
                                             resumableClientSetup::init,
                                             resumableFramesStore,
                                             resume.getSessionDuration(),
