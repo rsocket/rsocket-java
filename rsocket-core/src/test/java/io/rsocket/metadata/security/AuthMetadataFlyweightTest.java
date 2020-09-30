@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class AuthMetadataFlyweightTest {
 
   public static final int AUTH_TYPE_ID_LENGTH = 1;
-  public static final int USER_NAME_BYTES_LENGTH = 1;
+  public static final int USER_NAME_BYTES_LENGTH = 2;
   public static final String TEST_BEARER_TOKEN =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJpYXQxIjoxNTE2MjM5MDIyLCJpYXQyIjoxNTE2MjM5MDIyLCJpYXQzIjoxNTE2MjM5MDIyLCJpYXQ0IjoxNTE2MjM5MDIyfQ.ljYuH-GNyyhhLcx-rHMchRkGbNsR2_4aSxo8XjrYrSM";
 
@@ -82,7 +82,7 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThat(byteBuf.readUnsignedByte() & ~0x80)
         .isEqualTo(WellKnownAuthType.SIMPLE.getIdentifier());
-    Assertions.assertThat(byteBuf.readUnsignedByte()).isEqualTo((short) usernameLength);
+    Assertions.assertThat(byteBuf.readUnsignedShort()).isEqualTo((int) usernameLength);
 
     Assertions.assertThat(byteBuf.readCharSequence(usernameLength, CharsetUtil.UTF_8))
         .isEqualTo(username);
@@ -116,16 +116,19 @@ class AuthMetadataFlyweightTest {
 
   @Test
   void shouldThrowExceptionIfUsernameLengthExitsAllowedBounds() {
-    String username =
-        "𠜎𠜱𠝹𠱓𠱸𠲖𠳏𠳕𠴕𠵼𠵿𠸎𠸏𠹷𠺝𠺢𠻗𠻹𠻺𠼭𠼮𠽌𠾴𠾼𠿪𡁜𡁯𡁵𡁶𡁻𡃁𡃉𡇙𢃇𢞵𢫕𢭃𢯊𢱑𢱕𢳂𢴈𢵌𢵧𢺳𣲷𤓓𤶸𤷪𥄫𦉘𦟌𦧲𦧺𧨾𨅝𨈇𨋢𨳊𨳍𨳒𩶘𠜎𠜱𠝹";
+    StringBuilder usernameBuilder = new StringBuilder();
+    String usernameTester = "𠜎𠜱𠝹𠱓𠱸𠲖𠳏𠳕𠴕𠵼𠵿𠸎𠸏𠹷𠺝𠺢𠻗𠻹𠻺𠼭𠼮𠽌𠾴𠾼𠿪𡁜𡁯𡁵𡁶𡁻𡃁𡃉𡇙𢃇𢞵𢫕𢭃𢯊𢱑𢱕𢳂𢴈𢵌𢵧𢺳𣲷𤓓𤶸𤷪𥄫𦉘𦟌𦧲𦧺𧨾𨅝𨈇𨋢𨳊𨳍𨳒𩶘𠜎𠜱𠝹";
+    for (int i = 0; i < 65535 / usernameTester.length(); i++) {
+        usernameBuilder.append(usernameTester);
+    }
     String password = "tset1234";
 
     Assertions.assertThatThrownBy(
             () ->
                 AuthMetadataFlyweight.encodeSimpleMetadata(
-                    ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray()))
+                    ByteBufAllocator.DEFAULT, usernameBuilder.toString().toCharArray(), password.toCharArray()))
         .hasMessage(
-            "Username should be shorter than or equal to 255 bytes length in UTF-8 encoding");
+            "Username should be shorter than or equal to 65535 bytes length in UTF-8 encoding");
   }
 
   @Test
@@ -243,7 +246,7 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeMetadata(
             ByteBufAllocator.DEFAULT,
             WellKnownAuthType.SIMPLE,
-            ByteBufAllocator.DEFAULT.buffer(3, 3).writeByte(1).writeByte('u').writeByte('p'));
+            ByteBufAllocator.DEFAULT.buffer(4, 4).writeShort(1).writeByte('u').writeByte('p'));
 
     checkSimpleAuthMetadataEncoding("u", "p", 1, 1, byteBuf);
   }
@@ -254,7 +257,7 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeMetadata(
             ByteBufAllocator.DEFAULT,
             WellKnownAuthType.SIMPLE,
-            ByteBufAllocator.DEFAULT.buffer().writeByte(1).writeByte('u').writeByte('p'));
+            ByteBufAllocator.DEFAULT.buffer(4, 4).writeShort(1).writeByte('u').writeByte('p'));
 
     checkSimpleAuthMetadataEncoding("u", "p", 1, 1, byteBuf);
   }
@@ -298,7 +301,7 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT,
             "simple",
-            ByteBufAllocator.DEFAULT.buffer().writeByte(1).writeByte('u').writeByte('p'));
+            ByteBufAllocator.DEFAULT.buffer(4, 4).writeShort(1).writeByte('u').writeByte('p'));
 
     checkSimpleAuthMetadataEncoding("u", "p", 1, 1, byteBuf);
   }
