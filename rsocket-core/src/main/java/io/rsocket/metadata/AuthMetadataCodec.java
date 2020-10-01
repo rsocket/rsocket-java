@@ -12,7 +12,7 @@ public class AuthMetadataCodec {
   static final int STREAM_METADATA_KNOWN_MASK = 0x80; // 1000 0000
   static final byte STREAM_METADATA_LENGTH_MASK = 0x7F; // 0111 1111
 
-  static final int USERNAME_BYTES_LENGTH = 1;
+  static final int USERNAME_BYTES_LENGTH = 2;
   static final int AUTH_TYPE_ID_LENGTH = 1;
 
   static final char[] EMPTY_CHARS_ARRAY = new char[0];
@@ -81,7 +81,7 @@ public class AuthMetadataCodec {
   /**
    * Encode a Authentication CompositeMetadata payload using Simple Authentication format
    *
-   * @throws IllegalArgumentException if the username length is greater than 255
+   * @throws IllegalArgumentException if the username length is greater than 65535
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
    * @param username the char sequence which represents user name.
    * @param password the char sequence which represents user password.
@@ -90,9 +90,9 @@ public class AuthMetadataCodec {
       ByteBufAllocator allocator, char[] username, char[] password) {
 
     int usernameLength = CharByteBufUtil.utf8Bytes(username);
-    if (usernameLength > 255) {
+    if (usernameLength > 65535) {
       throw new IllegalArgumentException(
-          "Username should be shorter than or equal to 255 bytes length in UTF-8 encoding");
+          "Username should be shorter than or equal to 65535 bytes length in UTF-8 encoding");
     }
 
     int passwordLength = CharByteBufUtil.utf8Bytes(password);
@@ -101,7 +101,7 @@ public class AuthMetadataCodec {
         allocator
             .buffer(capacity, capacity)
             .writeByte(WellKnownAuthType.SIMPLE.getIdentifier() | STREAM_METADATA_KNOWN_MASK)
-            .writeByte(usernameLength);
+            .writeShort(usernameLength);
 
     CharByteBufUtil.writeUtf8(buffer, username);
     CharByteBufUtil.writeUtf8(buffer, password);
@@ -235,15 +235,15 @@ public class AuthMetadataCodec {
   }
 
   /**
-   * Read up to 257 {@code bytes} from the given {@link ByteBuf} where the first byte is username
-   * length and the subsequent number of bytes equal to decoded length
+   * Read up to 65537 {@code bytes} from the given {@link ByteBuf} where the first two bytes
+   * represent username length and the subsequent number of bytes equal to read length
    *
    * @param simpleAuthMetadata the given metadata to read username from. Please note, the {@code
-   *     simpleAuthMetadata#readIndex} should be set to the username length byte
+   *     simpleAuthMetadata#readIndex} should be set to the username length position
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if username length is zero
    */
   public static ByteBuf readUsername(ByteBuf simpleAuthMetadata) {
-    short usernameLength = readUsernameLength(simpleAuthMetadata);
+    int usernameLength = readUsernameLength(simpleAuthMetadata);
 
     if (usernameLength == 0) {
       return Unpooled.EMPTY_BUFFER;
@@ -268,15 +268,15 @@ public class AuthMetadataCodec {
     return simpleAuthMetadata.readSlice(simpleAuthMetadata.readableBytes());
   }
   /**
-   * Read up to 257 {@code bytes} from the given {@link ByteBuf} where the first byte is username
-   * length and the subsequent number of bytes equal to decoded length
+   * Read up to 65537 {@code bytes} from the given {@link ByteBuf} where the first two bytes
+   * represent username length and the subsequent number of bytes equal to read length
    *
    * @param simpleAuthMetadata the given metadata to read username from. Please note, the {@code
    *     simpleAuthMetadata#readIndex} should be set to the username length byte
    * @return {@code char[]} which represents UTF-8 username
    */
   public static char[] readUsernameAsCharArray(ByteBuf simpleAuthMetadata) {
-    short usernameLength = readUsernameLength(simpleAuthMetadata);
+    int usernameLength = readUsernameLength(simpleAuthMetadata);
 
     if (usernameLength == 0) {
       return EMPTY_CHARS_ARRAY;
@@ -302,11 +302,10 @@ public class AuthMetadataCodec {
   }
 
   /**
-   * Read all the remaining {@code bytes} from the given {@link ByteBuf} where the first byte is
-   * username length and the subsequent number of bytes equal to decoded length
+   * Read all the remaining {@code bytes} from the given {@link ByteBuf}
    *
    * @param bearerAuthMetadata the given metadata to read username from. Please note, the {@code
-   *     simpleAuthMetadata#readIndex} should be set to the beginning of the password bytes
+   *     bearerAuthMetadata#readIndex} should be set to the beginning of the password bytes
    * @return {@code char[]} which represents UTF-8 password
    */
   public static char[] readBearerTokenAsCharArray(ByteBuf bearerAuthMetadata) {
@@ -317,13 +316,13 @@ public class AuthMetadataCodec {
     return CharByteBufUtil.readUtf8(bearerAuthMetadata, bearerAuthMetadata.readableBytes());
   }
 
-  private static short readUsernameLength(ByteBuf simpleAuthMetadata) {
-    if (simpleAuthMetadata.readableBytes() < 1) {
+  private static int readUsernameLength(ByteBuf simpleAuthMetadata) {
+    if (simpleAuthMetadata.readableBytes() < 2) {
       throw new IllegalStateException(
           "Unable to decode custom username. Not enough readable bytes");
     }
 
-    short usernameLength = simpleAuthMetadata.readUnsignedByte();
+    int usernameLength = simpleAuthMetadata.readUnsignedShort();
 
     if (simpleAuthMetadata.readableBytes() < usernameLength) {
       throw new IllegalArgumentException(
