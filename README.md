@@ -26,10 +26,12 @@ Example:
 ```groovy
 repositories {
 	mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
 }
+
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.0-M1'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-M1'
+    implementation 'io.rsocket:rsocket-core:1.1.0-M2'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-M2'
 }
 ```
 
@@ -40,6 +42,7 @@ Example:
 ```groovy
 repositories {
 	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://repo.spring.io/milestone' }
 }
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
