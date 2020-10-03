@@ -83,7 +83,7 @@ import java.net.URI;
 
 public class ExampleClient {
     public static void main(String[] args) {
-        WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("ws://rsocket-demo.herokuapp.com/ws"));
+        WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("wss://rsocket-demo.herokuapp.com/rsocket"));
         RSocket clientRSocket = RSocketConnector.connectWith(ws).block();
 
         try {
