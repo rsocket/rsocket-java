@@ -771,30 +771,28 @@ class RSocketRequester implements RSocket {
     connection.dispose();
     leaseHandler.dispose();
 
-    receivers
-        .values()
-        .forEach(
-            receiver -> {
-              try {
-                receiver.onError(e);
-              } catch (Throwable t) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
-                }
-              }
-            });
-    senders
-        .values()
-        .forEach(
-            sender -> {
-              try {
-                sender.cancel();
-              } catch (Throwable t) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
-                }
-              }
-            });
+    // Iterate explicitly to handle collisions with concurrent removals
+    for (IntObjectMap.PrimitiveEntry<Processor<Payload, Payload>> entry : receivers.entries()) {
+      try {
+        entry.value().onError(e);
+      } catch (Throwable ex) {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Dropped exception", ex);
+        }
+      }
+    }
+
+    // Iterate explicitly to handle collisions with concurrent removals
+    for (IntObjectMap.PrimitiveEntry<Subscription> entry : senders.entries()) {
+      try {
+        entry.value().cancel();
+      } catch (Throwable ex) {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Dropped exception", ex);
+        }
+      }
+    }
+
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();

@@ -27,7 +27,14 @@ import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.frame.*;
+import io.rsocket.frame.CancelFrameCodec;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestNFrameCodec;
+import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
@@ -46,7 +53,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
-import reactor.core.publisher.*;
+import reactor.core.publisher.BaseSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.UnicastProcessor;
 import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 
@@ -129,19 +140,7 @@ class RSocketResponder implements RSocket {
 
   private void handleSendProcessorError(Throwable t) {
     cleanUpSendingSubscriptions();
-
-    channelProcessors
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.onError(t);
-              } catch (Throwable e) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
-                }
-              }
-            });
+    cleanUpChannelProcessors(t);
   }
 
   private void tryTerminateOnConnectionError(Throwable e) {
@@ -278,16 +277,15 @@ class RSocketResponder implements RSocket {
   }
 
   private synchronized void cleanUpChannelProcessors(Throwable e) {
-    channelProcessors
-        .values()
-        .forEach(
-            payloadPayloadProcessor -> {
-              try {
-                payloadPayloadProcessor.onError(e);
-              } catch (Throwable t) {
-                // noops
-              }
-            });
+    // Iterate explicitly to handle collisions with concurrent removals
+    for (IntObjectMap.PrimitiveEntry<Processor<Payload, Payload>> entry :
+        channelProcessors.entries()) {
+      try {
+        entry.value().onError(e);
+      } catch (Throwable ex) {
+        // noops
+      }
+    }
     channelProcessors.clear();
   }
 
