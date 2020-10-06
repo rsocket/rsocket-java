@@ -128,18 +128,7 @@ class RSocketResponder implements RSocket {
   }
 
   private void handleSendProcessorError(Throwable t) {
-    sendingSubscriptions
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.cancel();
-              } catch (Throwable e) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
-                }
-              }
-            });
+    cleanUpSendingSubscriptions();
 
     channelProcessors
         .values()
@@ -275,7 +264,16 @@ class RSocketResponder implements RSocket {
   }
 
   private synchronized void cleanUpSendingSubscriptions() {
-    sendingSubscriptions.values().forEach(Subscription::cancel);
+    // Iterate explicitly to handle collisions with concurrent removals
+    for (IntObjectMap.PrimitiveEntry<Subscription> entry : sendingSubscriptions.entries()) {
+      try {
+        entry.value().cancel();
+      } catch (Throwable ex) {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Dropped exception", ex);
+        }
+      }
+    }
     sendingSubscriptions.clear();
   }
 
