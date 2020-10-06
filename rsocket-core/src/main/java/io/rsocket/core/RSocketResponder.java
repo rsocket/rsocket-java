@@ -283,7 +283,9 @@ class RSocketResponder implements RSocket {
       try {
         entry.value().onError(e);
       } catch (Throwable ex) {
-        // noops
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Dropped exception", ex);
+        }
       }
     }
     channelProcessors.clear();
