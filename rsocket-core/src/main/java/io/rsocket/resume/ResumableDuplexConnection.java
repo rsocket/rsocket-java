@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -114,9 +114,9 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             __ -> {
               frameReceivingSubscriber.dispose();
               disposable.dispose();
-              Sinks.Emission emission = onConnectionClosedSink.tryEmitNext(currentConnectionIndex);
-              if (emission.equals(Sinks.Emission.OK)) {
-                logger.error("Failed to notify session of closed connection: {}", emission);
+              Sinks.EmitResult result = onConnectionClosedSink.tryEmitNext(currentConnectionIndex);
+              if (result.equals(Sinks.EmitResult.OK)) {
+                logger.error("Failed to notify session of closed connection: {}", result);
               }
             })
         .subscribe();
