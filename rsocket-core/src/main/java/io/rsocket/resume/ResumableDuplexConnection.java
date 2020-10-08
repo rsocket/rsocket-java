@@ -68,7 +68,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   public ResumableDuplexConnection(
       String tag, DuplexConnection initialConnection, ResumableFramesStore resumableFramesStore) {
     this.tag = tag;
-    this.onConnectionClosedSink = Sinks.many().unsafe().unicast().onBackpressureBuffer();
+    this.onConnectionClosedSink = Sinks.unsafe().many().unicast().onBackpressureBuffer();
     this.resumableFramesStore = resumableFramesStore;
     this.savableFramesSender = new UnboundedProcessor();
     this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
@@ -114,7 +114,10 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             __ -> {
               frameReceivingSubscriber.dispose();
               disposable.dispose();
-              onConnectionClosedSink.emitNext(currentConnectionIndex);
+              Sinks.Emission emission = onConnectionClosedSink.tryEmitNext(currentConnectionIndex);
+              if (emission.equals(Sinks.Emission.OK)) {
+                logger.error("Failed to notify session of closed connection: {}", emission);
+              }
             })
         .subscribe();
   }
@@ -160,13 +163,13 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             t -> {
               framesSaverDisposable.dispose();
               savableFramesSender.dispose();
-              onConnectionClosedSink.emitComplete();
+              onConnectionClosedSink.tryEmitComplete();
               onClose.onError(t);
             },
             () -> {
               framesSaverDisposable.dispose();
               savableFramesSender.dispose();
-              onConnectionClosedSink.emitComplete();
+              onConnectionClosedSink.tryEmitComplete();
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
                 onClose.onComplete();
@@ -206,7 +209,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     framesSaverDisposable.dispose();
     activeReceivingSubscriber.dispose();
     savableFramesSender.dispose();
-    onConnectionClosedSink.emitComplete();
+    onConnectionClosedSink.tryEmitComplete();
     onClose.onComplete();
   }
 
