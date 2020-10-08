@@ -215,9 +215,7 @@ public class TaskProcessingWithServerSideNotificationsExample {
         logger.info("Received a Task[{}] from Client.ID[{}]", payload.getDataUtf8(), id);
         Sinks.EmitResult result = tasksToProcess.tryEmitNext(new Task(id, payload.getDataUtf8()));
         payload.release();
-        return result.isFailure()
-            ? Mono.error(new Sinks.EmissionException(result))
-            : Mono.empty();
+        return result.isFailure() ? Mono.error(new Sinks.EmissionException(result)) : Mono.empty();
       }
 
       @Override
