@@ -33,6 +33,7 @@ import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
+import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
@@ -75,8 +76,16 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
+      @Nullable RequestInterceptor requestInterceptor,
       RequesterLeaseHandler leaseHandler) {
-    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection, streamIdSupplier);
+    super(
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize,
+        payloadDecoder,
+        connection,
+        streamIdSupplier,
+        requestInterceptor);
 
     this.leaseHandler = leaseHandler;
     this.onClose = MonoProcessor.create();
@@ -319,6 +328,10 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       keepAliveFramesAcceptor.dispose();
     }
     getDuplexConnection().dispose();
+    final RequestInterceptor requestInterceptor = getRequestInterceptor();
+    if (requestInterceptor != null) {
+      requestInterceptor.dispose();
+    }
     leaseHandler.dispose();
 
     synchronized (this) {

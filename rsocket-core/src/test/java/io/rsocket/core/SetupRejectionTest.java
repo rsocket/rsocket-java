@@ -61,6 +61,7 @@ public class SetupRejectionTest {
             0,
             0,
             null,
+            null,
             RequesterLeaseHandler.None);
 
     String errorMsg = "error";
@@ -97,6 +98,7 @@ public class SetupRejectionTest {
             Integer.MAX_VALUE,
             0,
             0,
+            null,
             null,
             RequesterLeaseHandler.None);
 

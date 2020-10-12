@@ -631,6 +631,7 @@ public class RSocketConnector {
                                           (int) keepAliveInterval.toMillis(),
                                           (int) keepAliveMaxLifeTime.toMillis(),
                                           keepAliveHandler,
+                                          interceptors.initRequesterRequestInterceptor(),
                                           requesterLeaseHandler);
 
                                   RSocket wrappedRSocketRequester =
@@ -669,7 +670,8 @@ public class RSocketConnector {
                                                     responderLeaseHandler,
                                                     mtu,
                                                     maxFrameLength,
-                                                    maxInboundPayloadSize);
+                                                    maxInboundPayloadSize,
+                                                    interceptors.initResponderRequestInterceptor());
 
                                             return wrappedRSocketRequester;
                                           })

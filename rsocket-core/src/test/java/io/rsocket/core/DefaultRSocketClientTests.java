@@ -543,6 +543,7 @@ public class DefaultRSocketClientTests {
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
           null,
+          null,
           RequesterLeaseHandler.None);
     }
 

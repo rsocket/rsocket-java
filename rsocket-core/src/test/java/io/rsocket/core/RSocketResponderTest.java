@@ -1216,7 +1216,8 @@ public class RSocketResponderTest {
           ResponderLeaseHandler.None,
           0,
           maxFrameLength,
-          maxInboundPayloadSize);
+          maxInboundPayloadSize,
+          null);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

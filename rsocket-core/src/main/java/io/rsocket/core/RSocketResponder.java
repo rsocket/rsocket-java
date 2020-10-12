@@ -29,6 +29,7 @@ import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.lease.ResponderLeaseHandler;
+import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder extends RequesterResponderSupport implements RSocket {
@@ -64,8 +66,16 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
       ResponderLeaseHandler leaseHandler,
       int mtu,
       int maxFrameLength,
-      int maxInboundPayloadSize) {
-    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection, null);
+      int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor) {
+    super(
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize,
+        payloadDecoder,
+        connection,
+        null,
+        requestInterceptor);
 
     this.requestHandler = requestHandler;
 
@@ -194,6 +204,10 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     cleanUpSendingSubscriptions();
 
     getDuplexConnection().dispose();
+    final RequestInterceptor requestInterceptor = getRequestInterceptor();
+    if (requestInterceptor != null) {
+      requestInterceptor.dispose();
+    }
     leaseHandlerDisposable.dispose();
     requestHandler.dispose();
   }

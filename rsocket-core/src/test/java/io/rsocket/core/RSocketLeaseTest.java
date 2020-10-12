@@ -107,6 +107,7 @@ class RSocketLeaseTest {
             0,
             0,
             null,
+            null,
             requesterLeaseHandler);
 
     mockRSocketHandler = mock(RSocket.class);
@@ -155,7 +156,8 @@ class RSocketLeaseTest {
             responderLeaseHandler,
             0,
             FRAME_LENGTH_MASK,
-            Integer.MAX_VALUE);
+            Integer.MAX_VALUE,
+            null);
   }
 
   @Test

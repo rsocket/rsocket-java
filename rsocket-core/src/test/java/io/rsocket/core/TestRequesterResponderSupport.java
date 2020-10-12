@@ -26,6 +26,7 @@ import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import java.util.ArrayList;
@@ -47,14 +48,16 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
       DuplexConnection connection,
       int mtu,
       int maxFrameLength,
-      int maxInboundPayloadSize) {
+      int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor) {
     super(
         mtu,
         maxFrameLength,
         maxInboundPayloadSize,
         PayloadDecoder.ZERO_COPY,
         connection,
-        streamIdSupplier);
+        streamIdSupplier,
+        requestInterceptor);
     this.error = error;
   }
 
@@ -182,6 +185,7 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         mtu,
         maxFrameLength,
         maxInboundPayloadSize,
+        null,
         e);
   }
 
@@ -189,7 +193,26 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
       TestDuplexConnection duplexConnection,
       int mtu,
       int maxFrameLength,
+      int maxInboundPayloadSize) {
+    return client(duplexConnection, mtu, maxFrameLength, maxInboundPayloadSize, null);
+  }
+
+  public static TestRequesterResponderSupport client(
+      TestDuplexConnection duplexConnection,
+      int mtu,
+      int maxFrameLength,
       int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor) {
+    return client(
+        duplexConnection, mtu, maxFrameLength, maxInboundPayloadSize, requestInterceptor, null);
+  }
+
+  public static TestRequesterResponderSupport client(
+      TestDuplexConnection duplexConnection,
+      int mtu,
+      int maxFrameLength,
+      int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor,
       @Nullable Throwable e) {
     return new TestRequesterResponderSupport(
         e,
@@ -197,7 +220,8 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         duplexConnection,
         mtu,
         maxFrameLength,
-        maxInboundPayloadSize);
+        maxInboundPayloadSize,
+        requestInterceptor);
   }
 
   public static TestRequesterResponderSupport client(

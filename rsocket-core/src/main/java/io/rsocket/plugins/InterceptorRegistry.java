@@ -18,6 +18,7 @@ package io.rsocket.plugins;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Provides support for registering interceptors at the following levels:
@@ -30,16 +31,54 @@ import java.util.function.Consumer;
  * </ul>
  */
 public class InterceptorRegistry {
-  private List<RSocketInterceptor> requesterInteceptors = new ArrayList<>();
-  private List<RSocketInterceptor> responderInterceptors = new ArrayList<>();
+  private List<Supplier<? extends RequestInterceptor>> requesterRequestInterceptors =
+      new ArrayList<>();
+  private List<Supplier<? extends RequestInterceptor>> responderRequestInterceptors =
+      new ArrayList<>();
+  private List<RSocketInterceptor> requesterRSocketInterceptors = new ArrayList<>();
+  private List<RSocketInterceptor> responderRSocketInterceptors = new ArrayList<>();
   private List<SocketAcceptorInterceptor> socketAcceptorInterceptors = new ArrayList<>();
   private List<DuplexConnectionInterceptor> connectionInterceptors = new ArrayList<>();
+
+  /** Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases. */
+  public InterceptorRegistry forRequesterRequests(
+      Supplier<? extends RequestInterceptor> interceptor) {
+    requesterRequestInterceptors.add(interceptor);
+    return this;
+  }
+
+  /**
+   * Variant of {@link #forRequesterRequests(Supplier)} with access to the list of existing
+   * registrations.
+   */
+  public InterceptorRegistry forRequesterRequests(
+      Consumer<List<Supplier<? extends RequestInterceptor>>> consumer) {
+    consumer.accept(requesterRequestInterceptors);
+    return this;
+  }
+
+  /** Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases. */
+  public InterceptorRegistry forResponderRequests(
+      Supplier<? extends RequestInterceptor> interceptor) {
+    responderRequestInterceptors.add(interceptor);
+    return this;
+  }
+
+  /**
+   * Variant of {@link #forResponderRequests(Supplier)} with access to the list of existing
+   * registrations.
+   */
+  public InterceptorRegistry forResponderRequests(
+      Consumer<List<Supplier<? extends RequestInterceptor>>> consumer) {
+    consumer.accept(responderRequestInterceptors);
+    return this;
+  }
 
   /**
    * Add an {@link RSocketInterceptor} that will decorate the RSocket used for performing requests.
    */
   public InterceptorRegistry forRequester(RSocketInterceptor interceptor) {
-    requesterInteceptors.add(interceptor);
+    requesterRSocketInterceptors.add(interceptor);
     return this;
   }
 
@@ -48,7 +87,7 @@ public class InterceptorRegistry {
    * registrations.
    */
   public InterceptorRegistry forRequester(Consumer<List<RSocketInterceptor>> consumer) {
-    consumer.accept(requesterInteceptors);
+    consumer.accept(requesterRSocketInterceptors);
     return this;
   }
 
@@ -57,7 +96,7 @@ public class InterceptorRegistry {
    * requests.
    */
   public InterceptorRegistry forResponder(RSocketInterceptor interceptor) {
-    responderInterceptors.add(interceptor);
+    responderRSocketInterceptors.add(interceptor);
     return this;
   }
 
@@ -66,7 +105,7 @@ public class InterceptorRegistry {
    * registrations.
    */
   public InterceptorRegistry forResponder(Consumer<List<RSocketInterceptor>> consumer) {
-    consumer.accept(responderInterceptors);
+    consumer.accept(responderRSocketInterceptors);
     return this;
   }
 
@@ -102,12 +141,20 @@ public class InterceptorRegistry {
     return this;
   }
 
-  List<RSocketInterceptor> getRequesterInteceptors() {
-    return requesterInteceptors;
+  List<Supplier<? extends RequestInterceptor>> getRequesterRequestInterceptors() {
+    return requesterRequestInterceptors;
+  }
+
+  List<Supplier<? extends RequestInterceptor>> getResponderRequestInterceptors() {
+    return responderRequestInterceptors;
+  }
+
+  List<RSocketInterceptor> getRequesterInterceptors() {
+    return requesterRSocketInterceptors;
   }
 
   List<RSocketInterceptor> getResponderInterceptors() {
-    return responderInterceptors;
+    return responderRSocketInterceptors;
   }
 
   List<DuplexConnectionInterceptor> getConnectionInterceptors() {

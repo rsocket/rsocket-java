@@ -25,6 +25,7 @@ import io.netty.util.IllegalReferenceCountException;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
+import io.rsocket.plugins.RequestInterceptor;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
@@ -33,6 +34,7 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.SignalType;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
@@ -51,6 +53,8 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
   final RequesterResponderSupport requesterResponderSupport;
   final DuplexConnection connection;
 
+  @Nullable final RequestInterceptor requestInterceptor;
+
   FireAndForgetRequesterMono(Payload payload, RequesterResponderSupport requesterResponderSupport) {
     this.allocator = requesterResponderSupport.getAllocator();
     this.payload = payload;
@@ -58,6 +62,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
     this.maxFrameLength = requesterResponderSupport.getMaxFrameLength();
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
+    this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
   }
 
   @Override
@@ -98,9 +103,19 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
       return;
     }
 
+    final RequestInterceptor interceptor = this.requestInterceptor;
+    if (interceptor != null) {
+      interceptor.onStart(streamId, FrameType.REQUEST_FNF, p.sliceMetadata());
+    }
+
     try {
       if (isTerminated(this.state)) {
         p.release();
+
+        if (interceptor != null) {
+          interceptor.onEnd(streamId, SignalType.CANCEL);
+        }
+
         return;
       }
 
@@ -108,11 +123,21 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
           streamId, FrameType.REQUEST_FNF, mtu, p, this.connection, this.allocator, true);
     } catch (Throwable e) {
       lazyTerminate(STATE, this);
+
+      if (interceptor != null) {
+        interceptor.onEnd(streamId, SignalType.ON_ERROR);
+      }
+
       actual.onError(e);
       return;
     }
 
     lazyTerminate(STATE, this);
+
+    if (interceptor != null) {
+      interceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+    }
+
     actual.onComplete();
   }
 
@@ -162,6 +187,11 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
       throw Exceptions.propagate(t);
     }
 
+    final RequestInterceptor interceptor = this.requestInterceptor;
+    if (interceptor != null) {
+      interceptor.onStart(streamId, FrameType.REQUEST_FNF, p.sliceMetadata());
+    }
+
     try {
       sendReleasingPayload(
           streamId,
@@ -173,10 +203,20 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
           true);
     } catch (Throwable e) {
       lazyTerminate(STATE, this);
+
+      if (interceptor != null) {
+        interceptor.onEnd(streamId, SignalType.ON_ERROR);
+      }
+
       throw Exceptions.propagate(e);
     }
 
     lazyTerminate(STATE, this);
+
+    if (interceptor != null) {
+      interceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+    }
+
     return null;
   }
 

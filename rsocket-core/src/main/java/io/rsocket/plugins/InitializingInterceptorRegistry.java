@@ -18,12 +18,39 @@ package io.rsocket.plugins;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
+import java.util.List;
+import java.util.function.Supplier;
+import reactor.util.annotation.Nullable;
 
 /**
  * Extends {@link InterceptorRegistry} with methods for building a chain of registered interceptors.
  * This is not intended for direct use by applications.
  */
 public class InitializingInterceptorRegistry extends InterceptorRegistry {
+
+  @Nullable
+  public RequestInterceptor initRequesterRequestInterceptor() {
+    return initRequestInterceptor(getRequesterRequestInterceptors());
+  }
+
+  @Nullable
+  public RequestInterceptor initResponderRequestInterceptor() {
+    return initRequestInterceptor(getResponderRequestInterceptors());
+  }
+
+  @Nullable
+  RequestInterceptor initRequestInterceptor(
+      List<Supplier<? extends RequestInterceptor>> interceptors) {
+    switch (interceptors.size()) {
+      case 0:
+        return null;
+      case 1:
+        return new SafeRequestInterceptor(interceptors.get(0).get());
+      default:
+        return new SafeCompositeRequestInterceptor(
+            interceptors.stream().map(Supplier::get).toArray(RequestInterceptor[]::new));
+    }
+  }
 
   public DuplexConnection initConnection(
       DuplexConnectionInterceptor.Type type, DuplexConnection connection) {
@@ -34,7 +61,7 @@ public class InitializingInterceptorRegistry extends InterceptorRegistry {
   }
 
   public RSocket initRequester(RSocket rsocket) {
-    for (RSocketInterceptor interceptor : getRequesterInteceptors()) {
+    for (RSocketInterceptor interceptor : getRequesterInterceptors()) {
       rsocket = interceptor.apply(rsocket);
     }
     return rsocket;

@@ -30,6 +30,7 @@ import io.rsocket.Payload;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -37,6 +38,7 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.SignalType;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
@@ -51,6 +53,8 @@ final class RequestResponseRequesterMono extends Mono<Payload>
   final RequesterResponderSupport requesterResponderSupport;
   final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
+
+  @Nullable final RequestInterceptor requestInterceptor;
 
   volatile long state;
   static final AtomicLongFieldUpdater<RequestResponseRequesterMono> STATE =
@@ -72,6 +76,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
+    this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
   }
 
   @Override
@@ -141,6 +146,11 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       return;
     }
 
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onStart(streamId, FrameType.REQUEST_RESPONSE, payload.sliceMetadata());
+    }
+
     try {
       sendReleasingPayload(
           streamId, FrameType.REQUEST_RESPONSE, this.mtu, payload, connection, allocator, true);
@@ -149,6 +159,10 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       lazyTerminate(STATE, this);
 
       sm.remove(streamId, this);
+
+      if (requestInterceptor != null) {
+        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      }
 
       this.actual.onError(e);
       return;
@@ -164,6 +178,10 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
       connection.sendFrame(streamId, cancelFrame);
+
+      if (requestInterceptor != null) {
+        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+      }
     }
   }
 
@@ -181,6 +199,11 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+      }
     } else if (!hasRequested(previousState)) {
       this.payload.release();
     }
@@ -201,10 +224,15 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       return;
     }
 
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
+
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+    }
+
     final CoreSubscriber<? super Payload> a = this.actual;
-
-    this.requesterResponderSupport.remove(this.streamId, this);
-
     a.onNext(value);
     a.onComplete();
   }
@@ -222,7 +250,13 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       return;
     }
 
-    this.requesterResponderSupport.remove(this.streamId, this);
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
+
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+    }
 
     this.actual.onComplete();
   }
@@ -244,7 +278,13 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     ReassemblyUtils.synchronizedRelease(this, previousState);
 
-    this.requesterResponderSupport.remove(this.streamId, this);
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
+
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+    }
 
     this.actual.onError(cause);
   }
