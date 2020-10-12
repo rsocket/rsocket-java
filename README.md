@@ -19,13 +19,14 @@ Learn more at http://rsocket.io
 
 ⚠️ The `master` branch is now dedicated to development of the `1.1.x` line.
 
-Releases are available via Maven Central.
+Releases and milestones are available via Maven Central.
 
 Example:
 
 ```groovy
 repositories {
-	mavenCentral()
+    mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.1.0-M1'
@@ -39,7 +40,8 @@ Example:
 
 ```groovy
 repositories {
-	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
