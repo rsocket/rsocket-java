@@ -17,13 +17,14 @@ Learn more at http://rsocket.io
 
 [![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=develop)](https://travis-ci.org/rsocket/rsocket-java)
 
-Releases are available via Maven Central.
+Releases and milestones are available via Maven Central.
 
 Example:
 
 ```groovy
 repositories {
 	mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.0.2'
@@ -38,6 +39,7 @@ Example:
 ```groovy
 repositories {
 	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://repo.spring.io/milestone' }  // Reactor snapshots (if needed)
 }
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.0.3-SNAPSHOT'
