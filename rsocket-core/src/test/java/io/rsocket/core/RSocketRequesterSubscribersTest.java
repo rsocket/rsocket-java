@@ -77,7 +77,7 @@ class RSocketRequesterSubscribersTest {
             0,
             0,
             null,
-            null,
+            __ -> null,
             RequesterLeaseHandler.None);
   }
 

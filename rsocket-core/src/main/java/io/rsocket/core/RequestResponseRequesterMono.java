@@ -38,7 +38,6 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
@@ -84,8 +83,14 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     long previousState = markSubscribed(STATE, this);
     if (isSubscribedOrTerminated(previousState)) {
-      Operators.error(
-          actual, new IllegalStateException("RequestResponseMono allows only a single Subscriber"));
+      final IllegalStateException e =
+          new IllegalStateException("RequestResponseMono allows only a single " + "Subscriber");
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_RESPONSE, null);
+      }
+
+      Operators.error(actual, e);
       return;
     }
 
@@ -93,15 +98,28 @@ final class RequestResponseRequesterMono extends Mono<Payload>
     try {
       if (!isValid(this.mtu, this.maxFrameLength, p, false)) {
         lazyTerminate(STATE, this);
-        Operators.error(
-            actual,
+
+        final IllegalArgumentException e =
             new IllegalArgumentException(
-                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
+        final RequestInterceptor requestInterceptor = this.requestInterceptor;
+        if (requestInterceptor != null) {
+          requestInterceptor.onReject(e, FrameType.REQUEST_RESPONSE, p.metadata());
+        }
+
         p.release();
+
+        Operators.error(actual, e);
         return;
       }
     } catch (IllegalReferenceCountException e) {
       lazyTerminate(STATE, this);
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_RESPONSE, null);
+      }
+
       Operators.error(actual, e);
       return;
     }
@@ -138,17 +156,23 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       this.done = true;
       final long previousState = markTerminated(STATE, this);
 
+      final Throwable ut = Exceptions.unwrap(t);
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(ut, FrameType.REQUEST_RESPONSE, payload.metadata());
+      }
+
       payload.release();
 
       if (!isTerminated(previousState)) {
-        this.actual.onError(Exceptions.unwrap(t));
+        this.actual.onError(ut);
       }
       return;
     }
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onStart(streamId, FrameType.REQUEST_RESPONSE, payload.sliceMetadata());
+      requestInterceptor.onStart(streamId, FrameType.REQUEST_RESPONSE, payload.metadata());
     }
 
     try {
@@ -161,7 +185,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       sm.remove(streamId, this);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, e);
       }
 
       this.actual.onError(e);
@@ -180,7 +204,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       connection.sendFrame(streamId, cancelFrame);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
     }
   }
@@ -202,7 +226,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
     } else if (!hasRequested(previousState)) {
       this.payload.release();
@@ -229,7 +253,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+      requestInterceptor.onTerminate(streamId, null);
     }
 
     final CoreSubscriber<? super Payload> a = this.actual;
@@ -255,7 +279,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+      requestInterceptor.onTerminate(streamId, null);
     }
 
     this.actual.onComplete();
@@ -283,7 +307,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      requestInterceptor.onTerminate(streamId, cause);
     }
 
     this.actual.onError(cause);

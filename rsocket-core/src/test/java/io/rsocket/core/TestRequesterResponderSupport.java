@@ -23,6 +23,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -35,7 +36,7 @@ import org.assertj.core.api.Assertions;
 import reactor.core.Exceptions;
 import reactor.util.annotation.Nullable;
 
-final class TestRequesterResponderSupport extends RequesterResponderSupport {
+final class TestRequesterResponderSupport extends RequesterResponderSupport implements RSocket {
 
   static final String DATA_CONTENT = "testData";
   static final String METADATA_CONTENT = "testMetadata";
@@ -57,7 +58,7 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         PayloadDecoder.ZERO_COPY,
         connection,
         streamIdSupplier,
-        requestInterceptor);
+        (__) -> requestInterceptor);
     this.error = error;
   }
 
@@ -173,6 +174,18 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
     return nextStreamId;
   }
 
+  public static TestRequesterResponderSupport client(
+      @Nullable Throwable e, @Nullable RequestInterceptor requestInterceptor) {
+    return client(
+        new TestDuplexConnection(
+            LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT)),
+        0,
+        FRAME_LENGTH_MASK,
+        Integer.MAX_VALUE,
+        requestInterceptor,
+        e);
+  }
+
   public static TestRequesterResponderSupport client(@Nullable Throwable e) {
     return client(0, FRAME_LENGTH_MASK, Integer.MAX_VALUE, e);
   }
@@ -239,6 +252,16 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
 
   public static TestRequesterResponderSupport client() {
     return client(0);
+  }
+
+  public static TestRequesterResponderSupport client(RequestInterceptor requestInterceptor) {
+    return client(
+        new TestDuplexConnection(
+            LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT)),
+        0,
+        FRAME_LENGTH_MASK,
+        Integer.MAX_VALUE,
+        requestInterceptor);
   }
 
   public TestRequesterResponderSupport assertNoActiveStreams() {

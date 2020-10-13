@@ -420,7 +420,7 @@ public final class RSocketServer {
                   setupPayload.keepAliveInterval(),
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
-                  interceptors.initRequesterRequestInterceptor(),
+                  interceptors::initRequesterRequestInterceptor,
                   requesterLeaseHandler);
 
           RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
@@ -453,7 +453,7 @@ public final class RSocketServer {
                             mtu,
                             maxFrameLength,
                             maxInboundPayloadSize,
-                            interceptors.initResponderRequestInterceptor());
+                            interceptors::initResponderRequestInterceptor);
                   })
               .doFinally(signalType -> setupPayload.release())
               .then();

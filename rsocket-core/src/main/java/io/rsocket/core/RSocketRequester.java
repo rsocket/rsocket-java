@@ -36,6 +36,7 @@ import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -76,7 +77,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
-      @Nullable RequestInterceptor requestInterceptor,
+      Function<RSocket, RequestInterceptor> requestInterceptorFunction,
       RequesterLeaseHandler leaseHandler) {
     super(
         mtu,
@@ -85,7 +86,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         payloadDecoder,
         connection,
         streamIdSupplier,
-        requestInterceptor);
+        requestInterceptorFunction);
 
     this.leaseHandler = leaseHandler;
     this.onClose = MonoProcessor.create();

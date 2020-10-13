@@ -570,7 +570,7 @@ public class RSocketTest {
               0,
               FRAME_LENGTH_MASK,
               Integer.MAX_VALUE,
-              null);
+              __ -> null);
 
       crs =
           new RSocketRequester(
@@ -583,7 +583,7 @@ public class RSocketTest {
               0,
               0,
               null,
-              null,
+              __ -> null,
               RequesterLeaseHandler.None);
     }
 

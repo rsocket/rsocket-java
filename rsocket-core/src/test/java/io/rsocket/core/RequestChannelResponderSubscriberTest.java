@@ -72,7 +72,7 @@ public class RequestChannelResponderSubscriberTest {
   @ValueSource(strings = {"inbound", "outbound", "inboundCancel"})
   public void requestNFrameShouldBeSentOnSubscriptionAndThenSeparately(String completionCase) {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
-    LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+    final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
     final TestDuplexConnection sender = activeStreams.getDuplexConnection();
     final Payload firstPayload = TestRequesterResponderSupport.genericPayload(allocator);
     final TestPublisher<Payload> publisher = TestPublisher.create();
@@ -368,6 +368,56 @@ public class RequestChannelResponderSubscriberTest {
           .assertTerminated()
           .assertError(applicationErrorException.getClass())
           .assertErrorMessage("test");
+
+      allocator.assertHasNoLeaks();
+    }
+  }
+
+  @Test
+  public void streamShouldWorkCorrectlyWhenRacingOutboundErrorWithSubscription() {
+    RuntimeException exception = new RuntimeException("test");
+
+    for (int i = 0; i < 10000; i++) {
+      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+      final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+      final Payload firstPayload = TestRequesterResponderSupport.randomPayload(allocator);
+      final TestPublisher<Payload> publisher = TestPublisher.create();
+
+      final RequestChannelResponderSubscriber requestChannelResponderSubscriber =
+          new RequestChannelResponderSubscriber(1, 1, firstPayload, activeStreams);
+      final StateAssert<RequestChannelResponderSubscriber> stateAssert =
+          StateAssert.assertThat(requestChannelResponderSubscriber);
+      activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
+
+      // state machine check
+      stateAssert.isUnsubscribed();
+      activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
+
+      publisher.subscribe(requestChannelResponderSubscriber);
+
+      final AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(1);
+
+      RaceTestUtils.race(
+          () -> requestChannelResponderSubscriber.subscribe(assertSubscriber),
+          () -> publisher.error(exception));
+
+      stateAssert.isTerminated();
+
+      FrameAssert.assertThat(activeStreams.getDuplexConnection().awaitFrame())
+          .typeOf(ERROR)
+          .hasData("test")
+          .hasStreamId(1)
+          .hasNoLeaks();
+
+      if (!assertSubscriber.values().isEmpty()) {
+        assertSubscriber.assertValuesWith(
+            p -> PayloadAssert.assertThat(p).isSameAs(p).hasNoLeaks());
+      }
+
+      assertSubscriber
+          .assertTerminated()
+          .assertError(CancellationException.class)
+          .assertErrorMessage("Outbound has terminated with an error");
 
       allocator.assertHasNoLeaks();
     }

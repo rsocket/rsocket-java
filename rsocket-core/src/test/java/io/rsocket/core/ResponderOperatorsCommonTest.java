@@ -20,6 +20,7 @@ import static io.rsocket.frame.FrameType.NEXT;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
+import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameAssert;
@@ -29,6 +30,8 @@ import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.plugins.RequestInterceptor;
+import io.rsocket.plugins.TestRequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
@@ -86,6 +89,12 @@ public class ResponderOperatorsCommonTest {
                 new RequestResponseResponderSubscriber(
                     streamId, firstFragment, streamManager, handler);
             streamManager.activeStreams.put(streamId, subscriber);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_RESPONSE, null);
+            }
+
             return subscriber;
           }
 
@@ -99,6 +108,12 @@ public class ResponderOperatorsCommonTest {
             RequestResponseResponderSubscriber subscriber =
                 new RequestResponseResponderSubscriber(streamId, streamManager);
             streamManager.activeStreams.put(streamId, subscriber);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_RESPONSE, null);
+            }
+
             return handler.requestResponse(firstPayload).subscribeWith(subscriber);
           }
 
@@ -128,6 +143,12 @@ public class ResponderOperatorsCommonTest {
             RequestStreamResponderSubscriber subscriber =
                 new RequestStreamResponderSubscriber(
                     streamId, initialRequestN, firstFragment, streamManager, handler);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_STREAM, null);
+            }
+
             streamManager.activeStreams.put(streamId, subscriber);
             return subscriber;
           }
@@ -142,6 +163,12 @@ public class ResponderOperatorsCommonTest {
             RequestStreamResponderSubscriber subscriber =
                 new RequestStreamResponderSubscriber(streamId, initialRequestN, streamManager);
             streamManager.activeStreams.put(streamId, subscriber);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_STREAM, null);
+            }
+
             return handler.requestStream(firstPayload).subscribeWith(subscriber);
           }
 
@@ -172,6 +199,12 @@ public class ResponderOperatorsCommonTest {
                 new RequestChannelResponderSubscriber(
                     streamId, initialRequestN, firstFragment, streamManager, handler);
             streamManager.activeStreams.put(streamId, subscriber);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_CHANNEL, null);
+            }
+
             return subscriber;
           }
 
@@ -186,6 +219,12 @@ public class ResponderOperatorsCommonTest {
                 new RequestChannelResponderSubscriber(
                     streamId, initialRequestN, firstPayload, streamManager);
             streamManager.activeStreams.put(streamId, responderSubscriber);
+
+            final RequestInterceptor requestInterceptor = streamManager.getRequestInterceptor();
+            if (requestInterceptor != null) {
+              requestInterceptor.onStart(streamId, REQUEST_CHANNEL, null);
+            }
+
             return handler.requestChannel(responderSubscriber).subscribeWith(responderSubscriber);
           }
 
@@ -242,8 +281,9 @@ public class ResponderOperatorsCommonTest {
   void shouldHandleRequest(Scenario scenario) {
     Assumptions.assumeThat(scenario.requestType()).isNotIn(REQUEST_FNF, METADATA_PUSH);
 
+    TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     TestRequesterResponderSupport testRequesterResponderSupport =
-        TestRequesterResponderSupport.client();
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
     final TestDuplexConnection sender = testRequesterResponderSupport.getDuplexConnection();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
@@ -286,6 +326,9 @@ public class ResponderOperatorsCommonTest {
             .hasStreamId(1)
             .hasRequestN(1)
             .hasNoLeaks();
+
+        responderFrameHandler.handleComplete();
+        testHandler.consumer.assertComplete();
       }
     }
 
@@ -294,6 +337,10 @@ public class ResponderOperatorsCommonTest {
         .assertValueCount(1)
         .assertValuesWith(p -> PayloadAssert.assertThat(p).hasNoLeaks());
 
+    testRequestInterceptor
+        .expectOnStart(1, scenario.requestType())
+        .expectOnComplete(1)
+        .expectNothing();
     allocator.assertHasNoLeaks();
   }
 
@@ -302,8 +349,9 @@ public class ResponderOperatorsCommonTest {
   void shouldHandleFragmentedRequest(Scenario scenario) {
     Assumptions.assumeThat(scenario.requestType()).isNotIn(REQUEST_FNF, METADATA_PUSH);
 
+    TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     TestRequesterResponderSupport testRequesterResponderSupport =
-        TestRequesterResponderSupport.client();
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
     final TestDuplexConnection sender = testRequesterResponderSupport.getDuplexConnection();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
@@ -370,6 +418,11 @@ public class ResponderOperatorsCommonTest {
 
     firstPayload.release();
 
+    testRequestInterceptor
+        .expectOnStart(1, scenario.requestType())
+        .expectOnComplete(1)
+        .expectNothing();
+
     allocator.assertHasNoLeaks();
   }
 
@@ -378,8 +431,9 @@ public class ResponderOperatorsCommonTest {
   void shouldHandleInterruptedFragmentation(Scenario scenario) {
     Assumptions.assumeThat(scenario.requestType()).isNotIn(REQUEST_FNF, METADATA_PUSH);
 
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     TestRequesterResponderSupport testRequesterResponderSupport =
-        TestRequesterResponderSupport.client();
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = testRequesterResponderSupport.getAllocator();
     TestPublisher<Payload> testPublisher = TestPublisher.create();
     TestHandler testHandler = new TestHandler(testPublisher, new AssertSubscriber<>(0));
@@ -412,6 +466,11 @@ public class ResponderOperatorsCommonTest {
 
     testPublisher.assertWasNotSubscribed();
     testRequesterResponderSupport.assertNoActiveStreams();
+
+    testRequestInterceptor
+        .expectOnStart(1, scenario.requestType())
+        .expectOnCancel(1)
+        .expectNothing();
 
     allocator.assertHasNoLeaks();
   }

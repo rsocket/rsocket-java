@@ -15,10 +15,11 @@
  */
 package io.rsocket.plugins;
 
+import io.rsocket.RSocket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Provides support for registering interceptors at the following levels:
@@ -31,46 +32,38 @@ import java.util.function.Supplier;
  * </ul>
  */
 public class InterceptorRegistry {
-  private List<Supplier<? extends RequestInterceptor>> requesterRequestInterceptors =
+  private List<Function<RSocket, ? extends RequestInterceptor>> requesterRequestInterceptors =
       new ArrayList<>();
-  private List<Supplier<? extends RequestInterceptor>> responderRequestInterceptors =
+  private List<Function<RSocket, ? extends RequestInterceptor>> responderRequestInterceptors =
       new ArrayList<>();
   private List<RSocketInterceptor> requesterRSocketInterceptors = new ArrayList<>();
   private List<RSocketInterceptor> responderRSocketInterceptors = new ArrayList<>();
   private List<SocketAcceptorInterceptor> socketAcceptorInterceptors = new ArrayList<>();
   private List<DuplexConnectionInterceptor> connectionInterceptors = new ArrayList<>();
 
-  /** Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases. */
-  public InterceptorRegistry forRequesterRequests(
-      Supplier<? extends RequestInterceptor> interceptor) {
+  /**
+   * Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases.
+   *
+   * @param interceptor a function which accepts an {@link RSocket} and returns a new {@link
+   *     RequestInterceptor}
+   * @since 1.1
+   */
+  public InterceptorRegistry forRequester(
+      Function<RSocket, ? extends RequestInterceptor> interceptor) {
     requesterRequestInterceptors.add(interceptor);
     return this;
   }
 
   /**
-   * Variant of {@link #forRequesterRequests(Supplier)} with access to the list of existing
-   * registrations.
+   * Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases.
+   *
+   * @param interceptor a function which accepts an {@link RSocket} and returns a new {@link
+   *     RequestInterceptor}
+   * @since 1.1
    */
-  public InterceptorRegistry forRequesterRequests(
-      Consumer<List<Supplier<? extends RequestInterceptor>>> consumer) {
-    consumer.accept(requesterRequestInterceptors);
-    return this;
-  }
-
-  /** Add an {@link RequestInterceptor} that will hook into Requester RSocket requests' phases. */
-  public InterceptorRegistry forResponderRequests(
-      Supplier<? extends RequestInterceptor> interceptor) {
+  public InterceptorRegistry forResponder(
+      Function<RSocket, ? extends RequestInterceptor> interceptor) {
     responderRequestInterceptors.add(interceptor);
-    return this;
-  }
-
-  /**
-   * Variant of {@link #forResponderRequests(Supplier)} with access to the list of existing
-   * registrations.
-   */
-  public InterceptorRegistry forResponderRequests(
-      Consumer<List<Supplier<? extends RequestInterceptor>>> consumer) {
-    consumer.accept(responderRequestInterceptors);
     return this;
   }
 
@@ -141,11 +134,11 @@ public class InterceptorRegistry {
     return this;
   }
 
-  List<Supplier<? extends RequestInterceptor>> getRequesterRequestInterceptors() {
+  List<Function<RSocket, ? extends RequestInterceptor>> getRequesterRequestInterceptors() {
     return requesterRequestInterceptors;
   }
 
-  List<Supplier<? extends RequestInterceptor>> getResponderRequestInterceptors() {
+  List<Function<RSocket, ? extends RequestInterceptor>> getResponderRequestInterceptors() {
     return responderRequestInterceptors;
   }
 

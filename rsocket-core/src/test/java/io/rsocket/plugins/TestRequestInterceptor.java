@@ -4,8 +4,10 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.frame.FrameType;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.Queue;
+import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
-import reactor.core.publisher.SignalType;
+import org.assertj.core.api.Condition;
+import reactor.util.annotation.Nullable;
 
 public class TestRequestInterceptor implements RequestInterceptor {
 
@@ -15,18 +17,25 @@ public class TestRequestInterceptor implements RequestInterceptor {
   public void dispose() {}
 
   @Override
-  public void onStart(int streamId, FrameType requestType, ByteBuf metadata) {
+  public void onStart(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
     events.add(new Event(EventType.ON_START, streamId, requestType, null));
   }
 
   @Override
-  public void onEnd(int streamId, SignalType terminalSignal) {
-    events.add(new Event(EventType.ON_END, streamId, null, terminalSignal));
+  public void onTerminate(int streamId, @Nullable Throwable t) {
+    events.add(
+        new Event(t == null ? EventType.ON_COMPLETE : EventType.ON_ERROR, streamId, null, t));
   }
 
   @Override
-  public void onReject(int streamId, FrameType requestType, ByteBuf metadata) {
-    events.add(new Event(EventType.ON_REJECT, streamId, requestType, null));
+  public void onCancel(int streamId) {
+    events.add(new Event(EventType.ON_CANCEL, streamId, null, null));
+  }
+
+  @Override
+  public void onReject(
+      Throwable rejectionReason, FrameType requestType, @Nullable ByteBuf metadata) {
+    events.add(new Event(EventType.ON_REJECT, -1, requestType, rejectionReason));
   }
 
   public TestRequestInterceptor expectOnStart(int streamId, FrameType requestType) {
@@ -40,13 +49,62 @@ public class TestRequestInterceptor implements RequestInterceptor {
     return this;
   }
 
-  public TestRequestInterceptor expectOnEnd(int streamId, SignalType signalType) {
+  public TestRequestInterceptor expectOnComplete(int streamId) {
     final Event event = events.poll();
 
     Assertions.assertThat(event)
-        .hasFieldOrPropertyWithValue("eventType", EventType.ON_END)
-        .hasFieldOrPropertyWithValue("streamId", streamId)
-        .hasFieldOrPropertyWithValue("signalType", signalType);
+        .hasFieldOrPropertyWithValue("eventType", EventType.ON_COMPLETE)
+        .hasFieldOrPropertyWithValue("streamId", streamId);
+
+    return this;
+  }
+
+  public TestRequestInterceptor expectOnError(int streamId) {
+    final Event event = events.poll();
+
+    Assertions.assertThat(event)
+        .hasFieldOrPropertyWithValue("eventType", EventType.ON_ERROR)
+        .hasFieldOrPropertyWithValue("streamId", streamId);
+
+    return this;
+  }
+
+  public TestRequestInterceptor expectOnCancel(int streamId) {
+    final Event event = events.poll();
+
+    Assertions.assertThat(event)
+        .hasFieldOrPropertyWithValue("eventType", EventType.ON_CANCEL)
+        .hasFieldOrPropertyWithValue("streamId", streamId);
+
+    return this;
+  }
+
+  public TestRequestInterceptor assertNext(Consumer<Event> consumer) {
+    final Event event = events.poll();
+    Assertions.assertThat(event).isNotNull();
+
+    consumer.accept(event);
+
+    return this;
+  }
+
+  public TestRequestInterceptor expectOnReject(FrameType requestType, Throwable rejectionReason) {
+    final Event event = events.poll();
+
+    Assertions.assertThat(event)
+        .hasFieldOrPropertyWithValue("eventType", EventType.ON_REJECT)
+        .has(
+            new Condition<>(
+                e -> {
+                  Assertions.assertThat(e.error)
+                      .isExactlyInstanceOf(rejectionReason.getClass())
+                      .hasMessage(rejectionReason.getMessage())
+                      .hasCause(rejectionReason.getCause());
+                  return true;
+                },
+                "Has rejection reason which matches to %s",
+                rejectionReason))
+        .hasFieldOrPropertyWithValue("requestType", requestType);
 
     return this;
   }
@@ -59,23 +117,25 @@ public class TestRequestInterceptor implements RequestInterceptor {
     return this;
   }
 
-  static final class Event {
-    final EventType eventType;
-    final int streamId;
-    final FrameType requestType;
-    final SignalType signalType;
+  public static final class Event {
+    public final EventType eventType;
+    public final int streamId;
+    public final FrameType requestType;
+    public final Throwable error;
 
-    Event(EventType eventType, int streamId, FrameType requestType, SignalType signalType) {
+    Event(EventType eventType, int streamId, FrameType requestType, Throwable error) {
       this.eventType = eventType;
       this.streamId = streamId;
       this.requestType = requestType;
-      this.signalType = signalType;
+      this.error = error;
     }
   }
 
-  enum EventType {
+  public enum EventType {
     ON_START,
-    ON_END,
+    ON_COMPLETE,
+    ON_ERROR,
+    ON_CANCEL,
     ON_REJECT
   }
 }

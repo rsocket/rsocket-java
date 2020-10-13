@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
@@ -139,17 +138,15 @@ final class RequestStreamResponderSubscriber
           return;
         }
 
-        final ByteBuf errorFrame =
-            ErrorFrameCodec.encode(
-                allocator,
-                streamId,
-                new CanceledException(
-                    String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
+        final CanceledException e =
+            new CanceledException(
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
+        final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, streamId, e);
         sender.sendFrame(streamId, errorFrame);
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+          requestInterceptor.onTerminate(streamId, e);
         }
         return;
       }
@@ -167,7 +164,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, e);
       }
       return;
     }
@@ -181,7 +178,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, t);
       }
     }
   }
@@ -232,7 +229,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      requestInterceptor.onTerminate(streamId, t);
     }
   }
 
@@ -256,7 +253,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+      requestInterceptor.onTerminate(streamId, null);
     }
   }
 
@@ -288,7 +285,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
       return;
     }
@@ -304,7 +301,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+      requestInterceptor.onCancel(streamId);
     }
   }
 
@@ -318,7 +315,7 @@ final class RequestStreamResponderSubscriber
     try {
       ReassemblyUtils.addFollowingFrame(
           frames, followingFrame, hasFollows, this.maxInboundPayloadSize);
-    } catch (IllegalStateException t) {
+    } catch (IllegalStateException e) {
       // if subscription is null, it means that streams has not yet reassembled all the fragments
       // and fragmentation of the first frame was cancelled before
       S.lazySet(this, Operators.cancelledSubscription());
@@ -334,15 +331,15 @@ final class RequestStreamResponderSubscriber
           ErrorFrameCodec.encode(
               this.allocator,
               streamId,
-              new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
+              new CanceledException("Failed to reassemble payload. Cause: " + e.getMessage()));
       this.connection.sendFrame(streamId, errorFrame);
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, e);
       }
 
-      logger.debug("Reassembly has failed", t);
+      logger.debug("Reassembly has failed", e);
       return;
     }
 
@@ -371,7 +368,7 @@ final class RequestStreamResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+          requestInterceptor.onTerminate(streamId, t);
         }
 
         logger.debug("Reassembly has failed", t);

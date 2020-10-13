@@ -33,10 +33,15 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
+import io.rsocket.exceptions.RejectedException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.LeaseFrameCodec;
 import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestFireAndForgetFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
+import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
@@ -64,9 +69,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Operators;
 import reactor.test.StepVerifier;
 
 class RSocketLeaseTest {
@@ -107,7 +115,7 @@ class RSocketLeaseTest {
             0,
             0,
             null,
-            null,
+            __ -> null,
             requesterLeaseHandler);
 
     mockRSocketHandler = mock(RSocket.class);
@@ -145,7 +153,25 @@ class RSocketLeaseTest {
               Publisher<Payload> payloadPublisher = a.getArgument(0);
               return Flux.from(payloadPublisher)
                   .doOnNext(ReferenceCounted::release)
-                  .thenMany(Flux.empty());
+                  .transform(
+                      Operators.lift(
+                          (__, actual) ->
+                              new BaseSubscriber<Payload>() {
+                                @Override
+                                protected void hookOnSubscribe(Subscription subscription) {
+                                  actual.onSubscribe(this);
+                                }
+
+                                @Override
+                                protected void hookOnComplete() {
+                                  actual.onComplete();
+                                }
+
+                                @Override
+                                protected void hookOnError(Throwable throwable) {
+                                  actual.onError(throwable);
+                                }
+                              }));
             });
 
     rSocketResponder =
@@ -157,7 +183,7 @@ class RSocketLeaseTest {
             0,
             FRAME_LENGTH_MASK,
             Integer.MAX_VALUE,
-            null);
+            __ -> null);
   }
 
   @Test
@@ -357,32 +383,86 @@ class RSocketLeaseTest {
   }
 
   @ParameterizedTest
-  @MethodSource("interactions")
-  void responderMissingLeaseRequestsAreRejected(
-      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
+  @MethodSource("responderInteractions")
+  void responderMissingLeaseRequestsAreRejected(FrameType frameType) {
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
     Payload payload1 = ByteBufPayload.create(buffer);
 
-    StepVerifier.create(interaction.apply(rSocketResponder, payload1))
-        .expectError(MissingLeaseException.class)
-        .verify(Duration.ofSeconds(5));
+    switch (frameType) {
+      case REQUEST_FNF:
+        final ByteBuf fnfFrame =
+            RequestFireAndForgetFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        rSocketResponder.handleFrame(fnfFrame);
+        fnfFrame.release();
+        break;
+      case REQUEST_RESPONSE:
+        final ByteBuf requestResponseFrame =
+            RequestResponseFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        rSocketResponder.handleFrame(requestResponseFrame);
+        requestResponseFrame.release();
+        break;
+      case REQUEST_STREAM:
+        final ByteBuf requestStreamFrame =
+            RequestStreamFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, 1, payload1);
+        rSocketResponder.handleFrame(requestStreamFrame);
+        requestStreamFrame.release();
+        break;
+      case REQUEST_CHANNEL:
+        final ByteBuf requestChannelFrame =
+            RequestChannelFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, true, 1, payload1);
+        rSocketResponder.handleFrame(requestChannelFrame);
+        requestChannelFrame.release();
+        break;
+    }
+
+    if (frameType != REQUEST_FNF) {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(1)
+          .first()
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == ERROR)
+          .matches(bb -> Exceptions.from(1, bb) instanceof RejectedException)
+          .matches(ReferenceCounted::release);
+    }
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
-  @MethodSource("interactions")
-  void responderPresentLeaseRequestsAreAccepted(
-      BiFunction<RSocket, Payload, Publisher<?>> interaction, FrameType frameType) {
+  @MethodSource("responderInteractions")
+  void responderPresentLeaseRequestsAreAccepted(FrameType frameType) {
     leaseSender.onNext(Lease.create(5_000, 2));
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
     Payload payload1 = ByteBufPayload.create(buffer);
 
-    Flux.from(interaction.apply(rSocketResponder, payload1))
-        .as(StepVerifier::create)
-        .expectComplete()
-        .verify(Duration.ofSeconds(5));
+    switch (frameType) {
+      case REQUEST_FNF:
+        final ByteBuf fnfFrame =
+            RequestFireAndForgetFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        rSocketResponder.handleFireAndForget(1, fnfFrame);
+        fnfFrame.release();
+        break;
+      case REQUEST_RESPONSE:
+        final ByteBuf requestResponseFrame =
+            RequestResponseFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        rSocketResponder.handleFrame(requestResponseFrame);
+        requestResponseFrame.release();
+        break;
+      case REQUEST_STREAM:
+        final ByteBuf requestStreamFrame =
+            RequestStreamFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, 1, payload1);
+        rSocketResponder.handleFrame(requestStreamFrame);
+        requestStreamFrame.release();
+        break;
+      case REQUEST_CHANNEL:
+        final ByteBuf requestChannelFrame =
+            RequestChannelFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, true, 1, payload1);
+        rSocketResponder.handleFrame(requestChannelFrame);
+        requestChannelFrame.release();
+        break;
+    }
 
     switch (frameType) {
       case REQUEST_FNF:
@@ -400,41 +480,113 @@ class RSocketLeaseTest {
     }
 
     Assertions.assertThat(connection.getSent())
-        .hasSize(1)
         .first()
         .matches(bb -> FrameHeaderCodec.frameType(bb) == LEASE)
         .matches(ReferenceCounted::release);
+
+    if (frameType != REQUEST_FNF) {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(2)
+          .element(1)
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == COMPLETE)
+          .matches(ReferenceCounted::release);
+    }
 
     byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
-  @MethodSource("interactions")
-  void responderDepletedAllowedLeaseRequestsAreRejected(
-      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
+  @MethodSource("responderInteractions")
+  void responderDepletedAllowedLeaseRequestsAreRejected(FrameType frameType) {
     leaseSender.onNext(Lease.create(5_000, 1));
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
     Payload payload1 = ByteBufPayload.create(buffer);
 
-    Flux<?> responder = Flux.from(interaction.apply(rSocketResponder, payload1));
-    responder.subscribe();
+    ByteBuf buffer2 = byteBufAllocator.buffer();
+    buffer2.writeCharSequence("test2", CharsetUtil.UTF_8);
+    Payload payload2 = ByteBufPayload.create(buffer2);
+
+    switch (frameType) {
+      case REQUEST_FNF:
+        final ByteBuf fnfFrame =
+            RequestFireAndForgetFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        final ByteBuf fnfFrame2 =
+            RequestFireAndForgetFrameCodec.encodeReleasingPayload(byteBufAllocator, 3, payload2);
+        rSocketResponder.handleFrame(fnfFrame);
+        rSocketResponder.handleFrame(fnfFrame2);
+        fnfFrame.release();
+        fnfFrame2.release();
+        break;
+      case REQUEST_RESPONSE:
+        final ByteBuf requestResponseFrame =
+            RequestResponseFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, payload1);
+        final ByteBuf requestResponseFrame2 =
+            RequestResponseFrameCodec.encodeReleasingPayload(byteBufAllocator, 3, payload2);
+        rSocketResponder.handleFrame(requestResponseFrame);
+        rSocketResponder.handleFrame(requestResponseFrame2);
+        requestResponseFrame.release();
+        requestResponseFrame2.release();
+        break;
+      case REQUEST_STREAM:
+        final ByteBuf requestStreamFrame =
+            RequestStreamFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, 1, payload1);
+        final ByteBuf requestStreamFrame2 =
+            RequestStreamFrameCodec.encodeReleasingPayload(byteBufAllocator, 3, 1, payload2);
+        rSocketResponder.handleFrame(requestStreamFrame);
+        rSocketResponder.handleFrame(requestStreamFrame2);
+        requestStreamFrame.release();
+        requestStreamFrame2.release();
+        break;
+      case REQUEST_CHANNEL:
+        final ByteBuf requestChannelFrame =
+            RequestChannelFrameCodec.encodeReleasingPayload(byteBufAllocator, 1, true, 1, payload1);
+        final ByteBuf requestChannelFrame2 =
+            RequestChannelFrameCodec.encodeReleasingPayload(byteBufAllocator, 3, true, 1, payload2);
+        rSocketResponder.handleFrame(requestChannelFrame);
+        rSocketResponder.handleFrame(requestChannelFrame2);
+        requestChannelFrame.release();
+        requestChannelFrame2.release();
+        break;
+    }
+
+    switch (frameType) {
+      case REQUEST_FNF:
+        Mockito.verify(mockRSocketHandler).fireAndForget(any());
+        break;
+      case REQUEST_RESPONSE:
+        Mockito.verify(mockRSocketHandler).requestResponse(any());
+        break;
+      case REQUEST_STREAM:
+        Mockito.verify(mockRSocketHandler).requestStream(any());
+        break;
+      case REQUEST_CHANNEL:
+        Mockito.verify(mockRSocketHandler).requestChannel(any());
+        break;
+    }
 
     Assertions.assertThat(connection.getSent())
-        .hasSize(1)
         .first()
         .matches(bb -> FrameHeaderCodec.frameType(bb) == LEASE)
         .matches(ReferenceCounted::release);
 
-    ByteBuf buffer2 = byteBufAllocator.buffer();
-    buffer2.writeCharSequence("test", CharsetUtil.UTF_8);
-    Payload payload2 = ByteBufPayload.create(buffer2);
+    if (frameType != REQUEST_FNF) {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(3)
+          .element(1)
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == COMPLETE)
+          .matches(ReferenceCounted::release);
 
-    Flux.from(interaction.apply(rSocketResponder, payload2))
-        .as(StepVerifier::create)
-        .expectError(MissingLeaseException.class)
-        .verify(Duration.ofSeconds(5));
+      Assertions.assertThat(connection.getSent())
+          .hasSize(3)
+          .element(2)
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == ERROR)
+          .matches(bb -> Exceptions.from(1, bb) instanceof RejectedException)
+          .matches(ReferenceCounted::release);
+    }
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
@@ -529,5 +681,13 @@ class RSocketLeaseTest {
             (BiFunction<RSocket, Payload, Publisher<?>>)
                 (rSocket, payload) -> rSocket.requestChannel(Mono.just(payload)),
             FrameType.REQUEST_CHANNEL));
+  }
+
+  static Stream<FrameType> responderInteractions() {
+    return Stream.of(
+        FrameType.REQUEST_FNF,
+        FrameType.REQUEST_RESPONSE,
+        FrameType.REQUEST_STREAM,
+        FrameType.REQUEST_CHANNEL);
   }
 }

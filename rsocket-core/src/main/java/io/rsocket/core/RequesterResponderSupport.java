@@ -4,8 +4,10 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.RequestInterceptor;
+import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
 class RequesterResponderSupport {
@@ -28,7 +30,7 @@ class RequesterResponderSupport {
       PayloadDecoder payloadDecoder,
       DuplexConnection connection,
       @Nullable StreamIdSupplier streamIdSupplier,
-      @Nullable RequestInterceptor requestInterceptor) {
+      Function<RSocket, ? extends RequestInterceptor> requestInterceptorFunction) {
 
     this.activeStreams = new IntObjectHashMap<>();
     this.mtu = mtu;
@@ -38,7 +40,7 @@ class RequesterResponderSupport {
     this.allocator = connection.alloc();
     this.streamIdSupplier = streamIdSupplier;
     this.connection = connection;
-    this.requestInterceptor = requestInterceptor;
+    this.requestInterceptor = requestInterceptorFunction.apply((RSocket) this);
   }
 
   public int getMtu() {

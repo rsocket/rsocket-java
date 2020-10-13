@@ -14,6 +14,7 @@ import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
+import io.rsocket.plugins.TestRequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
@@ -46,7 +47,9 @@ public class FireAndForgetRequesterMonoTest {
   @ParameterizedTest
   @MethodSource("frameSent")
   public void frameShouldBeSentOnSubscription(Consumer<FireAndForgetRequesterMono> monoConsumer) {
-    final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    final TestRequesterResponderSupport activeStreams =
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final Payload payload = genericPayload(activeStreams.getAllocator());
     final FireAndForgetRequesterMono fireAndForgetRequesterMono =
         new FireAndForgetRequesterMono(payload, activeStreams);
@@ -62,7 +65,6 @@ public class FireAndForgetRequesterMonoTest {
     // should not add anything to map
     stateAssert.isTerminated();
     activeStreams.assertNoActiveStreams();
-
     final ByteBuf frame = activeStreams.getDuplexConnection().awaitFrame();
     FrameAssert.assertThat(frame)
         .isNotNull()
@@ -79,6 +81,10 @@ public class FireAndForgetRequesterMonoTest {
 
     Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
     activeStreams.getAllocator().assertHasNoLeaks();
+    testRequestInterceptor
+        .expectOnStart(1, FrameType.REQUEST_FNF)
+        .expectOnComplete(1)
+        .expectNothing();
   }
 
   /**
@@ -189,7 +195,9 @@ public class FireAndForgetRequesterMonoTest {
   @MethodSource("shouldErrorOnIncorrectRefCntInGivenPayloadSource")
   public void shouldErrorOnIncorrectRefCntInGivenPayload(
       Consumer<FireAndForgetRequesterMono> monoConsumer) {
-    final TestRequesterResponderSupport streamManager = TestRequesterResponderSupport.client();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    final TestRequesterResponderSupport streamManager =
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = streamManager.getAllocator();
     final TestDuplexConnection sender = streamManager.getDuplexConnection();
     final Payload payload = ByteBufPayload.create("");
@@ -210,6 +218,9 @@ public class FireAndForgetRequesterMonoTest {
 
     Assertions.assertThat(sender.isEmpty()).isTrue();
     allocator.assertHasNoLeaks();
+    testRequestInterceptor
+        .expectOnReject(FrameType.REQUEST_FNF, new IllegalReferenceCountException("refCnt: 0"))
+        .expectNothing();
   }
 
   static Stream<Consumer<FireAndForgetRequesterMono>>
@@ -233,7 +244,9 @@ public class FireAndForgetRequesterMonoTest {
   @MethodSource("shouldErrorIfFragmentExitsAllowanceIfFragmentationDisabledSource")
   public void shouldErrorIfFragmentExitsAllowanceIfFragmentationDisabled(
       Consumer<FireAndForgetRequesterMono> monoConsumer) {
-    final TestRequesterResponderSupport streamManager = TestRequesterResponderSupport.client();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    final TestRequesterResponderSupport streamManager =
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = streamManager.getAllocator();
     final TestDuplexConnection sender = streamManager.getDuplexConnection();
 
@@ -260,6 +273,12 @@ public class FireAndForgetRequesterMonoTest {
     streamManager.assertNoActiveStreams();
     Assertions.assertThat(sender.isEmpty()).isTrue();
     allocator.assertHasNoLeaks();
+    testRequestInterceptor
+        .expectOnReject(
+            FrameType.REQUEST_FNF,
+            new IllegalArgumentException(
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, FRAME_LENGTH_MASK)))
+        .expectNothing();
   }
 
   static Stream<Consumer<FireAndForgetRequesterMono>>
@@ -289,8 +308,10 @@ public class FireAndForgetRequesterMonoTest {
   @ParameterizedTest
   @MethodSource("shouldErrorIfNoAvailabilitySource")
   public void shouldErrorIfNoAvailability(Consumer<FireAndForgetRequesterMono> monoConsumer) {
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    final RuntimeException exception = new RuntimeException("test");
     final TestRequesterResponderSupport streamManager =
-        TestRequesterResponderSupport.client(new RuntimeException("test"));
+        TestRequesterResponderSupport.client(exception, testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = streamManager.getAllocator();
     final TestDuplexConnection sender = streamManager.getDuplexConnection();
     final Payload payload = genericPayload(allocator);
@@ -311,6 +332,7 @@ public class FireAndForgetRequesterMonoTest {
     streamManager.assertNoActiveStreams();
     Assertions.assertThat(sender.isEmpty()).isTrue();
     allocator.assertHasNoLeaks();
+    testRequestInterceptor.expectOnReject(FrameType.REQUEST_FNF, exception).expectNothing();
   }
 
   static Stream<Consumer<FireAndForgetRequesterMono>> shouldErrorIfNoAvailabilitySource() {
@@ -333,7 +355,9 @@ public class FireAndForgetRequesterMonoTest {
   /** Ensures single subscription happens in case of racing */
   @Test
   public void shouldSubscribeExactlyOnce1() {
-    final TestRequesterResponderSupport streamManager = TestRequesterResponderSupport.client();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    final TestRequesterResponderSupport streamManager =
+        TestRequesterResponderSupport.client(testRequestInterceptor);
     final LeaksTrackingByteBufAllocator allocator = streamManager.getAllocator();
     final TestDuplexConnection sender = streamManager.getDuplexConnection();
 
@@ -349,7 +373,7 @@ public class FireAndForgetRequesterMonoTest {
               () ->
                   RaceTestUtils.race(
                       () -> {
-                        AtomicReference<Throwable> atomicReference = new AtomicReference();
+                        AtomicReference<Throwable> atomicReference = new AtomicReference<>();
                         fireAndForgetRequesterMono.subscribe(null, atomicReference::set);
                         Throwable throwable = atomicReference.get();
                         if (throwable != null) {
@@ -380,6 +404,27 @@ public class FireAndForgetRequesterMonoTest {
 
       stateAssert.isTerminated();
       streamManager.assertNoActiveStreams();
+      testRequestInterceptor
+          .assertNext(
+              event ->
+                  Assertions.assertThat(event.eventType)
+                      .isIn(
+                          TestRequestInterceptor.EventType.ON_START,
+                          TestRequestInterceptor.EventType.ON_REJECT))
+          .assertNext(
+              event ->
+                  Assertions.assertThat(event.eventType)
+                      .isIn(
+                          TestRequestInterceptor.EventType.ON_START,
+                          TestRequestInterceptor.EventType.ON_COMPLETE,
+                          TestRequestInterceptor.EventType.ON_REJECT))
+          .assertNext(
+              event ->
+                  Assertions.assertThat(event.eventType)
+                      .isIn(
+                          TestRequestInterceptor.EventType.ON_COMPLETE,
+                          TestRequestInterceptor.EventType.ON_REJECT))
+          .expectNothing();
     }
 
     Assertions.assertThat(sender.isEmpty()).isTrue();

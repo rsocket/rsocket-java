@@ -39,7 +39,6 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
@@ -82,8 +81,14 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   public void subscribe(CoreSubscriber<? super Payload> actual) {
     long previousState = markSubscribed(STATE, this);
     if (isSubscribedOrTerminated(previousState)) {
-      Operators.error(
-          actual, new IllegalStateException("RequestStreamFlux allows only a single Subscriber"));
+      final IllegalStateException e =
+          new IllegalStateException("RequestStreamFlux allows only a single Subscriber");
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, null);
+      }
+
+      Operators.error(actual, e);
       return;
     }
 
@@ -91,15 +96,28 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     try {
       if (!isValid(this.mtu, this.maxFrameLength, p, false)) {
         lazyTerminate(STATE, this);
-        Operators.error(
-            actual,
+
+        final IllegalArgumentException e =
             new IllegalArgumentException(
-                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
+        final RequestInterceptor requestInterceptor = this.requestInterceptor;
+        if (requestInterceptor != null) {
+          requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, p.metadata());
+        }
+
         p.release();
+
+        Operators.error(actual, e);
         return;
       }
     } catch (IllegalReferenceCountException e) {
       lazyTerminate(STATE, this);
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, null);
+      }
+
       Operators.error(actual, e);
       return;
     }
@@ -146,17 +164,23 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       this.done = true;
       final long previousState = markTerminated(STATE, this);
 
+      final Throwable ut = Exceptions.unwrap(t);
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(ut, FrameType.REQUEST_STREAM, payload.metadata());
+      }
+
       payload.release();
 
       if (!isTerminated(previousState)) {
-        this.inboundSubscriber.onError(Exceptions.unwrap(t));
+        this.inboundSubscriber.onError(ut);
       }
       return;
     }
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onStart(streamId, FrameType.REQUEST_STREAM, payload.sliceMetadata());
+      requestInterceptor.onStart(streamId, FrameType.REQUEST_STREAM, payload.metadata());
     }
 
     try {
@@ -169,17 +193,17 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
           connection,
           allocator,
           false);
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       this.done = true;
       lazyTerminate(STATE, this);
 
       sm.remove(streamId, this);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, t);
       }
 
-      this.inboundSubscriber.onError(e);
+      this.inboundSubscriber.onError(t);
       return;
     }
 
@@ -195,7 +219,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       connection.sendFrame(streamId, cancelFrame);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
       return;
     }
@@ -235,7 +259,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
     } else if (!hasRequested(previousState)) {
       // no need to send anything, since the first request has not happened
@@ -270,7 +294,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+      requestInterceptor.onTerminate(streamId, null);
     }
 
     this.inboundSubscriber.onComplete();
@@ -297,7 +321,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      requestInterceptor.onTerminate(streamId, cause);
     }
 
     this.inboundSubscriber.onError(cause);

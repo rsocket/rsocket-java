@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
@@ -146,7 +145,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+        requestInterceptor.onTerminate(streamId, null);
       }
       return;
     }
@@ -158,17 +157,15 @@ final class RequestResponseResponderSubscriber
 
         p.release();
 
-        final ByteBuf errorFrame =
-            ErrorFrameCodec.encode(
-                allocator,
-                streamId,
-                new CanceledException(
-                    String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
+        final CanceledException e =
+            new CanceledException(
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
+        final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, streamId, e);
         connection.sendFrame(streamId, errorFrame);
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+          requestInterceptor.onTerminate(streamId, e);
         }
         return;
       }
@@ -184,7 +181,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, e);
       }
       return;
     }
@@ -194,14 +191,14 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_COMPLETE);
+        requestInterceptor.onTerminate(streamId, null);
       }
-    } catch (Throwable ignored) {
+    } catch (Throwable t) {
       currentSubscription.cancel();
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, t);
       }
     }
   }
@@ -231,7 +228,7 @@ final class RequestResponseResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      requestInterceptor.onTerminate(streamId, t);
     }
   }
 
@@ -263,7 +260,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
       return;
     }
@@ -272,13 +269,14 @@ final class RequestResponseResponderSubscriber
       return;
     }
 
-    this.requesterResponderSupport.remove(this.streamId, this);
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
 
     currentSubscription.cancel();
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+      requestInterceptor.onCancel(streamId);
     }
   }
 
@@ -312,7 +310,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, t);
       }
       return;
     }
@@ -343,7 +341,7 @@ final class RequestResponseResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+          requestInterceptor.onTerminate(streamId, t);
         }
         return;
       }

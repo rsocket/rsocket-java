@@ -28,7 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.Nullable;
 
 final class FireAndForgetResponderSubscriber
@@ -102,7 +101,7 @@ final class FireAndForgetResponderSubscriber
   public void onError(Throwable t) {
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(this.streamId, SignalType.ON_ERROR);
+      requestInterceptor.onTerminate(this.streamId, t);
     }
 
     logger.debug("Dropped Outbound error", t);
@@ -112,7 +111,7 @@ final class FireAndForgetResponderSubscriber
   public void onComplete() {
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onEnd(this.streamId, SignalType.ON_COMPLETE);
+      requestInterceptor.onTerminate(this.streamId, null);
     }
   }
 
@@ -132,7 +131,7 @@ final class FireAndForgetResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.ON_ERROR);
+        requestInterceptor.onTerminate(streamId, t);
       }
 
       logger.debug("Reassembly has failed", t);
@@ -152,7 +151,7 @@ final class FireAndForgetResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onEnd(this.streamId, SignalType.ON_ERROR);
+          requestInterceptor.onTerminate(this.streamId, t);
         }
 
         logger.debug("Reassembly has failed", t);
@@ -176,7 +175,7 @@ final class FireAndForgetResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onEnd(streamId, SignalType.CANCEL);
+        requestInterceptor.onCancel(streamId);
       }
     }
   }
