@@ -52,12 +52,12 @@ class DefaultPayloadDecoder implements PayloadDecoder {
         throw new IllegalArgumentException("unsupported frame type: " + type);
     }
 
-    ByteBuffer data = ByteBuffer.allocateDirect(d.readableBytes());
+    ByteBuffer data = ByteBuffer.allocate(d.readableBytes());
     data.put(d.nioBuffer());
     data.flip();
 
     if (m != null) {
-      ByteBuffer metadata = ByteBuffer.allocateDirect(m.readableBytes());
+      ByteBuffer metadata = ByteBuffer.allocate(m.readableBytes());
       metadata.put(m.nioBuffer());
       metadata.flip();
 
