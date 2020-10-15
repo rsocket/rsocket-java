@@ -60,6 +60,10 @@ public final class FrameHeaderCodec {
     return (flags(byteBuf) & FLAGS_F) == FLAGS_F;
   }
 
+  public static boolean hasComplete(ByteBuf byteBuf) {
+    return (flags(byteBuf) & FLAGS_C) == FLAGS_C;
+  }
+
   public static int streamId(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
     int streamId = byteBuf.readInt();
