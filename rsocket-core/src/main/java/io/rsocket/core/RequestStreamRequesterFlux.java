@@ -31,6 +31,7 @@ import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.RequestNFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -53,6 +54,8 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
 
+  @Nullable final RequestInterceptor requestInterceptor;
+
   volatile long state;
   static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> STATE =
       AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "state");
@@ -71,14 +74,21 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
+    this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
   }
 
   @Override
   public void subscribe(CoreSubscriber<? super Payload> actual) {
     long previousState = markSubscribed(STATE, this);
     if (isSubscribedOrTerminated(previousState)) {
-      Operators.error(
-          actual, new IllegalStateException("RequestStreamFlux allows only a single Subscriber"));
+      final IllegalStateException e =
+          new IllegalStateException("RequestStreamFlux allows only a single Subscriber");
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, null);
+      }
+
+      Operators.error(actual, e);
       return;
     }
 
@@ -86,15 +96,28 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     try {
       if (!isValid(this.mtu, this.maxFrameLength, p, false)) {
         lazyTerminate(STATE, this);
-        Operators.error(
-            actual,
+
+        final IllegalArgumentException e =
             new IllegalArgumentException(
-                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength)));
+                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
+        final RequestInterceptor requestInterceptor = this.requestInterceptor;
+        if (requestInterceptor != null) {
+          requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, p.metadata());
+        }
+
         p.release();
+
+        Operators.error(actual, e);
         return;
       }
     } catch (IllegalReferenceCountException e) {
       lazyTerminate(STATE, this);
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(e, FrameType.REQUEST_STREAM, null);
+      }
+
       Operators.error(actual, e);
       return;
     }
@@ -141,12 +164,23 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       this.done = true;
       final long previousState = markTerminated(STATE, this);
 
+      final Throwable ut = Exceptions.unwrap(t);
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(ut, FrameType.REQUEST_STREAM, payload.metadata());
+      }
+
       payload.release();
 
       if (!isTerminated(previousState)) {
-        this.inboundSubscriber.onError(Exceptions.unwrap(t));
+        this.inboundSubscriber.onError(ut);
       }
       return;
+    }
+
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onStart(streamId, FrameType.REQUEST_STREAM, payload.metadata());
     }
 
     try {
@@ -159,13 +193,17 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
           connection,
           allocator,
           false);
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       this.done = true;
       lazyTerminate(STATE, this);
 
       sm.remove(streamId, this);
 
-      this.inboundSubscriber.onError(e);
+      if (requestInterceptor != null) {
+        requestInterceptor.onTerminate(streamId, t);
+      }
+
+      this.inboundSubscriber.onError(t);
       return;
     }
 
@@ -180,6 +218,9 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
       connection.sendFrame(streamId, cancelFrame);
 
+      if (requestInterceptor != null) {
+        requestInterceptor.onCancel(streamId);
+      }
       return;
     }
 
@@ -215,6 +256,11 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onCancel(streamId);
+      }
     } else if (!hasRequested(previousState)) {
       // no need to send anything, since the first request has not happened
       this.payload.release();
@@ -246,6 +292,11 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
     this.requesterResponderSupport.remove(this.streamId, this);
 
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onTerminate(streamId, null);
+    }
+
     this.inboundSubscriber.onComplete();
   }
 
@@ -267,6 +318,11 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     this.requesterResponderSupport.remove(this.streamId, this);
 
     ReassemblyUtils.synchronizedRelease(this, previousState);
+
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onTerminate(streamId, cause);
+    }
 
     this.inboundSubscriber.onError(cause);
   }

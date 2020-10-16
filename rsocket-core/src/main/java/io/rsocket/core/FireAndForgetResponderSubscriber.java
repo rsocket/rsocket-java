@@ -22,11 +22,13 @@ import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 final class FireAndForgetResponderSubscriber
     implements CoreSubscriber<Void>, ResponderFrameHandler {
@@ -42,6 +44,8 @@ final class FireAndForgetResponderSubscriber
   final RSocket handler;
   final int maxInboundPayloadSize;
 
+  @Nullable final RequestInterceptor requestInterceptor;
+
   CompositeByteBuf frames;
 
   private FireAndForgetResponderSubscriber() {
@@ -51,6 +55,19 @@ final class FireAndForgetResponderSubscriber
     this.maxInboundPayloadSize = 0;
     this.requesterResponderSupport = null;
     this.handler = null;
+    this.requestInterceptor = null;
+    this.frames = null;
+  }
+
+  FireAndForgetResponderSubscriber(
+      int streamId, RequesterResponderSupport requesterResponderSupport) {
+    this.streamId = streamId;
+    this.allocator = null;
+    this.payloadDecoder = null;
+    this.maxInboundPayloadSize = 0;
+    this.requesterResponderSupport = null;
+    this.handler = null;
+    this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
     this.frames = null;
   }
 
@@ -65,6 +82,7 @@ final class FireAndForgetResponderSubscriber
     this.maxInboundPayloadSize = requesterResponderSupport.getMaxInboundPayloadSize();
     this.requesterResponderSupport = requesterResponderSupport;
     this.handler = handler;
+    this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
 
     this.frames =
         ReassemblyUtils.addFollowingFrame(
@@ -81,11 +99,21 @@ final class FireAndForgetResponderSubscriber
 
   @Override
   public void onError(Throwable t) {
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onTerminate(this.streamId, t);
+    }
+
     logger.debug("Dropped Outbound error", t);
   }
 
   @Override
-  public void onComplete() {}
+  public void onComplete() {
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onTerminate(this.streamId, null);
+    }
+  }
 
   @Override
   public void handleNext(ByteBuf followingFrame, boolean hasFollows, boolean isLastPayload) {
@@ -95,10 +123,16 @@ final class FireAndForgetResponderSubscriber
       ReassemblyUtils.addFollowingFrame(
           frames, followingFrame, hasFollows, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
-      this.requesterResponderSupport.remove(this.streamId, this);
+      final int streamId = this.streamId;
+      this.requesterResponderSupport.remove(streamId, this);
 
       this.frames = null;
       frames.release();
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onTerminate(streamId, t);
+      }
 
       logger.debug("Reassembly has failed", t);
       return;
@@ -114,6 +148,12 @@ final class FireAndForgetResponderSubscriber
         frames.release();
       } catch (Throwable t) {
         ReferenceCountUtil.safeRelease(frames);
+
+        final RequestInterceptor requestInterceptor = this.requestInterceptor;
+        if (requestInterceptor != null) {
+          requestInterceptor.onTerminate(this.streamId, t);
+        }
+
         logger.debug("Reassembly has failed", t);
         return;
       }
@@ -127,9 +167,16 @@ final class FireAndForgetResponderSubscriber
   public final void handleCancel() {
     final CompositeByteBuf frames = this.frames;
     if (frames != null) {
-      this.requesterResponderSupport.remove(this.streamId, this);
+      final int streamId = this.streamId;
+      this.requesterResponderSupport.remove(streamId, this);
+
       this.frames = null;
       frames.release();
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onCancel(streamId);
+      }
     }
   }
 }

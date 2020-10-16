@@ -30,6 +30,7 @@ import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.plugins.TestRequestInterceptor;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -39,11 +40,10 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
@@ -169,8 +169,9 @@ public class RequesterOperatorsRacingTest {
   @MethodSource("scenarios")
   public void shouldSubscribeExactlyOnce(Scenario scenario) {
     for (int i = 0; i < 10000; i++) {
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport requesterResponderSupport =
-          TestRequesterResponderSupport.client();
+          TestRequesterResponderSupport.client(testRequestInterceptor);
       final Supplier<Payload> payloadSupplier =
           () ->
               TestRequesterResponderSupport.genericPayload(
@@ -214,6 +215,9 @@ public class RequesterOperatorsRacingTest {
 
                     if (requestOperator instanceof FrameHandler) {
                       ((FrameHandler) requestOperator).handleComplete();
+                      if (scenario.requestType() == REQUEST_CHANNEL) {
+                        ((FrameHandler) requestOperator).handleCancel();
+                      }
                     }
                   })
               .thenCancel()
@@ -240,6 +244,29 @@ public class RequesterOperatorsRacingTest {
 
       stepVerifier.verify(Duration.ofSeconds(1));
       requesterResponderSupport.getAllocator().assertHasNoLeaks();
+      if (scenario.requestType() != METADATA_PUSH) {
+        testRequestInterceptor
+            .assertNext(
+                event ->
+                    Assertions.assertThat(event.eventType)
+                        .isIn(
+                            TestRequestInterceptor.EventType.ON_START,
+                            TestRequestInterceptor.EventType.ON_REJECT))
+            .assertNext(
+                event ->
+                    Assertions.assertThat(event.eventType)
+                        .isIn(
+                            TestRequestInterceptor.EventType.ON_START,
+                            TestRequestInterceptor.EventType.ON_COMPLETE,
+                            TestRequestInterceptor.EventType.ON_REJECT))
+            .assertNext(
+                event ->
+                    Assertions.assertThat(event.eventType)
+                        .isIn(
+                            TestRequestInterceptor.EventType.ON_COMPLETE,
+                            TestRequestInterceptor.EventType.ON_REJECT))
+            .expectNothing();
+      }
     }
   }
 
@@ -251,7 +278,9 @@ public class RequesterOperatorsRacingTest {
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
     for (int i = 0; i < 10000; i++) {
-      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+      final TestRequesterResponderSupport activeStreams =
+          TestRequesterResponderSupport.client(testRequestInterceptor);
       final Supplier<Payload> payloadSupplier =
           () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
 
@@ -316,6 +345,12 @@ public class RequesterOperatorsRacingTest {
       activeStreams.assertNoActiveStreams();
       Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
+      if (scenario.requestType() != METADATA_PUSH) {
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnComplete(1)
+            .expectNothing();
+      }
     }
   }
 
@@ -330,7 +365,9 @@ public class RequesterOperatorsRacingTest {
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
     for (int i = 0; i < 10000; i++) {
-      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+      final TestRequesterResponderSupport activeStreams =
+          TestRequesterResponderSupport.client(testRequestInterceptor);
       final Supplier<Payload> payloadSupplier =
           () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
 
@@ -404,6 +441,16 @@ public class RequesterOperatorsRacingTest {
             .hasClientSideStreamId()
             .hasStreamId(1)
             .hasNoLeaks();
+
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnCancel(1)
+            .expectNothing();
+      } else {
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnComplete(1)
+            .expectNothing();
       }
 
       Assertions.assertThat(responsePayload.release()).isTrue();
@@ -419,22 +466,24 @@ public class RequesterOperatorsRacingTest {
    * Ensures that in case of racing between next element and cancel we will not have any memory
    * leaks
    */
-  @Test
-  public void shouldHaveNoLeaksOnNextAndCancelRacing() {
-    for (int i = 0; i < 10000; i++) {
-      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
-      final Payload payload =
-          TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
+  @ParameterizedTest(name = "Should have no leaks when {0} is canceled during reassembly")
+  @MethodSource("scenarios")
+  public void shouldHaveNoLeaksOnNextAndCancelRacing(Scenario scenario) {
+    Assumptions.assumeThat(scenario.requestType())
+        .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
-      final RequestResponseRequesterMono requestResponseRequesterMono =
-          new RequestResponseRequesterMono(payload, activeStreams);
+    for (int i = 0; i < 10000; i++) {
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+      final TestRequesterResponderSupport activeStreams =
+          TestRequesterResponderSupport.client(testRequestInterceptor);
+      final Supplier<Payload> payloadSupplier =
+          () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
+
+      final Publisher<?> requestOperator = scenario.requestOperator(payloadSupplier, activeStreams);
 
       Payload response = ByteBufPayload.create("test", "test");
-
-      StepVerifier.create(requestResponseRequesterMono.doOnNext(Payload::release))
-          .expectSubscription()
-          .expectComplete()
-          .verifyLater();
+      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
+      requestOperator.subscribe((AssertSubscriber) assertSubscriber);
 
       final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(sentFrame)
@@ -446,16 +495,16 @@ public class RequesterOperatorsRacingTest {
           .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
           .hasData(TestRequesterResponderSupport.DATA_CONTENT)
           .hasNoFragmentsFollow()
-          .typeOf(FrameType.REQUEST_RESPONSE)
+          .typeOf(scenario.requestType())
           .hasClientSideStreamId()
           .hasStreamId(1)
           .hasNoLeaks();
 
       RaceTestUtils.race(
-          requestResponseRequesterMono::cancel,
-          () -> requestResponseRequesterMono.handlePayload(response));
+          ((Subscription) requestOperator)::cancel,
+          () -> ((RequesterFrameHandler) requestOperator).handlePayload(response));
 
-      Assertions.assertThat(payload.refCnt()).isZero();
+      assertSubscriber.values().forEach(Payload::release);
       Assertions.assertThat(response.refCnt()).isZero();
 
       activeStreams.assertNoActiveStreams();
@@ -468,10 +517,19 @@ public class RequesterOperatorsRacingTest {
             .hasClientSideStreamId()
             .hasStreamId(1)
             .hasNoLeaks();
+
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnCancel(1)
+            .expectNothing();
+      } else {
+        assertSubscriber.assertTerminated();
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnComplete(1)
+            .expectNothing();
       }
       Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
-
-      StateAssert.assertThat(requestResponseRequesterMono).isTerminated();
       activeStreams.getAllocator().assertHasNoLeaks();
     }
   }
@@ -482,84 +540,106 @@ public class RequesterOperatorsRacingTest {
    * cancel we will not have any memory leaks
    */
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  public void shouldHaveNoUnexpectedErrorDuringOnErrorAndCancelRacing(boolean withReassembly) {
+  @MethodSource("scenarios")
+  public void shouldHaveNoUnexpectedErrorDuringOnErrorAndCancelRacing(Scenario scenario) {
+    Assumptions.assumeThat(scenario.requestType())
+        .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
+    boolean[] withReassemblyOptions = new boolean[] {true, false};
     final ArrayList<Throwable> droppedErrors = new ArrayList<>();
     Hooks.onErrorDropped(droppedErrors::add);
+
     try {
-      for (int i = 0; i < 10000; i++) {
-        final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
-        final Payload payload =
-            TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
+      for (boolean withReassembly : withReassemblyOptions) {
+        for (int i = 0; i < 10000; i++) {
+          final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+          final TestRequesterResponderSupport activeStreams =
+              TestRequesterResponderSupport.client(testRequestInterceptor);
+          final Supplier<Payload> payloadSupplier =
+              () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
 
-        final RequestResponseRequesterMono requestResponseRequesterMono =
-            new RequestResponseRequesterMono(payload, activeStreams);
+          final Publisher<?> requestOperator =
+              scenario.requestOperator(payloadSupplier, activeStreams);
 
-        final StateAssert<RequestResponseRequesterMono> stateAssert =
-            StateAssert.assertThat(requestResponseRequesterMono);
+          final StateAssert<?> stateAssert;
+          if (requestOperator instanceof RequestResponseRequesterMono) {
+            stateAssert = StateAssert.assertThat((RequestResponseRequesterMono) requestOperator);
+          } else if (requestOperator instanceof RequestStreamRequesterFlux) {
+            stateAssert = StateAssert.assertThat((RequestStreamRequesterFlux) requestOperator);
+          } else {
+            stateAssert = StateAssert.assertThat((RequestChannelRequesterFlux) requestOperator);
+          }
 
-        stateAssert.isUnsubscribed();
-        final AssertSubscriber<Payload> assertSubscriber =
-            requestResponseRequesterMono.subscribeWith(AssertSubscriber.create(0));
+          stateAssert.isUnsubscribed();
+          final AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(0);
 
-        stateAssert.hasSubscribedFlagOnly();
+          requestOperator.subscribe((AssertSubscriber) assertSubscriber);
 
-        assertSubscriber.request(1);
+          stateAssert.hasSubscribedFlagOnly();
 
-        stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+          assertSubscriber.request(1);
 
-        final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
-        FrameAssert.assertThat(sentFrame)
-            .isNotNull()
-            .hasPayloadSize(
-                TestRequesterResponderSupport.DATA_CONTENT.getBytes(CharsetUtil.UTF_8).length
-                    + TestRequesterResponderSupport.METADATA_CONTENT.getBytes(CharsetUtil.UTF_8)
-                        .length)
-            .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
-            .hasData(TestRequesterResponderSupport.DATA_CONTENT)
-            .hasNoFragmentsFollow()
-            .typeOf(FrameType.REQUEST_RESPONSE)
-            .hasClientSideStreamId()
-            .hasStreamId(1)
-            .hasNoLeaks();
+          stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
 
-        if (withReassembly) {
-          final ByteBuf fragmentBuf =
-              activeStreams.getAllocator().buffer().writeBytes(new byte[] {1, 2, 3});
-          requestResponseRequesterMono.handleNext(fragmentBuf, true, false);
-          // mimic frameHandler behaviour
-          fragmentBuf.release();
-        }
-
-        final RuntimeException testException = new RuntimeException("test");
-        RaceTestUtils.race(
-            requestResponseRequesterMono::cancel,
-            () -> requestResponseRequesterMono.handleError(testException));
-
-        Assertions.assertThat(payload.refCnt()).isZero();
-
-        activeStreams.assertNoActiveStreams();
-        stateAssert.isTerminated();
-
-        final boolean isEmpty = activeStreams.getDuplexConnection().isEmpty();
-        if (!isEmpty) {
-          final ByteBuf cancellationFrame = activeStreams.getDuplexConnection().awaitFrame();
-          FrameAssert.assertThat(cancellationFrame)
+          final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
+          FrameAssert.assertThat(sentFrame)
               .isNotNull()
-              .typeOf(FrameType.CANCEL)
+              .hasPayloadSize(
+                  TestRequesterResponderSupport.DATA_CONTENT.getBytes(CharsetUtil.UTF_8).length
+                      + TestRequesterResponderSupport.METADATA_CONTENT.getBytes(CharsetUtil.UTF_8)
+                          .length)
+              .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
+              .hasData(TestRequesterResponderSupport.DATA_CONTENT)
+              .hasNoFragmentsFollow()
+              .typeOf(scenario.requestType())
               .hasClientSideStreamId()
               .hasStreamId(1)
               .hasNoLeaks();
 
-          Assertions.assertThat(droppedErrors).containsExactly(testException);
-        } else {
-          assertSubscriber.assertTerminated().assertErrorMessage("test");
-        }
-        Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
+          if (withReassembly) {
+            final ByteBuf fragmentBuf =
+                activeStreams.getAllocator().buffer().writeBytes(new byte[] {1, 2, 3});
+            ((RequesterFrameHandler) requestOperator).handleNext(fragmentBuf, true, false);
+            // mimic frameHandler behaviour
+            fragmentBuf.release();
+          }
 
-        stateAssert.isTerminated();
-        droppedErrors.clear();
-        activeStreams.getAllocator().assertHasNoLeaks();
+          final RuntimeException testException = new RuntimeException("test");
+          RaceTestUtils.race(
+              ((Subscription) requestOperator)::cancel,
+              () -> ((RequesterFrameHandler) requestOperator).handleError(testException));
+
+          activeStreams.assertNoActiveStreams();
+          stateAssert.isTerminated();
+
+          final boolean isEmpty = activeStreams.getDuplexConnection().isEmpty();
+          if (!isEmpty) {
+            final ByteBuf cancellationFrame = activeStreams.getDuplexConnection().awaitFrame();
+            FrameAssert.assertThat(cancellationFrame)
+                .isNotNull()
+                .typeOf(FrameType.CANCEL)
+                .hasClientSideStreamId()
+                .hasStreamId(1)
+                .hasNoLeaks();
+
+            Assertions.assertThat(droppedErrors).containsExactly(testException);
+            testRequestInterceptor
+                .expectOnStart(1, scenario.requestType())
+                .expectOnCancel(1)
+                .expectNothing();
+          } else {
+            testRequestInterceptor
+                .expectOnStart(1, scenario.requestType())
+                .expectOnError(1)
+                .expectNothing();
+
+            assertSubscriber.assertTerminated().assertErrorMessage("test");
+          }
+          Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
+
+          stateAssert.isTerminated();
+          droppedErrors.clear();
+          activeStreams.getAllocator().assertHasNoLeaks();
+        }
       }
     } finally {
       Hooks.resetOnErrorDropped();
@@ -583,20 +663,25 @@ public class RequesterOperatorsRacingTest {
    *
    * <p>Ensures full serialization of outgoing signal (frames)
    */
-  @Test
-  public void shouldBeConsistentInCaseOfRacingOfCancellationAndRequest() {
+  @ParameterizedTest
+  @MethodSource("scenarios")
+  public void shouldBeConsistentInCaseOfRacingOfCancellationAndRequest(Scenario scenario) {
+    Assumptions.assumeThat(scenario.requestType())
+        .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
     for (int i = 0; i < 10000; i++) {
-      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
-      final Payload payload =
-          TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+      final TestRequesterResponderSupport activeStreams =
+          TestRequesterResponderSupport.client(testRequestInterceptor);
+      final Supplier<Payload> payloadSupplier =
+          () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
 
-      final RequestResponseRequesterMono requestResponseRequesterMono =
-          new RequestResponseRequesterMono(payload, activeStreams);
+      final Publisher<?> requestOperator = scenario.requestOperator(payloadSupplier, activeStreams);
 
       Payload response = ByteBufPayload.create("test", "test");
 
-      final AssertSubscriber<Payload> assertSubscriber =
-          requestResponseRequesterMono.subscribeWith(new AssertSubscriber<>(0));
+      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(0);
+
+      requestOperator.subscribe((AssertSubscriber) assertSubscriber);
 
       RaceTestUtils.race(() -> assertSubscriber.cancel(), () -> assertSubscriber.request(1));
 
@@ -604,11 +689,7 @@ public class RequesterOperatorsRacingTest {
         final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
         FrameAssert.assertThat(sentFrame)
             .isNotNull()
-            .typeOf(FrameType.REQUEST_RESPONSE)
-            .hasPayloadSize(
-                TestRequesterResponderSupport.DATA_CONTENT.getBytes(CharsetUtil.UTF_8).length
-                    + TestRequesterResponderSupport.METADATA_CONTENT.getBytes(CharsetUtil.UTF_8)
-                        .length)
+            .typeOf(scenario.requestType())
             .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
             .hasData(TestRequesterResponderSupport.DATA_CONTENT)
             .hasNoFragmentsFollow()
@@ -623,15 +704,17 @@ public class RequesterOperatorsRacingTest {
             .hasClientSideStreamId()
             .hasStreamId(1)
             .hasNoLeaks();
+
+        testRequestInterceptor
+            .expectOnStart(1, scenario.requestType())
+            .expectOnCancel(1)
+            .expectNothing();
       }
 
-      Assertions.assertThat(payload.refCnt()).isZero();
+      ((RequesterFrameHandler) requestOperator).handlePayload(response);
+      assertSubscriber.values().forEach(Payload::release);
 
-      StateAssert.assertThat(requestResponseRequesterMono).isTerminated();
-
-      requestResponseRequesterMono.handlePayload(response);
       Assertions.assertThat(response.refCnt()).isZero();
-
       activeStreams.assertNoActiveStreams();
       Assertions.assertThat(activeStreams.getDuplexConnection().isEmpty()).isTrue();
       activeStreams.getAllocator().assertHasNoLeaks();
@@ -639,20 +722,26 @@ public class RequesterOperatorsRacingTest {
   }
 
   /** Ensures that CancelFrame is sent exactly once in case of racing between cancel() methods */
-  @Test
-  public void shouldSentCancelFrameExactlyOnce() {
+  @ParameterizedTest
+  @MethodSource("scenarios")
+  public void shouldSentCancelFrameExactlyOnce(Scenario scenario) {
+    Assumptions.assumeThat(scenario.requestType())
+        .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
     for (int i = 0; i < 10000; i++) {
-      final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
-      final Payload payload =
-          TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
+      final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+      final TestRequesterResponderSupport activeStreams =
+          TestRequesterResponderSupport.client(testRequestInterceptor);
+      final Supplier<Payload> payloadSupplier =
+          () -> TestRequesterResponderSupport.genericPayload(activeStreams.getAllocator());
 
-      final RequestResponseRequesterMono requestResponseRequesterMono =
-          new RequestResponseRequesterMono(payload, activeStreams);
+      final Publisher<?> requesterOperator =
+          scenario.requestOperator(payloadSupplier, activeStreams);
 
       Payload response = ByteBufPayload.create("test", "test");
 
-      final AssertSubscriber<Payload> assertSubscriber =
-          requestResponseRequesterMono.subscribeWith(new AssertSubscriber<>(0));
+      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(0);
+
+      requesterOperator.subscribe((AssertSubscriber) assertSubscriber);
 
       assertSubscriber.request(1);
 
@@ -660,19 +749,15 @@ public class RequesterOperatorsRacingTest {
       FrameAssert.assertThat(sentFrame)
           .isNotNull()
           .hasNoFragmentsFollow()
-          .typeOf(FrameType.REQUEST_RESPONSE)
+          .typeOf(scenario.requestType())
           .hasClientSideStreamId()
-          .hasPayloadSize(
-              TestRequesterResponderSupport.DATA_CONTENT.getBytes(CharsetUtil.UTF_8).length
-                  + TestRequesterResponderSupport.METADATA_CONTENT.getBytes(CharsetUtil.UTF_8)
-                      .length)
           .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
           .hasData(TestRequesterResponderSupport.DATA_CONTENT)
           .hasStreamId(1)
           .hasNoLeaks();
 
       RaceTestUtils.race(
-          requestResponseRequesterMono::cancel, requestResponseRequesterMono::cancel);
+          ((Subscription) requesterOperator)::cancel, ((Subscription) requesterOperator)::cancel);
 
       final ByteBuf cancelFrame = activeStreams.getDuplexConnection().awaitFrame();
       FrameAssert.assertThat(cancelFrame)
@@ -682,15 +767,18 @@ public class RequesterOperatorsRacingTest {
           .hasStreamId(1)
           .hasNoLeaks();
 
-      Assertions.assertThat(payload.refCnt()).isZero();
+      testRequestInterceptor
+          .expectOnStart(1, scenario.requestType())
+          .expectOnCancel(1)
+          .expectNothing();
+
       activeStreams.assertNoActiveStreams();
 
-      StateAssert.assertThat(requestResponseRequesterMono).isTerminated();
-
-      requestResponseRequesterMono.handlePayload(response);
+      ((RequesterFrameHandler) requesterOperator).handlePayload(response);
+      assertSubscriber.values().forEach(Payload::release);
       Assertions.assertThat(response.refCnt()).isZero();
 
-      requestResponseRequesterMono.handleComplete();
+      ((RequesterFrameHandler) requesterOperator).handleComplete();
       assertSubscriber.assertNotTerminated();
 
       activeStreams.assertNoActiveStreams();

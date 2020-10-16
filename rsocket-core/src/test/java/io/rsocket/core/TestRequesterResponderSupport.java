@@ -23,9 +23,11 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
 import java.util.ArrayList;
@@ -34,7 +36,7 @@ import org.assertj.core.api.Assertions;
 import reactor.core.Exceptions;
 import reactor.util.annotation.Nullable;
 
-final class TestRequesterResponderSupport extends RequesterResponderSupport {
+final class TestRequesterResponderSupport extends RequesterResponderSupport implements RSocket {
 
   static final String DATA_CONTENT = "testData";
   static final String METADATA_CONTENT = "testMetadata";
@@ -47,14 +49,16 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
       DuplexConnection connection,
       int mtu,
       int maxFrameLength,
-      int maxInboundPayloadSize) {
+      int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor) {
     super(
         mtu,
         maxFrameLength,
         maxInboundPayloadSize,
         PayloadDecoder.ZERO_COPY,
         connection,
-        streamIdSupplier);
+        streamIdSupplier,
+        (__) -> requestInterceptor);
     this.error = error;
   }
 
@@ -170,6 +174,18 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
     return nextStreamId;
   }
 
+  public static TestRequesterResponderSupport client(
+      @Nullable Throwable e, @Nullable RequestInterceptor requestInterceptor) {
+    return client(
+        new TestDuplexConnection(
+            LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT)),
+        0,
+        FRAME_LENGTH_MASK,
+        Integer.MAX_VALUE,
+        requestInterceptor,
+        e);
+  }
+
   public static TestRequesterResponderSupport client(@Nullable Throwable e) {
     return client(0, FRAME_LENGTH_MASK, Integer.MAX_VALUE, e);
   }
@@ -182,6 +198,7 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         mtu,
         maxFrameLength,
         maxInboundPayloadSize,
+        null,
         e);
   }
 
@@ -189,7 +206,26 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
       TestDuplexConnection duplexConnection,
       int mtu,
       int maxFrameLength,
+      int maxInboundPayloadSize) {
+    return client(duplexConnection, mtu, maxFrameLength, maxInboundPayloadSize, null);
+  }
+
+  public static TestRequesterResponderSupport client(
+      TestDuplexConnection duplexConnection,
+      int mtu,
+      int maxFrameLength,
       int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor) {
+    return client(
+        duplexConnection, mtu, maxFrameLength, maxInboundPayloadSize, requestInterceptor, null);
+  }
+
+  public static TestRequesterResponderSupport client(
+      TestDuplexConnection duplexConnection,
+      int mtu,
+      int maxFrameLength,
+      int maxInboundPayloadSize,
+      @Nullable RequestInterceptor requestInterceptor,
       @Nullable Throwable e) {
     return new TestRequesterResponderSupport(
         e,
@@ -197,7 +233,8 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
         duplexConnection,
         mtu,
         maxFrameLength,
-        maxInboundPayloadSize);
+        maxInboundPayloadSize,
+        requestInterceptor);
   }
 
   public static TestRequesterResponderSupport client(
@@ -215,6 +252,16 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
 
   public static TestRequesterResponderSupport client() {
     return client(0);
+  }
+
+  public static TestRequesterResponderSupport client(RequestInterceptor requestInterceptor) {
+    return client(
+        new TestDuplexConnection(
+            LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT)),
+        0,
+        FRAME_LENGTH_MASK,
+        Integer.MAX_VALUE,
+        requestInterceptor);
   }
 
   public TestRequesterResponderSupport assertNoActiveStreams() {

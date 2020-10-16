@@ -25,13 +25,17 @@ import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestFireAndForgetFrameCodec;
 import io.rsocket.frame.RequestNFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.lease.ResponderLeaseHandler;
+import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -64,8 +68,16 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
       ResponderLeaseHandler leaseHandler,
       int mtu,
       int maxFrameLength,
-      int maxInboundPayloadSize) {
-    super(mtu, maxFrameLength, maxInboundPayloadSize, payloadDecoder, connection, null);
+      int maxInboundPayloadSize,
+      Function<RSocket, ? extends RequestInterceptor> requestInterceptorFunction) {
+    super(
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize,
+        payloadDecoder,
+        connection,
+        null,
+        requestInterceptorFunction);
 
     this.requestHandler = requestHandler;
 
@@ -93,7 +105,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     if (terminationError == null) {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        cleanup();
+        doOnDispose();
       }
     }
   }
@@ -101,12 +113,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.fireAndForget(payload);
-      } else {
-        payload.release();
-        return Mono.error(leaseHandler.leaseError());
-      }
+      return requestHandler.fireAndForget(payload);
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -115,12 +122,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestResponse(payload);
-      } else {
-        payload.release();
-        return Mono.error(leaseHandler.leaseError());
-      }
+      return requestHandler.requestResponse(payload);
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -129,12 +131,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestStream(payload);
-      } else {
-        payload.release();
-        return Flux.error(leaseHandler.leaseError());
-      }
+      return requestHandler.requestStream(payload);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -143,24 +140,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestChannel(payloads);
-      } else {
-        return Flux.error(leaseHandler.leaseError());
-      }
-    } catch (Throwable t) {
-      return Flux.error(t);
-    }
-  }
-
-  private Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
-    try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestChannel(payloads);
-      } else {
-        payload.release();
-        return Flux.error(leaseHandler.leaseError());
-      }
+      return requestHandler.requestChannel(payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -190,10 +170,14 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     return getDuplexConnection().onClose();
   }
 
-  private void cleanup() {
+  final void doOnDispose() {
     cleanUpSendingSubscriptions();
 
     getDuplexConnection().dispose();
+    final RequestInterceptor requestInterceptor = getRequestInterceptor();
+    if (requestInterceptor != null) {
+      requestInterceptor.dispose();
+    }
     leaseHandlerDisposable.dispose();
     requestHandler.dispose();
   }
@@ -203,7 +187,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     activeStreams.clear();
   }
 
-  private void handleFrame(ByteBuf frame) {
+  final void handleFrame(ByteBuf frame) {
     try {
       int streamId = FrameHeaderCodec.streamId(frame);
       FrameHandler receiver;
@@ -302,68 +286,147 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     }
   }
 
-  private void handleFireAndForget(int streamId, ByteBuf frame) {
-    if (FrameHeaderCodec.hasFollows(frame)) {
-      FireAndForgetResponderSubscriber subscriber =
-          new FireAndForgetResponderSubscriber(streamId, frame, this, this);
+  final void handleFireAndForget(int streamId, ByteBuf frame) {
+    if (leaseHandler.useLease()) {
 
-      this.add(streamId, subscriber);
-    } else {
-      fireAndForget(super.getPayloadDecoder().apply(frame))
-          .subscribe(FireAndForgetResponderSubscriber.INSTANCE);
-    }
-  }
+      if (FrameHeaderCodec.hasFollows(frame)) {
+        final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+        if (requestInterceptor != null) {
+          requestInterceptor.onStart(
+              streamId, FrameType.REQUEST_FNF, RequestFireAndForgetFrameCodec.metadata(frame));
+        }
 
-  private void handleRequestResponse(int streamId, ByteBuf frame) {
-    if (FrameHeaderCodec.hasFollows(frame)) {
-      RequestResponseResponderSubscriber subscriber =
-          new RequestResponseResponderSubscriber(streamId, frame, this, this);
+        FireAndForgetResponderSubscriber subscriber =
+            new FireAndForgetResponderSubscriber(streamId, frame, this, this);
 
-      this.add(streamId, subscriber);
-    } else {
-      RequestResponseResponderSubscriber subscriber =
-          new RequestResponseResponderSubscriber(streamId, this);
+        this.add(streamId, subscriber);
+      } else {
+        final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+        if (requestInterceptor != null) {
+          requestInterceptor.onStart(
+              streamId, FrameType.REQUEST_FNF, RequestFireAndForgetFrameCodec.metadata(frame));
 
-      if (this.add(streamId, subscriber)) {
-        this.requestResponse(super.getPayloadDecoder().apply(frame)).subscribe(subscriber);
-      }
-    }
-  }
-
-  private void handleStream(int streamId, ByteBuf frame, long initialRequestN) {
-    if (FrameHeaderCodec.hasFollows(frame)) {
-      RequestStreamResponderSubscriber subscriber =
-          new RequestStreamResponderSubscriber(streamId, initialRequestN, frame, this, this);
-
-      this.add(streamId, subscriber);
-    } else {
-      RequestStreamResponderSubscriber subscriber =
-          new RequestStreamResponderSubscriber(streamId, initialRequestN, this);
-
-      if (this.add(streamId, subscriber)) {
-        this.requestStream(super.getPayloadDecoder().apply(frame)).subscribe(subscriber);
-      }
-    }
-  }
-
-  private void handleChannel(int streamId, ByteBuf frame, long initialRequestN, boolean complete) {
-    if (FrameHeaderCodec.hasFollows(frame)) {
-      RequestChannelResponderSubscriber subscriber =
-          new RequestChannelResponderSubscriber(streamId, initialRequestN, frame, this, this);
-
-      this.add(streamId, subscriber);
-    } else {
-      final Payload firstPayload = super.getPayloadDecoder().apply(frame);
-      RequestChannelResponderSubscriber subscriber =
-          new RequestChannelResponderSubscriber(streamId, initialRequestN, firstPayload, this);
-
-      if (this.add(streamId, subscriber)) {
-        this.requestChannel(firstPayload, subscriber).subscribe(subscriber);
-        if (complete) {
-          subscriber.handleComplete();
+          fireAndForget(super.getPayloadDecoder().apply(frame))
+              .subscribe(new FireAndForgetResponderSubscriber(streamId, this));
+        } else {
+          fireAndForget(super.getPayloadDecoder().apply(frame))
+              .subscribe(FireAndForgetResponderSubscriber.INSTANCE);
         }
       }
+    } else {
+      final RequestInterceptor requestTracker = this.getRequestInterceptor();
+      if (requestTracker != null) {
+        requestTracker.onReject(
+            leaseHandler.leaseError(),
+            FrameType.REQUEST_FNF,
+            RequestFireAndForgetFrameCodec.metadata(frame));
+      }
     }
+  }
+
+  final void handleRequestResponse(int streamId, ByteBuf frame) {
+    if (leaseHandler.useLease()) {
+      final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+      if (requestInterceptor != null) {
+        requestInterceptor.onStart(
+            streamId, FrameType.REQUEST_RESPONSE, RequestResponseFrameCodec.metadata(frame));
+      }
+
+      if (FrameHeaderCodec.hasFollows(frame)) {
+        RequestResponseResponderSubscriber subscriber =
+            new RequestResponseResponderSubscriber(streamId, frame, this, this);
+
+        this.add(streamId, subscriber);
+      } else {
+        RequestResponseResponderSubscriber subscriber =
+            new RequestResponseResponderSubscriber(streamId, this);
+
+        if (this.add(streamId, subscriber)) {
+          this.requestResponse(super.getPayloadDecoder().apply(frame)).subscribe(subscriber);
+        }
+      }
+    } else {
+      final Exception leaseError = leaseHandler.leaseError();
+      final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(
+            leaseError, FrameType.REQUEST_RESPONSE, RequestResponseFrameCodec.metadata(frame));
+      }
+      sendLeaseRejection(streamId, leaseError);
+    }
+  }
+
+  final void handleStream(int streamId, ByteBuf frame, long initialRequestN) {
+    if (leaseHandler.useLease()) {
+      final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+      if (requestInterceptor != null) {
+        requestInterceptor.onStart(
+            streamId, FrameType.REQUEST_STREAM, RequestStreamFrameCodec.metadata(frame));
+      }
+
+      if (FrameHeaderCodec.hasFollows(frame)) {
+        RequestStreamResponderSubscriber subscriber =
+            new RequestStreamResponderSubscriber(streamId, initialRequestN, frame, this, this);
+
+        this.add(streamId, subscriber);
+      } else {
+        RequestStreamResponderSubscriber subscriber =
+            new RequestStreamResponderSubscriber(streamId, initialRequestN, this);
+
+        if (this.add(streamId, subscriber)) {
+          this.requestStream(super.getPayloadDecoder().apply(frame)).subscribe(subscriber);
+        }
+      }
+    } else {
+      final Exception leaseError = leaseHandler.leaseError();
+      final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(
+            leaseError, FrameType.REQUEST_STREAM, RequestStreamFrameCodec.metadata(frame));
+      }
+      sendLeaseRejection(streamId, leaseError);
+    }
+  }
+
+  final void handleChannel(int streamId, ByteBuf frame, long initialRequestN, boolean complete) {
+    if (leaseHandler.useLease()) {
+      final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
+      if (requestInterceptor != null) {
+        requestInterceptor.onStart(
+            streamId, FrameType.REQUEST_CHANNEL, RequestChannelFrameCodec.metadata(frame));
+      }
+
+      if (FrameHeaderCodec.hasFollows(frame)) {
+        RequestChannelResponderSubscriber subscriber =
+            new RequestChannelResponderSubscriber(streamId, initialRequestN, frame, this, this);
+
+        this.add(streamId, subscriber);
+      } else {
+        final Payload firstPayload = super.getPayloadDecoder().apply(frame);
+        RequestChannelResponderSubscriber subscriber =
+            new RequestChannelResponderSubscriber(streamId, initialRequestN, firstPayload, this);
+
+        if (this.add(streamId, subscriber)) {
+          this.requestChannel(subscriber).subscribe(subscriber);
+          if (complete) {
+            subscriber.handleComplete();
+          }
+        }
+      }
+    } else {
+      final Exception leaseError = leaseHandler.leaseError();
+      final RequestInterceptor requestTracker = this.getRequestInterceptor();
+      if (requestTracker != null) {
+        requestTracker.onReject(
+            leaseError, FrameType.REQUEST_CHANNEL, RequestChannelFrameCodec.metadata(frame));
+      }
+      sendLeaseRejection(streamId, leaseError);
+    }
+  }
+
+  private void sendLeaseRejection(int streamId, Throwable leaseError) {
+    getDuplexConnection()
+        .sendFrame(streamId, ErrorFrameCodec.encode(getAllocator(), streamId, leaseError));
   }
 
   private void handleMetadataPush(Mono<Void> result) {

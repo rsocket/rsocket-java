@@ -63,6 +63,8 @@ import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.ResponderLeaseHandler;
+import io.rsocket.plugins.RequestInterceptor;
+import io.rsocket.plugins.TestRequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.ByteBufPayload;
@@ -269,15 +271,18 @@ public class RSocketResponderTest {
   @Test
   public void checkNoLeaksOnRacingCancelFromRequestChannelAndNextFromUpstream() {
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
+      final MonoProcessor<Payload> monoProcessor = MonoProcessor.create();
 
       rule.setAcceptingSocket(
           new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               payloads.subscribe(assertSubscriber);
-              return Flux.never();
+              return monoProcessor.flux();
             }
           },
           Integer.MAX_VALUE);
@@ -303,19 +308,23 @@ public class RSocketResponderTest {
       ByteBuf data3 = allocator.buffer();
       data3.writeCharSequence("def3", CharsetUtil.UTF_8);
       ByteBuf nextFrame3 =
-          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata3, data3);
+          PayloadFrameCodec.encode(allocator, 1, false, true, true, metadata3, data3);
 
       RaceTestUtils.race(
           () -> {
             rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3);
           },
-          assertSubscriber::cancel);
+          () -> {
+            assertSubscriber.cancel();
+            monoProcessor.onComplete();
+          });
 
       Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
+      testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnComplete(1).expectNothing();
     }
   }
 
@@ -323,6 +332,8 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
@@ -350,11 +361,13 @@ public class RSocketResponderTest {
             sink.next(ByteBufPayload.create("d1", "m1"));
             sink.next(ByteBufPayload.create("d2", "m2"));
             sink.next(ByteBufPayload.create("d3", "m3"));
+            sink.complete();
           });
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
+      testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnCancel(1).expectNothing();
     }
   }
 
@@ -363,6 +376,8 @@ public class RSocketResponderTest {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
@@ -395,11 +410,12 @@ public class RSocketResponderTest {
             sink.next(ByteBufPayload.create("d1", "m1"));
             sink.next(ByteBufPayload.create("d2", "m2"));
             sink.next(ByteBufPayload.create("d3", "m3"));
+            sink.complete();
           },
           parallel);
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
-
+      testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnCancel(1).expectNothing();
       rule.assertHasNoLeaks();
     }
   }
@@ -410,6 +426,8 @@ public class RSocketResponderTest {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
@@ -499,6 +517,7 @@ public class RSocketResponderTest {
                 return msg.refCnt() == 0;
               });
       rule.assertHasNoLeaks();
+      testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnError(1).expectNothing();
     }
   }
 
@@ -507,6 +526,8 @@ public class RSocketResponderTest {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
@@ -536,6 +557,8 @@ public class RSocketResponderTest {
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
+
+      testRequestInterceptor.expectOnStart(1, REQUEST_STREAM).expectOnCancel(1).expectNothing();
     }
   }
 
@@ -544,6 +567,8 @@ public class RSocketResponderTest {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
+    final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
+    rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       Operators.MonoSubscriber<Payload, Payload>[] sources = new Operators.MonoSubscriber[1];
 
@@ -576,6 +601,16 @@ public class RSocketResponderTest {
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
+
+      testRequestInterceptor
+          .expectOnStart(1, REQUEST_RESPONSE)
+          .assertNext(
+              e ->
+                  Assertions.assertThat(e.eventType)
+                      .isIn(
+                          TestRequestInterceptor.EventType.ON_COMPLETE,
+                          TestRequestInterceptor.EventType.ON_CANCEL))
+          .expectNothing();
     }
   }
 
@@ -795,7 +830,8 @@ public class RSocketResponderTest {
                 + ERROR
                 + "} but was {"
                 + frameType(rule.connection.getSent().iterator().next())
-                + "}");
+                + "}")
+        .matches(ByteBuf::release);
   }
 
   private static Stream<FrameType> refCntCases() {
@@ -1178,6 +1214,7 @@ public class RSocketResponderTest {
 
     private RSocket acceptingSocket;
     private volatile int prefetch;
+    private RequestInterceptor requestInterceptor;
 
     @Override
     protected void init() {
@@ -1199,6 +1236,11 @@ public class RSocketResponderTest {
       super.init();
     }
 
+    public void setRequestInterceptor(RequestInterceptor requestInterceptor) {
+      this.requestInterceptor = requestInterceptor;
+      super.init();
+    }
+
     public void setAcceptingSocket(RSocket acceptingSocket, int prefetch) {
       this.acceptingSocket = acceptingSocket;
       connection = new TestDuplexConnection(alloc());
@@ -1216,7 +1258,8 @@ public class RSocketResponderTest {
           ResponderLeaseHandler.None,
           0,
           maxFrameLength,
-          maxInboundPayloadSize);
+          maxInboundPayloadSize,
+          __ -> requestInterceptor);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

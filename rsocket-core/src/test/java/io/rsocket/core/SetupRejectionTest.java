@@ -61,6 +61,7 @@ public class SetupRejectionTest {
             0,
             0,
             null,
+            __ -> null,
             RequesterLeaseHandler.None);
 
     String errorMsg = "error";
@@ -98,6 +99,7 @@ public class SetupRejectionTest {
             0,
             0,
             null,
+            __ -> null,
             RequesterLeaseHandler.None);
 
     conn.addToReceivedBuffer(

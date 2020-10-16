@@ -18,12 +18,23 @@ package io.rsocket.plugins;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
+import reactor.util.annotation.Nullable;
 
 /**
  * Extends {@link InterceptorRegistry} with methods for building a chain of registered interceptors.
  * This is not intended for direct use by applications.
  */
 public class InitializingInterceptorRegistry extends InterceptorRegistry {
+
+  @Nullable
+  public RequestInterceptor initRequesterRequestInterceptor(RSocket rSocketRequester) {
+    return CompositeRequestInterceptor.create(rSocketRequester, getRequesterRequestInterceptors());
+  }
+
+  @Nullable
+  public RequestInterceptor initResponderRequestInterceptor(RSocket rSocketResponder) {
+    return CompositeRequestInterceptor.create(rSocketResponder, getResponderRequestInterceptors());
+  }
 
   public DuplexConnection initConnection(
       DuplexConnectionInterceptor.Type type, DuplexConnection connection) {
@@ -34,7 +45,7 @@ public class InitializingInterceptorRegistry extends InterceptorRegistry {
   }
 
   public RSocket initRequester(RSocket rsocket) {
-    for (RSocketInterceptor interceptor : getRequesterInteceptors()) {
+    for (RSocketInterceptor interceptor : getRequesterInterceptors()) {
       rsocket = interceptor.apply(rsocket);
     }
     return rsocket;

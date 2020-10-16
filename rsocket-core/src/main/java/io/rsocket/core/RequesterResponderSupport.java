@@ -4,7 +4,10 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
+import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.plugins.RequestInterceptor;
+import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
 class RequesterResponderSupport {
@@ -15,6 +18,7 @@ class RequesterResponderSupport {
   private final PayloadDecoder payloadDecoder;
   private final ByteBufAllocator allocator;
   private final DuplexConnection connection;
+  @Nullable private final RequestInterceptor requestInterceptor;
 
   @Nullable final StreamIdSupplier streamIdSupplier;
   final IntObjectMap<FrameHandler> activeStreams;
@@ -25,7 +29,8 @@ class RequesterResponderSupport {
       int maxInboundPayloadSize,
       PayloadDecoder payloadDecoder,
       DuplexConnection connection,
-      @Nullable StreamIdSupplier streamIdSupplier) {
+      @Nullable StreamIdSupplier streamIdSupplier,
+      Function<RSocket, ? extends RequestInterceptor> requestInterceptorFunction) {
 
     this.activeStreams = new IntObjectHashMap<>();
     this.mtu = mtu;
@@ -35,6 +40,7 @@ class RequesterResponderSupport {
     this.allocator = connection.alloc();
     this.streamIdSupplier = streamIdSupplier;
     this.connection = connection;
+    this.requestInterceptor = requestInterceptorFunction.apply((RSocket) this);
   }
 
   public int getMtu() {
@@ -59,6 +65,11 @@ class RequesterResponderSupport {
 
   public DuplexConnection getDuplexConnection() {
     return connection;
+  }
+
+  @Nullable
+  public RequestInterceptor getRequestInterceptor() {
+    return requestInterceptor;
   }
 
   /**

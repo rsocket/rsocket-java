@@ -29,6 +29,7 @@ dependencies {
 
     implementation 'org.slf4j:slf4j-api'
 
+    testImplementation (project(":rsocket-transport-local"))
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
