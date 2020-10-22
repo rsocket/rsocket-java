@@ -23,6 +23,7 @@ import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
+import java.time.Duration;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -42,7 +43,9 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
-        allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+        allocator =
+            LeaksTrackingByteBufAllocator.instrument(
+                ByteBufAllocator.DEFAULT, Duration.ofSeconds(5), "");
         connectSub = TestSubscriber.create();
         init();
         base.evaluate();
