@@ -40,12 +40,12 @@ class CompositeRequestInterceptor implements RequestInterceptor {
   }
 
   @Override
-  public void onTerminate(int streamId, @Nullable Throwable cause) {
+  public void onTerminate(int streamId, FrameType requestType, @Nullable Throwable cause) {
     final RequestInterceptor[] requestInterceptors = this.requestInterceptors;
     for (int i = 0; i < requestInterceptors.length; i++) {
       final RequestInterceptor requestInterceptor = requestInterceptors[i];
       try {
-        requestInterceptor.onTerminate(streamId, cause);
+        requestInterceptor.onTerminate(streamId, requestType, cause);
       } catch (Throwable t) {
         Operators.onErrorDropped(t, Context.empty());
       }
@@ -53,12 +53,12 @@ class CompositeRequestInterceptor implements RequestInterceptor {
   }
 
   @Override
-  public void onCancel(int streamId) {
+  public void onCancel(int streamId, FrameType requestType) {
     final RequestInterceptor[] requestInterceptors = this.requestInterceptors;
     for (int i = 0; i < requestInterceptors.length; i++) {
       final RequestInterceptor requestInterceptor = requestInterceptors[i];
       try {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, requestType);
       } catch (Throwable t) {
         Operators.onErrorDropped(t, Context.empty());
       }
@@ -121,18 +121,18 @@ class CompositeRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public void onTerminate(int streamId, @Nullable Throwable cause) {
+    public void onTerminate(int streamId, FrameType requestType, @Nullable Throwable cause) {
       try {
-        requestInterceptor.onTerminate(streamId, cause);
+        requestInterceptor.onTerminate(streamId, requestType, cause);
       } catch (Throwable t) {
         Operators.onErrorDropped(t, Context.empty());
       }
     }
 
     @Override
-    public void onCancel(int streamId) {
+    public void onCancel(int streamId, FrameType requestType) {
       try {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, requestType);
       } catch (Throwable t) {
         Operators.onErrorDropped(t, Context.empty());
       }

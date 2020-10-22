@@ -260,7 +260,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       this.inboundDone = true;
 
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
       }
 
       this.inboundSubscriber.onError(t);
@@ -281,7 +281,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       connection.sendFrame(streamId, cancelFrame);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_CHANNEL);
       }
       return;
     }
@@ -364,7 +364,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
         if (!this.inboundDone) {
           final RequestInterceptor interceptor = requestInterceptor;
           if (interceptor != null) {
-            interceptor.onTerminate(this.streamId, t);
+            interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, t);
           }
 
           this.inboundDone = true;
@@ -386,7 +386,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onCancel(this.streamId);
+      requestInterceptor.onCancel(this.streamId, FrameType.REQUEST_CHANNEL);
     }
   }
 
@@ -449,7 +449,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       synchronized (this) {
         final RequestInterceptor interceptor = requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, t);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
         }
 
         this.inboundDone = true;
@@ -492,7 +492,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     if (isInboundTerminated) {
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, null);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
   }
@@ -515,7 +515,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, null);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
 
@@ -538,7 +538,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     } else if (isInboundTerminated(previousState)) {
       final RequestInterceptor interceptor = this.requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(this.streamId, cause);
+        interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, cause);
       }
 
       Operators.onErrorDropped(cause, this.inboundSubscriber.currentContext());
@@ -555,7 +555,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
     final RequestInterceptor interceptor = requestInterceptor;
     if (interceptor != null) {
-      interceptor.onTerminate(streamId, cause);
+      interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, cause);
     }
 
     this.inboundSubscriber.onError(cause);
@@ -599,7 +599,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     if (inboundTerminated) {
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(this.streamId, null);
+        interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
   }

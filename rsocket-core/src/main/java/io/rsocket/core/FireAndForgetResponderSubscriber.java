@@ -21,6 +21,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.RequestInterceptor;
 import org.reactivestreams.Subscription;
@@ -101,7 +102,7 @@ final class FireAndForgetResponderSubscriber
   public void onError(Throwable t) {
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(this.streamId, t);
+      requestInterceptor.onTerminate(this.streamId, FrameType.REQUEST_FNF, t);
     }
 
     logger.debug("Dropped Outbound error", t);
@@ -111,7 +112,7 @@ final class FireAndForgetResponderSubscriber
   public void onComplete() {
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(this.streamId, null);
+      requestInterceptor.onTerminate(this.streamId, FrameType.REQUEST_FNF, null);
     }
   }
 
@@ -131,7 +132,7 @@ final class FireAndForgetResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_FNF, t);
       }
 
       logger.debug("Reassembly has failed", t);
@@ -151,7 +152,7 @@ final class FireAndForgetResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onTerminate(this.streamId, t);
+          requestInterceptor.onTerminate(this.streamId, FrameType.REQUEST_FNF, t);
         }
 
         logger.debug("Reassembly has failed", t);
@@ -175,7 +176,7 @@ final class FireAndForgetResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_FNF);
       }
     }
   }

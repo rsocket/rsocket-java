@@ -22,14 +22,15 @@ public class TestRequestInterceptor implements RequestInterceptor {
   }
 
   @Override
-  public void onTerminate(int streamId, @Nullable Throwable t) {
+  public void onTerminate(int streamId, FrameType requestType, @Nullable Throwable t) {
     events.add(
-        new Event(t == null ? EventType.ON_COMPLETE : EventType.ON_ERROR, streamId, null, t));
+        new Event(
+            t == null ? EventType.ON_COMPLETE : EventType.ON_ERROR, streamId, requestType, t));
   }
 
   @Override
-  public void onCancel(int streamId) {
-    events.add(new Event(EventType.ON_CANCEL, streamId, null, null));
+  public void onCancel(int streamId, FrameType requestType) {
+    events.add(new Event(EventType.ON_CANCEL, streamId, requestType, null));
   }
 
   @Override

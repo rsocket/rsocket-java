@@ -310,7 +310,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     if (isOutboundTerminated) {
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, null);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
   }
@@ -337,7 +337,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
       final RequestInterceptor interceptor = this.requestInterceptor;
       if (interceptor != null) {
-        interceptor.onCancel(this.streamId);
+        interceptor.onCancel(this.streamId, FrameType.REQUEST_CHANNEL);
       }
       return;
     }
@@ -349,7 +349,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     final RequestInterceptor interceptor = this.requestInterceptor;
     if (interceptor != null) {
-      interceptor.onCancel(this.streamId);
+      interceptor.onCancel(this.streamId, FrameType.REQUEST_CHANNEL);
     }
   }
 
@@ -464,7 +464,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     final RequestInterceptor interceptor = requestInterceptor;
     if (interceptor != null) {
-      interceptor.onTerminate(this.streamId, t);
+      interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, t);
     }
   }
 
@@ -490,7 +490,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     if (isOutboundTerminated) {
       final RequestInterceptor interceptor = this.requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(this.streamId, null);
+        interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
   }
@@ -514,7 +514,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         } else if (isOutboundTerminated(previousState)) {
           final RequestInterceptor interceptor = this.requestInterceptor;
           if (interceptor != null) {
-            interceptor.onTerminate(this.streamId, t);
+            interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, t);
           }
 
           Operators.onErrorDropped(t, this.inboundSubscriber.currentContext());
@@ -530,7 +530,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         final RequestInterceptor interceptor = requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, t);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
         }
         return;
       }
@@ -572,7 +572,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         } else if (isOutboundTerminated(previousState)) {
           final RequestInterceptor interceptor = this.requestInterceptor;
           if (interceptor != null) {
-            interceptor.onTerminate(this.streamId, e);
+            interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, e);
           }
 
           Operators.onErrorDropped(e, this.inboundSubscriber.currentContext());
@@ -591,7 +591,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         final RequestInterceptor interceptor = this.requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, e);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, e);
         }
 
         return;
@@ -620,7 +620,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         } else if (isOutboundTerminated(previousState)) {
           final RequestInterceptor interceptor = this.requestInterceptor;
           if (interceptor != null) {
-            interceptor.onTerminate(this.streamId, t);
+            interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, t);
           }
 
           Operators.onErrorDropped(t, this.inboundSubscriber.currentContext());
@@ -638,7 +638,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         final RequestInterceptor interceptor = requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, t);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
         }
 
         return;
@@ -690,7 +690,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
           final RequestInterceptor interceptor = this.requestInterceptor;
           if (interceptor != null) {
-            interceptor.onTerminate(streamId, e);
+            interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, e);
           }
 
           Operators.onErrorDropped(e, this.inboundSubscriber.currentContext());
@@ -705,7 +705,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         final RequestInterceptor interceptor = this.requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, e);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, e);
         }
         return;
       }
@@ -720,7 +720,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       } else if (isOutboundTerminated(previousState)) {
         final RequestInterceptor interceptor = this.requestInterceptor;
         if (interceptor != null) {
-          interceptor.onTerminate(streamId, e);
+          interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, e);
         }
 
         Operators.onErrorDropped(e, this.inboundSubscriber.currentContext());
@@ -736,7 +736,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, e);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, e);
       }
       return;
     }
@@ -749,7 +749,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       long previousState = this.tryTerminate(false);
       final RequestInterceptor interceptor = requestInterceptor;
       if (interceptor != null && !isTerminated(previousState)) {
-        interceptor.onTerminate(streamId, t);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
       }
     }
   }
@@ -810,7 +810,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     final RequestInterceptor interceptor = this.requestInterceptor;
     if (interceptor != null) {
-      interceptor.onTerminate(streamId, t);
+      interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, t);
     }
   }
 
@@ -840,7 +840,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     if (isInboundTerminated) {
       final RequestInterceptor interceptor = this.requestInterceptor;
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, null);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, null);
       }
     }
   }

@@ -146,7 +146,7 @@ final class RequestStreamResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onTerminate(streamId, e);
+          requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, e);
         }
         return;
       }
@@ -164,7 +164,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, e);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, e);
       }
       return;
     }
@@ -178,7 +178,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, t);
       }
     }
   }
@@ -229,7 +229,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, t);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, t);
     }
   }
 
@@ -253,7 +253,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, null);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, null);
     }
   }
 
@@ -285,7 +285,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
       }
       return;
     }
@@ -301,7 +301,7 @@ final class RequestStreamResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onCancel(streamId);
+      requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
     }
   }
 
@@ -336,7 +336,7 @@ final class RequestStreamResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, e);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, e);
       }
 
       logger.debug("Reassembly has failed", e);
@@ -368,7 +368,7 @@ final class RequestStreamResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onTerminate(streamId, t);
+          requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, t);
         }
 
         logger.debug("Reassembly has failed", t);

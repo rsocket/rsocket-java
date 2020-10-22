@@ -185,7 +185,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       sm.remove(streamId, this);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, e);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, e);
       }
 
       this.actual.onError(e);
@@ -204,7 +204,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       connection.sendFrame(streamId, cancelFrame);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
       }
     }
   }
@@ -226,7 +226,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
       }
     } else if (!hasRequested(previousState)) {
       this.payload.release();
@@ -253,7 +253,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, null);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, null);
     }
 
     final CoreSubscriber<? super Payload> a = this.actual;
@@ -279,7 +279,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, null);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, null);
     }
 
     this.actual.onComplete();
@@ -307,7 +307,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, cause);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, cause);
     }
 
     this.actual.onError(cause);
