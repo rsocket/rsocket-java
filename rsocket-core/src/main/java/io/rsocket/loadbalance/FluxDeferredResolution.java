@@ -83,7 +83,7 @@ abstract class FluxDeferredResolution<INPUT, R> extends Flux<Payload>
 
   @Nullable
   @Override
-  public Object scanUnsafe(Attr key) {
+  public final Object scanUnsafe(Attr key) {
     long state = this.requested;
 
     if (key == Attr.PARENT) {
@@ -145,7 +145,7 @@ abstract class FluxDeferredResolution<INPUT, R> extends Flux<Payload>
   }
 
   @Override
-  public void onError(Throwable t) {
+  public final void onError(Throwable t) {
     if (this.done) {
       Operators.onErrorDropped(t, this.actual.currentContext());
       return;
@@ -156,7 +156,7 @@ abstract class FluxDeferredResolution<INPUT, R> extends Flux<Payload>
   }
 
   @Override
-  public void onComplete() {
+  public final void onComplete() {
     if (this.done) {
       return;
     }
@@ -206,7 +206,7 @@ abstract class FluxDeferredResolution<INPUT, R> extends Flux<Payload>
     }
   }
 
-  public void cancel() {
+  public final void cancel() {
     long state = REQUESTED.getAndSet(this, STATE_TERMINATED);
     if (state == STATE_TERMINATED) {
       return;

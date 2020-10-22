@@ -28,29 +28,24 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
 
-/** Default implementation of {@link WeightedRSocket} stored in {@link RSocketPool} */
-final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
-    implements CoreSubscriber<RSocket>, WeightedRSocket {
+/** Default implementation of {@link RSocket} stored in {@link RSocketPool} */
+final class PooledRSocket extends ResolvingOperator<RSocket>
+    implements CoreSubscriber<RSocket>, RSocket {
 
   final RSocketPool parent;
   final Mono<RSocket> rSocketSource;
   final LoadbalanceTarget loadbalanceTarget;
-  final Stats stats;
 
   volatile Subscription s;
 
-  static final AtomicReferenceFieldUpdater<PooledWeightedRSocket, Subscription> S =
-      AtomicReferenceFieldUpdater.newUpdater(PooledWeightedRSocket.class, Subscription.class, "s");
+  static final AtomicReferenceFieldUpdater<PooledRSocket, Subscription> S =
+      AtomicReferenceFieldUpdater.newUpdater(PooledRSocket.class, Subscription.class, "s");
 
-  PooledWeightedRSocket(
-      RSocketPool parent,
-      Mono<RSocket> rSocketSource,
-      LoadbalanceTarget loadbalanceTarget,
-      Stats stats) {
+  PooledRSocket(
+      RSocketPool parent, Mono<RSocket> rSocketSource, LoadbalanceTarget loadbalanceTarget) {
     this.parent = parent;
     this.rSocketSource = rSocketSource;
     this.loadbalanceTarget = loadbalanceTarget;
-    this.stats = stats;
   }
 
   @Override
@@ -113,13 +108,11 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
 
   @Override
   protected void doOnValueResolved(RSocket value) {
-    stats.setAvailability(1.0);
     value.onClose().subscribe(null, t -> this.invalidate(), this::invalidate);
   }
 
   @Override
   protected void doOnValueExpired(RSocket value) {
-    stats.setAvailability(0.0);
     value.dispose();
     this.dispose();
   }
@@ -133,7 +126,7 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
   protected void doOnDispose() {
     final RSocketPool parent = this.parent;
     for (; ; ) {
-      final PooledWeightedRSocket[] sockets = parent.activeSockets;
+      final PooledRSocket[] sockets = parent.activeSockets;
       final int activeSocketsCount = sockets.length;
 
       int index = -1;
@@ -149,7 +142,7 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
       }
 
       final int lastIndex = activeSocketsCount - 1;
-      final PooledWeightedRSocket[] newSockets = new PooledWeightedRSocket[lastIndex];
+      final PooledRSocket[] newSockets = new PooledRSocket[lastIndex];
       if (index != 0) {
         System.arraycopy(sockets, 0, newSockets, 0, index);
       }
@@ -162,43 +155,32 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
         break;
       }
     }
-    stats.setAvailability(0.0);
     Operators.terminate(S, this);
   }
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return new RequestTrackingMonoInner<>(this, payload, FrameType.REQUEST_FNF);
+    return new MonoInner<>(this, payload, FrameType.REQUEST_FNF);
   }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return new RequestTrackingMonoInner<>(this, payload, FrameType.REQUEST_RESPONSE);
+    return new MonoInner<>(this, payload, FrameType.REQUEST_RESPONSE);
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return new RequestTrackingFluxInner<>(this, payload, FrameType.REQUEST_STREAM);
+    return new FluxInner<>(this, payload, FrameType.REQUEST_STREAM);
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return new RequestTrackingFluxInner<>(this, payloads, FrameType.REQUEST_CHANNEL);
+    return new FluxInner<>(this, payloads, FrameType.REQUEST_CHANNEL);
   }
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
-    return new RequestTrackingMonoInner<>(this, payload, FrameType.METADATA_PUSH);
-  }
-
-  /**
-   * Indicates number of active requests
-   *
-   * @return number of requests in progress
-   */
-  @Override
-  public Stats stats() {
-    return stats;
+    return new MonoInner<>(this, payload, FrameType.METADATA_PUSH);
   }
 
   LoadbalanceTarget target() {
@@ -207,15 +189,13 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
 
   @Override
   public double availability() {
-    return stats.availability();
+    final RSocket socket = valueIfResolved();
+    return socket != null ? socket.availability() : 0.0d;
   }
 
-  static final class RequestTrackingMonoInner<RESULT>
-      extends MonoDeferredResolution<RESULT, RSocket> {
+  static final class MonoInner<RESULT> extends MonoDeferredResolution<RESULT, RSocket> {
 
-    long startTime;
-
-    RequestTrackingMonoInner(PooledWeightedRSocket parent, Payload payload, FrameType requestType) {
+    MonoInner(PooledRSocket parent, Payload payload, FrameType requestType) {
       super(parent, payload, requestType);
     }
 
@@ -249,58 +229,16 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        startTime = ((PooledWeightedRSocket) parent).stats.startRequest();
-
         source.subscribe((CoreSubscriber) this);
       } else {
         parent.add(this);
       }
     }
-
-    @Override
-    public void onComplete() {
-      final long state = this.requested;
-      if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        final Stats stats = ((PooledWeightedRSocket) parent).stats;
-        final long now = stats.stopRequest(startTime);
-        stats.record(now - startTime);
-        super.onComplete();
-      }
-    }
-
-    @Override
-    public void onError(Throwable t) {
-      final long state = this.requested;
-      if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        Stats stats = ((PooledWeightedRSocket) parent).stats;
-        stats.stopRequest(startTime);
-        stats.recordError(0.0);
-        super.onError(t);
-      }
-    }
-
-    @Override
-    public void cancel() {
-      long state = REQUESTED.getAndSet(this, STATE_TERMINATED);
-      if (state == STATE_TERMINATED) {
-        return;
-      }
-
-      if (state == STATE_SUBSCRIBED) {
-        this.s.cancel();
-        ((PooledWeightedRSocket) parent).stats.stopRequest(startTime);
-      } else {
-        this.parent.remove(this);
-        ReferenceCountUtil.safeRelease(this.payload);
-      }
-    }
   }
 
-  static final class RequestTrackingFluxInner<INPUT>
-      extends FluxDeferredResolution<INPUT, RSocket> {
+  static final class FluxInner<INPUT> extends FluxDeferredResolution<INPUT, RSocket> {
 
-    RequestTrackingFluxInner(
-        PooledWeightedRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
+    FluxInner(PooledRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
       super(parent, fluxOrPayload, requestType);
     }
 
@@ -333,47 +271,9 @@ final class PooledWeightedRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        ((PooledWeightedRSocket) parent).stats.startStream();
-
         source.subscribe(this);
       } else {
         parent.add(this);
-      }
-    }
-
-    @Override
-    public void onComplete() {
-      final long state = this.requested;
-      if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((PooledWeightedRSocket) parent).stats.stopStream();
-        super.onComplete();
-      }
-    }
-
-    @Override
-    public void onError(Throwable t) {
-      final long state = this.requested;
-      if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((PooledWeightedRSocket) parent).stats.stopStream();
-        super.onError(t);
-      }
-    }
-
-    @Override
-    public void cancel() {
-      long state = REQUESTED.getAndSet(this, STATE_TERMINATED);
-      if (state == STATE_TERMINATED) {
-        return;
-      }
-
-      if (state == STATE_SUBSCRIBED) {
-        this.s.cancel();
-        ((PooledWeightedRSocket) parent).stats.stopStream();
-      } else {
-        this.parent.remove(this);
-        if (requestType == FrameType.REQUEST_STREAM) {
-          ReferenceCountUtil.safeRelease(this.fluxOrPayload);
-        }
       }
     }
   }

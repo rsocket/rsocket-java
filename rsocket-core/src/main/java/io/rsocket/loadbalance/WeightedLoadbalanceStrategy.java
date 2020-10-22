@@ -17,9 +17,14 @@
 package io.rsocket.loadbalance;
 
 import io.rsocket.RSocket;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.plugins.RequestInterceptor;
 import java.util.List;
 import java.util.SplittableRandom;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -28,7 +33,7 @@ import reactor.util.annotation.Nullable;
  *
  * @since 1.1
  */
-public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
+public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
 
   private static final double EXP_FACTOR = 4.0;
 
@@ -36,18 +41,36 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
 
   final int effort;
   final SplittableRandom splittableRandom;
+  final Function<RSocket, WeightedStats> weightedStatsResolver;
 
   public WeightedLoadbalanceStrategy() {
-    this(EFFORT);
+    this(new DefaultWeightedStatsResolver());
   }
 
-  public WeightedLoadbalanceStrategy(int effort) {
-    this(effort, new SplittableRandom(System.nanoTime()));
+  public WeightedLoadbalanceStrategy(Function<RSocket, WeightedStats> weightedStatsResolver) {
+    this(EFFORT, weightedStatsResolver);
   }
 
-  public WeightedLoadbalanceStrategy(int effort, SplittableRandom splittableRandom) {
+  public WeightedLoadbalanceStrategy(
+      int effort, Function<RSocket, WeightedStats> weightedStatsResolver) {
+    this(effort, new SplittableRandom(System.nanoTime()), weightedStatsResolver);
+  }
+
+  public WeightedLoadbalanceStrategy(
+      int effort,
+      SplittableRandom splittableRandom,
+      Function<RSocket, WeightedStats> weightedStatsResolver) {
     this.effort = effort;
     this.splittableRandom = splittableRandom;
+    this.weightedStatsResolver = weightedStatsResolver;
+  }
+
+  @Override
+  public void initialize(RSocketConnector connector) {
+    final Function<RSocket, WeightedStats> resolver = weightedStatsResolver;
+    if (resolver instanceof DefaultWeightedStatsResolver) {
+      ((DefaultWeightedStatsResolver) resolver).init(connector);
+    }
   }
 
   @Override
@@ -55,18 +78,19 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
     final int effort = this.effort;
     final int size = sockets.size();
 
-    WeightedRSocket weightedRSocket;
+    RSocket weightedRSocket;
+    final Function<RSocket, WeightedStats> weightedStatsResolver = this.weightedStatsResolver;
     switch (size) {
       case 1:
-        weightedRSocket = (WeightedRSocket) sockets.get(0);
+        weightedRSocket = sockets.get(0);
         break;
       case 2:
         {
-          WeightedRSocket rsc1 = (WeightedRSocket) sockets.get(0);
-          WeightedRSocket rsc2 = (WeightedRSocket) sockets.get(1);
+          RSocket rsc1 = sockets.get(0);
+          RSocket rsc2 = sockets.get(1);
 
-          double w1 = algorithmicWeight(rsc1);
-          double w2 = algorithmicWeight(rsc2);
+          double w1 = algorithmicWeight(rsc1, weightedStatsResolver.apply(rsc1));
+          double w2 = algorithmicWeight(rsc2, weightedStatsResolver.apply(rsc2));
           if (w1 < w2) {
             weightedRSocket = rsc2;
           } else {
@@ -76,8 +100,8 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
         break;
       default:
         {
-          WeightedRSocket rsc1 = null;
-          WeightedRSocket rsc2 = null;
+          RSocket rsc1 = null;
+          RSocket rsc2 = null;
 
           for (int i = 0; i < effort; i++) {
             int i1 = ThreadLocalRandom.current().nextInt(size);
@@ -86,19 +110,26 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
             if (i2 >= i1) {
               i2++;
             }
-            rsc1 = (WeightedRSocket) sockets.get(i1);
-            rsc2 = (WeightedRSocket) sockets.get(i2);
+            rsc1 = sockets.get(i1);
+            rsc2 = sockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0) {
               break;
             }
           }
 
-          double w1 = algorithmicWeight(rsc1);
-          double w2 = algorithmicWeight(rsc2);
-          if (w1 < w2) {
-            weightedRSocket = rsc2;
-          } else {
+          if (rsc1 != null & rsc2 != null) {
+            double w1 = algorithmicWeight(rsc1, weightedStatsResolver.apply(rsc1));
+            double w2 = algorithmicWeight(rsc2, weightedStatsResolver.apply(rsc2));
+
+            if (w1 < w2) {
+              weightedRSocket = rsc2;
+            } else {
+              weightedRSocket = rsc1;
+            }
+          } else if (rsc1 != null) {
             weightedRSocket = rsc1;
+          } else {
+            weightedRSocket = rsc2;
           }
         }
     }
@@ -106,20 +137,19 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
     return weightedRSocket;
   }
 
-  private static double algorithmicWeight(@Nullable final WeightedRSocket weightedRSocket) {
-    if (weightedRSocket == null
-        || weightedRSocket.isDisposed()
-        || weightedRSocket.availability() == 0.0) {
+  private static double algorithmicWeight(
+      RSocket rSocket, @Nullable final WeightedStats weightedStats) {
+    if (weightedStats == null || rSocket.isDisposed() || rSocket.availability() == 0.0) {
       return 0.0;
     }
-    final Stats stats = weightedRSocket.stats();
-    final int pending = stats.pending();
-    double latency = stats.predictedLatency();
+    final int pending = weightedStats.pending();
 
-    final double low = stats.lowerQuantileLatency();
+    double latency = weightedStats.predictedLatency();
+
+    final double low = weightedStats.lowerQuantileLatency();
     final double high =
         Math.max(
-            stats.higherQuantileLatency(),
+            weightedStats.higherQuantileLatency(),
             low * 1.001); // ensure higherQuantile > lowerQuantile + .1%
     final double bandWidth = Math.max(high - low, 1);
 
@@ -129,11 +159,41 @@ public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
       latency *= calculateFactor(latency, high, bandWidth);
     }
 
-    return weightedRSocket.availability() * 1.0 / (1.0 + latency * (pending + 1));
+    return rSocket.availability() / (1.0d + latency * (pending + 1));
   }
 
   private static double calculateFactor(final double u, final double l, final double bandWidth) {
     final double alpha = (u - l) / bandWidth;
     return Math.pow(1 + alpha, EXP_FACTOR);
+  }
+
+  static class DefaultWeightedStatsResolver implements Function<RSocket, WeightedStats> {
+
+    final ConcurrentMap<RSocket, WeightedStatsRequestInterceptor> rsocketsInterceptors =
+        new ConcurrentHashMap<>();
+
+    @Override
+    public WeightedStats apply(RSocket rSocket) {
+      return rsocketsInterceptors.get(rSocket);
+    }
+
+    void init(RSocketConnector connector) {
+      connector.interceptors(
+          ir ->
+              ir.forRequester(
+                  (Function<RSocket, ? extends RequestInterceptor>)
+                      rSocket -> {
+                        final WeightedStatsRequestInterceptor interceptor =
+                            new WeightedStatsRequestInterceptor() {
+                              @Override
+                              public void dispose() {
+                                rsocketsInterceptors.remove(rSocket);
+                              }
+                            };
+                        rsocketsInterceptors.put(rSocket, interceptor);
+
+                        return interceptor;
+                      }));
+    }
   }
 }

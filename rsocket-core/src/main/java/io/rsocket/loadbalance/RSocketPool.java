@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -43,16 +42,15 @@ class RSocketPool extends ResolvingOperator<Void>
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final RSocketConnector connector;
   final LoadbalanceStrategy loadbalanceStrategy;
-  final Supplier<Stats> statsSupplier;
 
-  volatile PooledWeightedRSocket[] activeSockets;
+  volatile PooledRSocket[] activeSockets;
 
-  static final AtomicReferenceFieldUpdater<RSocketPool, PooledWeightedRSocket[]> ACTIVE_SOCKETS =
+  static final AtomicReferenceFieldUpdater<RSocketPool, PooledRSocket[]> ACTIVE_SOCKETS =
       AtomicReferenceFieldUpdater.newUpdater(
-          RSocketPool.class, PooledWeightedRSocket[].class, "activeSockets");
+          RSocketPool.class, PooledRSocket[].class, "activeSockets");
 
-  static final PooledWeightedRSocket[] EMPTY = new PooledWeightedRSocket[0];
-  static final PooledWeightedRSocket[] TERMINATED = new PooledWeightedRSocket[0];
+  static final PooledRSocket[] EMPTY = new PooledRSocket[0];
+  static final PooledRSocket[] TERMINATED = new PooledRSocket[0];
 
   volatile Subscription s;
   static final AtomicReferenceFieldUpdater<RSocketPool, Subscription> S =
@@ -64,11 +62,6 @@ class RSocketPool extends ResolvingOperator<Void>
       LoadbalanceStrategy loadbalanceStrategy) {
     this.connector = connector;
     this.loadbalanceStrategy = loadbalanceStrategy;
-    if (loadbalanceStrategy instanceof WeightedLoadbalanceStrategy) {
-      this.statsSupplier = Stats::create;
-    } else {
-      this.statsSupplier = Stats::noOps;
-    }
 
     ACTIVE_SOCKETS.lazySet(this, EMPTY);
 
@@ -105,8 +98,8 @@ class RSocketPool extends ResolvingOperator<Void>
       return;
     }
 
-    PooledWeightedRSocket[] previouslyActiveSockets;
-    PooledWeightedRSocket[] activeSockets;
+    PooledRSocket[] previouslyActiveSockets;
+    PooledRSocket[] activeSockets;
     for (; ; ) {
       HashMap<LoadbalanceTarget, Integer> rSocketSuppliersCopy = new HashMap<>();
 
@@ -117,11 +110,11 @@ class RSocketPool extends ResolvingOperator<Void>
 
       // checking intersection of active RSocket with the newly received set
       previouslyActiveSockets = this.activeSockets;
-      PooledWeightedRSocket[] nextActiveSockets =
-          new PooledWeightedRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
+      PooledRSocket[] nextActiveSockets =
+          new PooledRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
       int position = 0;
       for (int i = 0; i < previouslyActiveSockets.length; i++) {
-        PooledWeightedRSocket rSocket = previouslyActiveSockets[i];
+        PooledRSocket rSocket = previouslyActiveSockets[i];
 
         Integer index = rSocketSuppliersCopy.remove(rSocket.target());
         if (index == null) {
@@ -140,11 +133,7 @@ class RSocketPool extends ResolvingOperator<Void>
             // put newly create RSocket instance
             LoadbalanceTarget target = targets.get(index);
             nextActiveSockets[position++] =
-                new PooledWeightedRSocket(
-                    this,
-                    this.connector.connect(target.getTransport()),
-                    target,
-                    this.statsSupplier.get());
+                new PooledRSocket(this, this.connector.connect(target.getTransport()), target);
           }
         }
       }
@@ -152,11 +141,7 @@ class RSocketPool extends ResolvingOperator<Void>
       // going though brightly new rsocket
       for (LoadbalanceTarget target : rSocketSuppliersCopy.keySet()) {
         nextActiveSockets[position++] =
-            new PooledWeightedRSocket(
-                this,
-                this.connector.connect(target.getTransport()),
-                target,
-                this.statsSupplier.get());
+            new PooledRSocket(this, this.connector.connect(target.getTransport()), target);
       }
 
       // shrank to actual length
@@ -215,7 +200,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
   @Nullable
   RSocket doSelect() {
-    WeightedRSocket[] sockets = this.activeSockets;
+    PooledRSocket[] sockets = this.activeSockets;
     if (sockets == EMPTY) {
       return null;
     }
@@ -224,8 +209,15 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public WeightedRSocket get(int index) {
-    return activeSockets[index];
+  public RSocket get(int index) {
+    final PooledRSocket socket = activeSockets[index];
+    final RSocket realValue = socket.valueIfResolved();
+
+    if (realValue != null) {
+      return realValue;
+    }
+
+    return socket;
   }
 
   @Override
@@ -423,7 +415,7 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public WeightedRSocket set(int index, RSocket element) {
+  public RSocket set(int index, RSocket element) {
     throw new UnsupportedOperationException();
   }
 
@@ -433,7 +425,7 @@ class RSocketPool extends ResolvingOperator<Void>
   }
 
   @Override
-  public WeightedRSocket remove(int index) {
+  public RSocket remove(int index) {
     throw new UnsupportedOperationException();
   }
 

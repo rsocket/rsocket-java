@@ -17,7 +17,7 @@ Specify extra profilers:
 Prominent profilers (for full list call `jmhProfilers` task):
 - comp - JitCompilations, tune your iterations
 - stack - which methods used most time
-- gc - print garbage collection stats
+- gc - print garbage collection defaultWeightedStats
 - hs_thr - thread usage
 
 Change report format from JSON to one of [CSV, JSON, NONE, SCSV, TEXT]:

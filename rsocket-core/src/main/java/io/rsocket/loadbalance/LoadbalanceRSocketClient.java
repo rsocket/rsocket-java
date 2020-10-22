@@ -165,8 +165,15 @@ public class LoadbalanceRSocketClient implements RSocketClient {
 
     /** Build the {@link LoadbalanceRSocketClient} instance. */
     public LoadbalanceRSocketClient build() {
+      final RSocketConnector connector = initConnector();
+      final LoadbalanceStrategy strategy = initLoadbalanceStrategy();
+
+      if (strategy instanceof ClientLoadbalanceStrategy) {
+        ((ClientLoadbalanceStrategy) strategy).initialize(connector);
+      }
+
       return new LoadbalanceRSocketClient(
-          new RSocketPool(initConnector(), this.targetPublisher, initLoadbalanceStrategy()));
+          new RSocketPool(connector, this.targetPublisher, strategy));
     }
 
     private RSocketConnector initConnector() {
