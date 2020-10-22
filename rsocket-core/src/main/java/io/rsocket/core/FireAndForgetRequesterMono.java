@@ -141,7 +141,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
         p.release();
 
         if (interceptor != null) {
-          interceptor.onCancel(streamId);
+          interceptor.onCancel(streamId, FrameType.REQUEST_FNF);
         }
 
         return;
@@ -153,7 +153,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
       lazyTerminate(STATE, this);
 
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, e);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, e);
       }
 
       actual.onError(e);
@@ -163,7 +163,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
     lazyTerminate(STATE, this);
 
     if (interceptor != null) {
-      interceptor.onTerminate(streamId, null);
+      interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, null);
     }
 
     actual.onComplete();
@@ -262,7 +262,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
       lazyTerminate(STATE, this);
 
       if (interceptor != null) {
-        interceptor.onTerminate(streamId, e);
+        interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, e);
       }
 
       throw Exceptions.propagate(e);
@@ -271,7 +271,7 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
     lazyTerminate(STATE, this);
 
     if (interceptor != null) {
-      interceptor.onTerminate(streamId, null);
+      interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, null);
     }
 
     return null;

@@ -520,12 +520,13 @@ public class RequestInterceptorTest {
           }
 
           @Override
-          public void onTerminate(int streamId, @Nullable Throwable terminalSignal) {
+          public void onTerminate(
+              int streamId, FrameType requestType, @Nullable Throwable terminalSignal) {
             throw new RuntimeException("testOnTerminate");
           }
 
           @Override
-          public void onCancel(int streamId) {
+          public void onCancel(int streamId, FrameType requestType) {
             throw new RuntimeException("testOnCancel");
           }
 
@@ -620,12 +621,13 @@ public class RequestInterceptorTest {
           }
 
           @Override
-          public void onTerminate(int streamId, @Nullable Throwable terminalSignal) {
+          public void onTerminate(
+              int streamId, FrameType requestType, @Nullable Throwable terminalSignal) {
             throw new RuntimeException("testOnTerminate");
           }
 
           @Override
-          public void onCancel(int streamId) {
+          public void onCancel(int streamId, FrameType requestType) {
             throw new RuntimeException("testOnTerminate");
           }
 

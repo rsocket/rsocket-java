@@ -200,7 +200,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       sm.remove(streamId, this);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, t);
       }
 
       this.inboundSubscriber.onError(t);
@@ -219,7 +219,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       connection.sendFrame(streamId, cancelFrame);
 
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
       }
       return;
     }
@@ -259,7 +259,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
       }
     } else if (!hasRequested(previousState)) {
       // no need to send anything, since the first request has not happened
@@ -290,11 +290,12 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    this.requesterResponderSupport.remove(this.streamId, this);
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, null);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, null);
     }
 
     this.inboundSubscriber.onComplete();
@@ -315,13 +316,14 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    this.requesterResponderSupport.remove(this.streamId, this);
+    final int streamId = this.streamId;
+    this.requesterResponderSupport.remove(streamId, this);
 
     ReassemblyUtils.synchronizedRelease(this, previousState);
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, cause);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, cause);
     }
 
     this.inboundSubscriber.onError(cause);

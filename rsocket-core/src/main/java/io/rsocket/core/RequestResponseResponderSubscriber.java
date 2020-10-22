@@ -145,7 +145,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, null);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, null);
       }
       return;
     }
@@ -165,7 +165,7 @@ final class RequestResponseResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onTerminate(streamId, e);
+          requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, e);
         }
         return;
       }
@@ -181,7 +181,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, e);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, e);
       }
       return;
     }
@@ -191,14 +191,14 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, null);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, null);
       }
     } catch (Throwable t) {
       currentSubscription.cancel();
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, t);
       }
     }
   }
@@ -228,7 +228,7 @@ final class RequestResponseResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, t);
+      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, t);
     }
   }
 
@@ -260,7 +260,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onCancel(streamId);
+        requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
       }
       return;
     }
@@ -276,7 +276,7 @@ final class RequestResponseResponderSubscriber
 
     final RequestInterceptor requestInterceptor = this.requestInterceptor;
     if (requestInterceptor != null) {
-      requestInterceptor.onCancel(streamId);
+      requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
     }
   }
 
@@ -310,7 +310,7 @@ final class RequestResponseResponderSubscriber
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
-        requestInterceptor.onTerminate(streamId, t);
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, t);
       }
       return;
     }
@@ -341,7 +341,7 @@ final class RequestResponseResponderSubscriber
 
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
-          requestInterceptor.onTerminate(streamId, t);
+          requestInterceptor.onTerminate(streamId, FrameType.REQUEST_RESPONSE, t);
         }
         return;
       }

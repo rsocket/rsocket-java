@@ -33,21 +33,27 @@ public interface RequestInterceptor extends Disposable {
   /**
    * Method which is being invoked once a successfully accepted request is terminated. This method
    * can be invoked only after the {@link #onStart(int, FrameType, ByteBuf)} method. This method is
-   * exclusive with {@link #onCancel(int)}.
+   * exclusive with {@link #onCancel(int, FrameType)}.
    *
    * @param streamId used by this request
+   * @param requestType of the request. Must be one of the following types {@link
+   *     FrameType#REQUEST_FNF}, {@link FrameType#REQUEST_RESPONSE}, {@link
+   *     FrameType#REQUEST_STREAM} or {@link FrameType#REQUEST_CHANNEL}
    * @param t with which this finished has terminated. Must be one of the following signals
    */
-  void onTerminate(int streamId, @Nullable Throwable t);
+  void onTerminate(int streamId, FrameType requestType, @Nullable Throwable t);
 
   /**
    * Method which is being invoked once a successfully accepted request is cancelled. This method
    * can be invoked only after the {@link #onStart(int, FrameType, ByteBuf)} method. This method is
-   * exclusive with {@link #onTerminate(int, Throwable)}.
+   * exclusive with {@link #onTerminate(int, FrameType, Throwable)}.
    *
+   * @param requestType of the request. Must be one of the following types {@link
+   *     FrameType#REQUEST_FNF}, {@link FrameType#REQUEST_RESPONSE}, {@link
+   *     FrameType#REQUEST_STREAM} or {@link FrameType#REQUEST_CHANNEL}
    * @param streamId used by this request
    */
-  void onCancel(int streamId);
+  void onCancel(int streamId, FrameType requestType);
 
   /**
    * Method which is being invoked on the request rejection. This method is being called only if the
