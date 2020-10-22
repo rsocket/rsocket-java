@@ -18,6 +18,7 @@ package io.rsocket.loadbalance;
 
 import io.rsocket.util.Clock;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 /**
  * Compute the exponential weighted moving average of a series of values. The time at which you
@@ -28,20 +29,27 @@ import java.util.concurrent.TimeUnit;
  * equal to (200 - 100)/2 = 150 (half of the distance between the new and the old value)
  */
 class Ewma {
-  private final long tau;
-  private volatile long stamp;
-  private volatile double ewma;
+
+  final long tau;
+
+  volatile long stamp;
+  static final AtomicLongFieldUpdater<Ewma> STAMP =
+      AtomicLongFieldUpdater.newUpdater(Ewma.class, "stamp");
+  volatile double ewma;
 
   public Ewma(long halfLife, TimeUnit unit, double initialValue) {
     this.tau = Clock.unit().convert((long) (halfLife / Math.log(2)), unit);
-    stamp = 0L;
-    ewma = initialValue;
+
+    this.ewma = initialValue;
+
+    STAMP.lazySet(this, 0L);
   }
 
   public synchronized void insert(double x) {
-    long now = Clock.now();
-    double elapsed = Math.max(0, now - stamp);
-    stamp = now;
+    final long now = Clock.now();
+    final double elapsed = Math.max(0, now - stamp);
+
+    STAMP.lazySet(this, now);
 
     double w = Math.exp(-elapsed / tau);
     ewma = w * ewma + (1.0 - w) * x;

@@ -97,11 +97,10 @@ public class RoundRobinRSocketLoadbalancerExample {
                 });
 
     RSocketClient rSocketClient =
-        LoadbalanceRSocketClient.builder(producer).roundRobinLoadbalanceStrategy().build();
+        LoadbalanceRSocketClient.builder(producer).weightedLoadbalanceStrategy().build();
 
     for (int i = 0; i < 10000; i++) {
       try {
-
         rSocketClient.requestResponse(Mono.just(DefaultPayload.create("test" + i))).block();
       } catch (Throwable t) {
         // no ops

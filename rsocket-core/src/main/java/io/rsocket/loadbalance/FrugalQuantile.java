@@ -26,12 +26,14 @@ import java.util.SplittableRandom;
  * <p>More info: http://blog.aggregateknowledge.com/2013/09/16/sketch-of-the-day-frugal-streaming/
  */
 class FrugalQuantile implements Quantile {
-  private final double increment;
-  volatile double estimate;
+  final double increment;
+  final SplittableRandom rnd;
+
   int step;
   int sign;
-  private double quantile;
-  private SplittableRandom rnd;
+  double quantile;
+
+  volatile double estimate;
 
   public FrugalQuantile(double quantile, double increment) {
     this.increment = increment;

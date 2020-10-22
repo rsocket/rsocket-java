@@ -18,6 +18,7 @@ package io.rsocket.loadbalance;
 
 /** This implementation gives better results because it considers more data-point. */
 class Median extends FrugalQuantile {
+
   public Median() {
     super(0.5, 1.0);
   }
