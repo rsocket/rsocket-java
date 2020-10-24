@@ -33,8 +33,6 @@ public class BaseWeightedStats implements WeightedStats {
   private long stamp0; // last timestamp we sent a request or receive a response
   private long duration; // instantaneous cumulative duration
 
-  private double availability = 1.0;
-
   private volatile int pendingRequests; // instantaneous rate
   private static final AtomicIntegerFieldUpdater<BaseWeightedStats> PENDING_REQUESTS =
       AtomicIntegerFieldUpdater.newUpdater(BaseWeightedStats.class, "pendingRequests");
@@ -87,7 +85,7 @@ public class BaseWeightedStats implements WeightedStats {
     if (Clock.now() - stamp > tau) {
       updateAvailability(1.0);
     }
-    return availability * availabilityPercentage.value();
+    return availabilityPercentage.value();
   }
 
   @Override
@@ -181,10 +179,6 @@ public class BaseWeightedStats implements WeightedStats {
     }
   }
 
-  void setAvailability(double availability) {
-    this.availability = availability;
-  }
-
   @Override
   public String toString() {
     return "Stats{"
@@ -215,7 +209,7 @@ public class BaseWeightedStats implements WeightedStats {
         + ", pendingStreams="
         + pendingStreams
         + ", availability="
-        + availability
+        + availabilityPercentage.value()
         + '}';
   }
 }
