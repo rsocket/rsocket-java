@@ -70,6 +70,8 @@ public enum WellKnownMimeType {
   APPLICATION_HESSIAN("application/x-hessian", (byte) 0x26),
   APPLICATION_JAVA_OBJECT("application/x-java-object", (byte) 0x27),
   APPLICATION_CLOUDEVENTS_JSON("application/cloudevents+json", (byte) 0x28),
+  APPLICATION_CAPNP("application/x-capnp", (byte) 0x29),
+  APPLICATION_FLATBUFFER("application/x-flatbuffers", (byte) 0x2A),
 
   // ... reserved for future use ...
   MESSAGE_RSOCKET_MIMETYPE("message/x.rsocket.mime-type.v0", (byte) 0x7A),
