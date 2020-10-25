@@ -115,7 +115,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
               frameReceivingSubscriber.dispose();
               disposable.dispose();
               Sinks.EmitResult result = onConnectionClosedSink.tryEmitNext(currentConnectionIndex);
-              if (result.equals(Sinks.EmitResult.OK)) {
+              if (!result.equals(Sinks.EmitResult.OK)) {
                 logger.error("Failed to notify session of closed connection: {}", result);
               }
             })
