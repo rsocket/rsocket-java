@@ -28,12 +28,14 @@ public class InitializingInterceptorRegistry extends InterceptorRegistry {
 
   @Nullable
   public RequestInterceptor initRequesterRequestInterceptor(RSocket rSocketRequester) {
-    return CompositeRequestInterceptor.create(rSocketRequester, getRequesterRequestInterceptors());
+    return CompositeRequestInterceptor.create(
+        rSocketRequester, getRequestInterceptorsForRequester());
   }
 
   @Nullable
   public RequestInterceptor initResponderRequestInterceptor(RSocket rSocketResponder) {
-    return CompositeRequestInterceptor.create(rSocketResponder, getResponderRequestInterceptors());
+    return CompositeRequestInterceptor.create(
+        rSocketResponder, getRequestInterceptorsForResponder());
   }
 
   public DuplexConnection initConnection(
