@@ -159,7 +159,7 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
       latency *= calculateFactor(latency, high, bandWidth);
     }
 
-    return (rSocket.availability() * weightedStats.availability())
+    return (rSocket.availability() * weightedStats.weightedAvailability())
         / (1.0d + latency * (pending + 1));
   }
 

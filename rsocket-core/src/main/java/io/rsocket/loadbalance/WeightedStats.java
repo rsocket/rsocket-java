@@ -1,13 +1,11 @@
 package io.rsocket.loadbalance;
 
-import io.rsocket.Availability;
-
 /**
  * Representation of stats used by the {@link WeightedLoadbalanceStrategy}
  *
  * @since 1.1
  */
-public interface WeightedStats extends Availability {
+public interface WeightedStats {
 
   double higherQuantileLatency();
 
@@ -16,4 +14,6 @@ public interface WeightedStats extends Availability {
   int pending();
 
   double predictedLatency();
+
+  double weightedAvailability();
 }

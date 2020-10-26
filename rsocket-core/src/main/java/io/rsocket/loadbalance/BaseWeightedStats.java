@@ -81,7 +81,7 @@ public class BaseWeightedStats implements WeightedStats {
   }
 
   @Override
-  public double availability() {
+  public double weightedAvailability() {
     if (Clock.now() - stamp > tau) {
       updateAvailability(1.0);
     }
