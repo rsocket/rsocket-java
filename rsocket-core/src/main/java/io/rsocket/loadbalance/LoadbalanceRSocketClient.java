@@ -149,7 +149,7 @@ public class LoadbalanceRSocketClient implements RSocketClient {
      * <p>By default, {@link RoundRobinLoadbalanceStrategy} is used.
      */
     public Builder weightedLoadbalanceStrategy() {
-      this.loadbalanceStrategy = new WeightedLoadbalanceStrategy();
+      this.loadbalanceStrategy = WeightedLoadbalanceStrategy.create();
       return this;
     }
 
