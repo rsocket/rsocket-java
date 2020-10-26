@@ -66,7 +66,7 @@ public class RequestInterceptorTest {
         RSocketConnector.create()
             .interceptors(
                 ir ->
-                    ir.forRequester(
+                    ir.forRequestsInRequester(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
             .connect(LocalClientTransport.create("test"))
@@ -206,7 +206,7 @@ public class RequestInterceptorTest {
                     }))
             .interceptors(
                 ir ->
-                    ir.forResponder(
+                    ir.forRequestsInResponder(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
             .connect(LocalClientTransport.create("test"))
@@ -292,7 +292,7 @@ public class RequestInterceptorTest {
                     }))
             .interceptors(
                 ir ->
-                    ir.forResponder(
+                    ir.forRequestsInResponder(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
             .bindNow(LocalServerTransport.create("test"));
@@ -400,7 +400,7 @@ public class RequestInterceptorTest {
                             }))
             .interceptors(
                 ir ->
-                    ir.forRequester(
+                    ir.forRequestsInRequester(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
             .bindNow(LocalServerTransport.create("test"));
@@ -543,7 +543,7 @@ public class RequestInterceptorTest {
         RSocketConnector.create()
             .interceptors(
                 ir ->
-                    ir.forRequester(
+                    ir.forRequestsInRequester(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
             .connect(LocalClientTransport.create("test"))
@@ -646,13 +646,13 @@ public class RequestInterceptorTest {
         RSocketConnector.create()
             .interceptors(
                 ir ->
-                    ir.forRequester(
+                    ir.forRequestsInRequester(
                             (Function<RSocket, ? extends RequestInterceptor>)
                                 (__) -> testRequestInterceptor)
-                        .forRequester(
+                        .forRequestsInRequester(
                             (Function<RSocket, ? extends RequestInterceptor>)
                                 (__) -> testRequestInterceptor1)
-                        .forRequester(
+                        .forRequestsInRequester(
                             (Function<RSocket, ? extends RequestInterceptor>)
                                 (__) -> testRequestInterceptor2))
             .connect(LocalClientTransport.create("test"))

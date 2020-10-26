@@ -48,7 +48,7 @@ public class InterceptorRegistry {
    *     RequestInterceptor}
    * @since 1.1
    */
-  public InterceptorRegistry forRequester(
+  public InterceptorRegistry forRequestsInRequester(
       Function<RSocket, ? extends RequestInterceptor> interceptor) {
     requesterRequestInterceptors.add(interceptor);
     return this;
@@ -61,7 +61,7 @@ public class InterceptorRegistry {
    *     RequestInterceptor}
    * @since 1.1
    */
-  public InterceptorRegistry forResponder(
+  public InterceptorRegistry forRequestsInResponder(
       Function<RSocket, ? extends RequestInterceptor> interceptor) {
     responderRequestInterceptors.add(interceptor);
     return this;
@@ -134,11 +134,11 @@ public class InterceptorRegistry {
     return this;
   }
 
-  List<Function<RSocket, ? extends RequestInterceptor>> getRequesterRequestInterceptors() {
+  List<Function<RSocket, ? extends RequestInterceptor>> getRequestInterceptorsForRequester() {
     return requesterRequestInterceptors;
   }
 
-  List<Function<RSocket, ? extends RequestInterceptor>> getResponderRequestInterceptors() {
+  List<Function<RSocket, ? extends RequestInterceptor>> getRequestInterceptorsForResponder() {
     return responderRequestInterceptors;
   }
 

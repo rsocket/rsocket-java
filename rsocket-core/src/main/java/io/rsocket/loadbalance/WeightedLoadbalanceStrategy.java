@@ -214,7 +214,7 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
     void init(RSocketConnector connector) {
       connector.interceptors(
           registry ->
-              registry.forRequester(
+              registry.forRequestsInRequester(
                   (Function<RSocket, ? extends RequestInterceptor>)
                       rSocket -> {
                         final WeightedStatsRequestInterceptor interceptor =
