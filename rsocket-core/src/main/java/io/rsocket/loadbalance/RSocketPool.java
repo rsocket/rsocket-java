@@ -36,8 +36,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
-class RSocketPool extends ResolvingOperator<Void>
-    implements CoreSubscriber<List<LoadbalanceTarget>>, List<RSocket> {
+class RSocketPool extends ResolvingOperator<Object>
+    implements CoreSubscriber<List<LoadbalanceTarget>> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final RSocketConnector connector;
@@ -100,6 +100,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
     PooledRSocket[] previouslyActiveSockets;
     PooledRSocket[] activeSockets;
+    PooledRSocket[] inactiveSockets;
     for (; ; ) {
       HashMap<LoadbalanceTarget, Integer> rSocketSuppliersCopy = new HashMap<>();
 
@@ -110,9 +111,11 @@ class RSocketPool extends ResolvingOperator<Void>
 
       // checking intersection of active RSocket with the newly received set
       previouslyActiveSockets = this.activeSockets;
+      inactiveSockets = new PooledRSocket[previouslyActiveSockets.length];
       PooledRSocket[] nextActiveSockets =
           new PooledRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
-      int position = 0;
+      int activeSocketsPosition = 0;
+      int inactiveSocketsPosition = 0;
       for (int i = 0; i < previouslyActiveSockets.length; i++) {
         PooledRSocket rSocket = previouslyActiveSockets[i];
 
@@ -121,18 +124,18 @@ class RSocketPool extends ResolvingOperator<Void>
           // if one of the active rSockets is not included, we remove it and put in the
           // pending removal
           if (!rSocket.isDisposed()) {
-            rSocket.dispose();
+            inactiveSockets[inactiveSocketsPosition++] = rSocket;
             // TODO: provide a meaningful algo for keeping removed rsocket in the list
             //            nextActiveSockets[position++] = rSocket;
           }
         } else {
           if (!rSocket.isDisposed()) {
             // keep old RSocket instance
-            nextActiveSockets[position++] = rSocket;
+            nextActiveSockets[activeSocketsPosition++] = rSocket;
           } else {
             // put newly create RSocket instance
             LoadbalanceTarget target = targets.get(index);
-            nextActiveSockets[position++] =
+            nextActiveSockets[activeSocketsPosition++] =
                 new PooledRSocket(this, this.connector.connect(target.getTransport()), target);
           }
         }
@@ -140,15 +143,15 @@ class RSocketPool extends ResolvingOperator<Void>
 
       // going though brightly new rsocket
       for (LoadbalanceTarget target : rSocketSuppliersCopy.keySet()) {
-        nextActiveSockets[position++] =
+        nextActiveSockets[activeSocketsPosition++] =
             new PooledRSocket(this, this.connector.connect(target.getTransport()), target);
       }
 
       // shrank to actual length
-      if (position == 0) {
+      if (activeSocketsPosition == 0) {
         activeSockets = EMPTY;
       } else {
-        activeSockets = Arrays.copyOf(nextActiveSockets, position);
+        activeSockets = Arrays.copyOf(nextActiveSockets, activeSocketsPosition);
       }
 
       if (ACTIVE_SOCKETS.compareAndSet(this, previouslyActiveSockets, activeSockets)) {
@@ -156,11 +159,19 @@ class RSocketPool extends ResolvingOperator<Void>
       }
     }
 
+    for (PooledRSocket inactiveSocket : inactiveSockets) {
+      if (inactiveSocket == null) {
+        break;
+      }
+
+      inactiveSocket.dispose();
+    }
+
     if (isPending()) {
       // notifies that upstream is resolved
       if (activeSockets != EMPTY) {
         //noinspection ConstantConditions
-        complete(null);
+        complete(this);
       }
     }
   }
@@ -191,6 +202,13 @@ class RSocketPool extends ResolvingOperator<Void>
         terminate(new CancellationException("Pool is exhausted"));
       } else {
         invalidate();
+
+        // check since it is possible that between doSelect() and invalidate() we might
+        // have received new sockets
+        selected = doSelect();
+        if (selected != null) {
+          return selected;
+        }
       }
       return this.deferredResolutionRSocket;
     }
@@ -201,44 +219,12 @@ class RSocketPool extends ResolvingOperator<Void>
   @Nullable
   RSocket doSelect() {
     PooledRSocket[] sockets = this.activeSockets;
-    if (sockets == EMPTY) {
+
+    if (sockets == EMPTY || sockets == TERMINATED) {
       return null;
     }
 
-    return this.loadbalanceStrategy.select(this);
-  }
-
-  @Override
-  public RSocket get(int index) {
-    final PooledRSocket socket = activeSockets[index];
-    final RSocket realValue = socket.valueIfResolved();
-
-    if (realValue != null) {
-      return realValue;
-    }
-
-    return socket;
-  }
-
-  @Override
-  public int size() {
-    return activeSockets.length;
-  }
-
-  @Override
-  public boolean isEmpty() {
-    return activeSockets.length == 0;
-  }
-
-  @Override
-  public Object[] toArray() {
-    return activeSockets;
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T> T[] toArray(T[] a) {
-    return (T[]) activeSockets;
+    return this.loadbalanceStrategy.select(WrappingList.wrap(sockets));
   }
 
   static class DeferredResolutionRSocket implements RSocket {
@@ -266,7 +252,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-      return new FluxInner<>(this.parent, payloads, FrameType.REQUEST_STREAM);
+      return new FluxInner<>(this.parent, payloads, FrameType.REQUEST_CHANNEL);
     }
 
     @Override
@@ -275,7 +261,7 @@ class RSocketPool extends ResolvingOperator<Void>
     }
   }
 
-  static final class MonoInner<T> extends MonoDeferredResolution<T, Void> {
+  static final class MonoInner<T> extends MonoDeferredResolution<T, Object> {
 
     MonoInner(RSocketPool parent, Payload payload, FrameType requestType) {
       super(parent, payload, requestType);
@@ -283,7 +269,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public void accept(Void aVoid, Throwable t) {
+    public void accept(Object aVoid, Throwable t) {
       if (isTerminated()) {
         return;
       }
@@ -295,32 +281,47 @@ class RSocketPool extends ResolvingOperator<Void>
       }
 
       RSocketPool parent = (RSocketPool) this.parent;
-      RSocket rSocket = parent.doSelect();
-      if (rSocket != null) {
-        Mono<?> source;
-        switch (this.requestType) {
-          case REQUEST_FNF:
-            source = rSocket.fireAndForget(this.payload);
-            break;
-          case REQUEST_RESPONSE:
-            source = rSocket.requestResponse(this.payload);
-            break;
-          case METADATA_PUSH:
-            source = rSocket.metadataPush(this.payload);
-            break;
-          default:
-            Operators.error(this.actual, new IllegalStateException("Should never happen"));
-            return;
+      for (; ; ) {
+        RSocket rSocket = parent.doSelect();
+        if (rSocket != null) {
+          Mono<?> source;
+          switch (this.requestType) {
+            case REQUEST_FNF:
+              source = rSocket.fireAndForget(this.payload);
+              break;
+            case REQUEST_RESPONSE:
+              source = rSocket.requestResponse(this.payload);
+              break;
+            case METADATA_PUSH:
+              source = rSocket.metadataPush(this.payload);
+              break;
+            default:
+              Operators.error(this.actual, new IllegalStateException("Should never happen"));
+              return;
+          }
+
+          source.subscribe((CoreSubscriber) this);
+
+          return;
         }
 
-        source.subscribe((CoreSubscriber) this);
-      } else {
-        parent.add(this);
+        final int state = parent.add(this);
+
+        if (state == ADDED_STATE) {
+          return;
+        }
+
+        if (state == TERMINATED_STATE) {
+          final Throwable error = parent.t;
+          ReferenceCountUtil.safeRelease(this.payload);
+          onError(error);
+          return;
+        }
       }
     }
   }
 
-  static final class FluxInner<INPUT> extends FluxDeferredResolution<INPUT, Void> {
+  static final class FluxInner<INPUT> extends FluxDeferredResolution<INPUT, Object> {
 
     FluxInner(RSocketPool parent, INPUT fluxOrPayload, FrameType requestType) {
       super(parent, fluxOrPayload, requestType);
@@ -328,7 +329,7 @@ class RSocketPool extends ResolvingOperator<Void>
 
     @Override
     @SuppressWarnings("unchecked")
-    public void accept(Void aVoid, Throwable t) {
+    public void accept(Object aVoid, Throwable t) {
       if (isTerminated()) {
         return;
       }
@@ -342,115 +343,178 @@ class RSocketPool extends ResolvingOperator<Void>
       }
 
       RSocketPool parent = (RSocketPool) this.parent;
-      RSocket rSocket = parent.doSelect();
-      if (rSocket != null) {
-        Flux<? extends Payload> source;
-        switch (this.requestType) {
-          case REQUEST_STREAM:
-            source = rSocket.requestStream((Payload) this.fluxOrPayload);
-            break;
-          case REQUEST_CHANNEL:
-            source = rSocket.requestChannel((Flux<Payload>) this.fluxOrPayload);
-            break;
-          default:
-            Operators.error(this.actual, new IllegalStateException("Should never happen"));
-            return;
+      for (; ; ) {
+        RSocket rSocket = parent.doSelect();
+        if (rSocket != null) {
+          Flux<? extends Payload> source;
+          switch (this.requestType) {
+            case REQUEST_STREAM:
+              source = rSocket.requestStream((Payload) this.fluxOrPayload);
+              break;
+            case REQUEST_CHANNEL:
+              source = rSocket.requestChannel((Flux<Payload>) this.fluxOrPayload);
+              break;
+            default:
+              Operators.error(this.actual, new IllegalStateException("Should never happen"));
+              return;
+          }
+
+          source.subscribe(this);
+
+          return;
         }
 
-        source.subscribe(this);
-      } else {
-        parent.add(this);
+        final int state = parent.add(this);
+
+        if (state == ADDED_STATE) {
+          return;
+        }
+
+        if (state == TERMINATED_STATE) {
+          final Throwable error = parent.t;
+          if (this.requestType == FrameType.REQUEST_STREAM) {
+            ReferenceCountUtil.safeRelease(this.fluxOrPayload);
+          }
+          onError(error);
+          return;
+        }
       }
     }
   }
 
-  @Override
-  public boolean contains(Object o) {
-    throw new UnsupportedOperationException();
-  }
+  static final class WrappingList implements List<RSocket> {
 
-  @Override
-  public Iterator<RSocket> iterator() {
-    throw new UnsupportedOperationException();
-  }
+    static final ThreadLocal<WrappingList> INSTANCE = ThreadLocal.withInitial(WrappingList::new);
 
-  @Override
-  public boolean add(RSocket weightedRSocket) {
-    throw new UnsupportedOperationException();
-  }
+    private PooledRSocket[] activeSockets;
 
-  @Override
-  public boolean remove(Object o) {
-    throw new UnsupportedOperationException();
-  }
+    static List<RSocket> wrap(PooledRSocket[] activeSockets) {
+      final WrappingList sockets = INSTANCE.get();
+      sockets.activeSockets = activeSockets;
+      return sockets;
+    }
 
-  @Override
-  public boolean containsAll(Collection<?> c) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public RSocket get(int index) {
+      final PooledRSocket socket = activeSockets[index];
+      final RSocket realValue = socket.valueIfResolved();
 
-  @Override
-  public boolean addAll(Collection<? extends RSocket> c) {
-    throw new UnsupportedOperationException();
-  }
+      if (realValue != null) {
+        return realValue;
+      }
 
-  @Override
-  public boolean addAll(int index, Collection<? extends RSocket> c) {
-    throw new UnsupportedOperationException();
-  }
+      return socket;
+    }
 
-  @Override
-  public boolean removeAll(Collection<?> c) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public int size() {
+      return activeSockets.length;
+    }
 
-  @Override
-  public boolean retainAll(Collection<?> c) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean isEmpty() {
+      return activeSockets.length == 0;
+    }
 
-  @Override
-  public void clear() {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public Object[] toArray() {
+      return activeSockets;
+    }
 
-  @Override
-  public RSocket set(int index, RSocket element) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T[] toArray(T[] a) {
+      return (T[]) activeSockets;
+    }
 
-  @Override
-  public void add(int index, RSocket element) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean contains(Object o) {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public RSocket remove(int index) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public Iterator<RSocket> iterator() {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public int indexOf(Object o) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean add(RSocket weightedRSocket) {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public int lastIndexOf(Object o) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean remove(Object o) {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public ListIterator<RSocket> listIterator() {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean containsAll(Collection<?> c) {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public ListIterator<RSocket> listIterator(int index) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public boolean addAll(Collection<? extends RSocket> c) {
+      throw new UnsupportedOperationException();
+    }
 
-  @Override
-  public List<RSocket> subList(int fromIndex, int toIndex) {
-    throw new UnsupportedOperationException();
+    @Override
+    public boolean addAll(int index, Collection<? extends RSocket> c) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean removeAll(Collection<?> c) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean retainAll(Collection<?> c) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void clear() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RSocket set(int index, RSocket element) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void add(int index, RSocket element) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RSocket remove(int index) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int indexOf(Object o) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int lastIndexOf(Object o) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ListIterator<RSocket> listIterator() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ListIterator<RSocket> listIterator(int index) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<RSocket> subList(int fromIndex, int toIndex) {
+      throw new UnsupportedOperationException();
+    }
   }
 }
