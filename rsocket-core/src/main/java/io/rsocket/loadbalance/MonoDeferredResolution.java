@@ -59,7 +59,7 @@ abstract class MonoDeferredResolution<RESULT, R> extends Mono<RESULT>
   }
 
   @Override
-  public void subscribe(CoreSubscriber<? super RESULT> actual) {
+  public final void subscribe(CoreSubscriber<? super RESULT> actual) {
     if (this.requested == STATE_UNSUBSCRIBED
         && REQUESTED.compareAndSet(this, STATE_UNSUBSCRIBED, STATE_SUBSCRIBER_SET)) {
 
@@ -145,7 +145,7 @@ abstract class MonoDeferredResolution<RESULT, R> extends Mono<RESULT>
   }
 
   @Override
-  public void onError(Throwable t) {
+  public final void onError(Throwable t) {
     if (this.done) {
       Operators.onErrorDropped(t, this.actual.currentContext());
       return;
@@ -156,7 +156,7 @@ abstract class MonoDeferredResolution<RESULT, R> extends Mono<RESULT>
   }
 
   @Override
-  public void onComplete() {
+  public final void onComplete() {
     if (this.done) {
       return;
     }
@@ -206,7 +206,7 @@ abstract class MonoDeferredResolution<RESULT, R> extends Mono<RESULT>
     }
   }
 
-  public void cancel() {
+  public final void cancel() {
     long state = REQUESTED.getAndSet(this, STATE_TERMINATED);
     if (state == STATE_TERMINATED) {
       return;

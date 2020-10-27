@@ -108,22 +108,16 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
 
   @Override
   protected void doOnValueResolved(RSocket value) {
-    value.onClose().subscribe(null, t -> this.invalidate(), this::invalidate);
+    value.onClose().subscribe(null, t -> this.doCleanup(), this::doCleanup);
   }
 
-  @Override
-  protected void doOnValueExpired(RSocket value) {
-    value.dispose();
+  void doCleanup() {
+    if (isDisposed()) {
+      return;
+    }
+
     this.dispose();
-  }
 
-  @Override
-  public void dispose() {
-    super.dispose();
-  }
-
-  @Override
-  protected void doOnDispose() {
     final RSocketPool parent = this.parent;
     for (; ; ) {
       final PooledRSocket[] sockets = parent.activeSockets;
@@ -141,20 +135,35 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
         break;
       }
 
-      final int lastIndex = activeSocketsCount - 1;
-      final PooledRSocket[] newSockets = new PooledRSocket[lastIndex];
-      if (index != 0) {
-        System.arraycopy(sockets, 0, newSockets, 0, index);
-      }
+      final PooledRSocket[] newSockets;
+      if (activeSocketsCount == 1) {
+        newSockets = RSocketPool.EMPTY;
+      } else {
+        final int lastIndex = activeSocketsCount - 1;
 
-      if (index != lastIndex) {
-        System.arraycopy(sockets, index + 1, newSockets, index, lastIndex - index);
+        newSockets = new PooledRSocket[lastIndex];
+        if (index != 0) {
+          System.arraycopy(sockets, 0, newSockets, 0, index);
+        }
+
+        if (index != lastIndex) {
+          System.arraycopy(sockets, index + 1, newSockets, index, lastIndex - index);
+        }
       }
 
       if (RSocketPool.ACTIVE_SOCKETS.compareAndSet(parent, sockets, newSockets)) {
         break;
       }
     }
+  }
+
+  @Override
+  protected void doOnValueExpired(RSocket value) {
+    value.dispose();
+  }
+
+  @Override
+  protected void doOnDispose() {
     Operators.terminate(S, this);
   }
 
@@ -231,7 +240,7 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
 
         source.subscribe((CoreSubscriber) this);
       } else {
-        parent.add(this);
+        parent.observe(this);
       }
     }
   }
@@ -273,7 +282,7 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
 
         source.subscribe(this);
       } else {
-        parent.add(this);
+        parent.observe(this);
       }
     }
   }
