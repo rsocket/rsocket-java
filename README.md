@@ -29,8 +29,8 @@ repositories {
     maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.0-M1'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-M1'
+    implementation 'io.rsocket:rsocket-core:1.1.0'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.0'
 }
 ```
 
@@ -44,8 +44,8 @@ repositories {
     maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.1.1-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.1-SNAPSHOT'
 }
 ```
 
@@ -133,7 +133,7 @@ For bugs, questions and discussions please use the [Github Issues](https://githu
 
 ## LICENSE
 
-Copyright 2015-2018 the original author or authors.
+Copyright 2015-2020 the original author or authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
