@@ -22,11 +22,6 @@ subprojects {
                         }
                         developers {
                             developer {
-                                id = 'robertroeser'
-                                name = 'Robert Roeser'
-                                email = 'robert@netifi.com'
-                            }
-                            developer {
                                 id = 'rdegnan'
                                 name = 'Ryland Degnan'
                                 email = 'ryland@netifi.com'
@@ -39,12 +34,12 @@ subprojects {
                             developer {
                                 id = 'OlegDokuka'
                                 name = 'Oleh Dokuka'
-                                email = 'oleh@netifi.com'
+                                email = 'oleh.dokuka@icloud.com'
                             }
                             developer {
-                                id = 'mostroverkhov'
-                                name = 'Maksym Ostroverkhov'
-                                email = 'm.ostroverkhov@gmail.com'
+                                id = 'rstoyanchev'
+                                name = 'Rossen Stoyanchev'
+                                email = 'rstoyanchev@vmware.com'
                             }
                         }
                         scm {
