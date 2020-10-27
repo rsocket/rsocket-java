@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +41,8 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
+import reactor.util.context.Context;
 import reactor.util.retry.Retry;
 
 /**
@@ -667,26 +668,28 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
       return rSocketMono.flatMap(
-          source -> {
-            return Mono.from(
-                subscriber ->
-                    source
-                        .requestResponse(payload)
-                        .subscribe(new LatencySubscriber<>(subscriber, this)));
-          });
+          source ->
+              Mono.from(
+                  subscriber ->
+                      source
+                          .requestResponse(payload)
+                          .subscribe(
+                              new LatencySubscriber<>(
+                                  Operators.toCoreSubscriber(subscriber), this))));
     }
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
 
       return rSocketMono.flatMapMany(
-          source -> {
-            return Flux.from(
-                subscriber ->
-                    source
-                        .requestStream(payload)
-                        .subscribe(new CountingSubscriber<>(subscriber, this)));
-          });
+          source ->
+              Flux.from(
+                  subscriber ->
+                      source
+                          .requestStream(payload)
+                          .subscribe(
+                              new CountingSubscriber<>(
+                                  Operators.toCoreSubscriber(subscriber), this))));
     }
 
     @Override
@@ -698,7 +701,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                 subscriber ->
                     source
                         .fireAndForget(payload)
-                        .subscribe(new CountingSubscriber<>(subscriber, this)));
+                        .subscribe(
+                            new CountingSubscriber<>(
+                                Operators.toCoreSubscriber(subscriber), this)));
           });
     }
 
@@ -710,7 +715,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                 subscriber ->
                     source
                         .metadataPush(payload)
-                        .subscribe(new CountingSubscriber<>(subscriber, this)));
+                        .subscribe(
+                            new CountingSubscriber<>(
+                                Operators.toCoreSubscriber(subscriber), this)));
           });
     }
 
@@ -718,13 +725,14 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
 
       return rSocketMono.flatMapMany(
-          source -> {
-            return Flux.from(
-                subscriber ->
-                    source
-                        .requestChannel(payloads)
-                        .subscribe(new CountingSubscriber<>(subscriber, this)));
-          });
+          source ->
+              Flux.from(
+                  subscriber ->
+                      source
+                          .requestChannel(payloads)
+                          .subscribe(
+                              new CountingSubscriber<>(
+                                  Operators.toCoreSubscriber(subscriber), this))));
     }
 
     synchronized double getPredictedLatency() {
@@ -867,16 +875,21 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
      * Subscriber wrapper used for request/response interaction model, measure and collect latency
      * information.
      */
-    private class LatencySubscriber<U> implements Subscriber<U> {
-      private final Subscriber<U> child;
+    private class LatencySubscriber<U> implements CoreSubscriber<U> {
+      private final CoreSubscriber<U> child;
       private final WeightedSocket socket;
       private final AtomicBoolean done;
       private long start;
 
-      LatencySubscriber(Subscriber<U> child, WeightedSocket socket) {
+      LatencySubscriber(CoreSubscriber<U> child, WeightedSocket socket) {
         this.child = child;
         this.socket = socket;
         this.done = new AtomicBoolean(false);
+      }
+
+      @Override
+      public Context currentContext() {
+        return child.currentContext();
       }
 
       @Override
@@ -931,13 +944,18 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
      * Subscriber wrapper used for stream like interaction model, it only counts the number of
      * active streams
      */
-    private class CountingSubscriber<U> implements Subscriber<U> {
-      private final Subscriber<U> child;
+    private class CountingSubscriber<U> implements CoreSubscriber<U> {
+      private final CoreSubscriber<U> child;
       private final WeightedSocket socket;
 
-      CountingSubscriber(Subscriber<U> child, WeightedSocket socket) {
+      CountingSubscriber(CoreSubscriber<U> child, WeightedSocket socket) {
         this.child = child;
         this.socket = socket;
+      }
+
+      @Override
+      public Context currentContext() {
+        return child.currentContext();
       }
 
       @Override
