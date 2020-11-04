@@ -288,6 +288,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
   public void cancel() {
     long previousState = markInboundTerminated(STATE, this);
     if (isTerminated(previousState) || isInboundTerminated(previousState)) {
+      INBOUND_ERROR.lazySet(this, TERMINATED);
       return;
     }
 
