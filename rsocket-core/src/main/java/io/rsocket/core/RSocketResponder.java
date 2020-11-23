@@ -406,22 +406,20 @@ class RSocketResponder implements RSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
-            if (isEmpty) {
-              isEmpty = false;
-            }
+            isEmpty = false;
 
             if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
               payload.release();
               cancel();
-              final IllegalArgumentException t =
-                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-              handleError(streamId, t);
+              sendingSubscriptions.remove(streamId, this);
+              handleError(streamId, new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
               return;
             }
 
             ByteBuf byteBuf =
                 PayloadFrameCodec.encodeNextCompleteReleasingPayload(allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
+            sendingSubscriptions.remove(streamId, this);
           }
 
           @Override
@@ -433,10 +431,8 @@ class RSocketResponder implements RSocket {
 
           @Override
           protected void hookOnComplete() {
-            if (isEmpty) {
-              if (sendingSubscriptions.remove(streamId, this)) {
-                sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
-              }
+            if (isEmpty && sendingSubscriptions.remove(streamId, this)) {
+              sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
             }
           }
         };
