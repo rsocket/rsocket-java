@@ -23,6 +23,7 @@ abstract class RequestOperator
         Fuseable.QueueSubscription<Payload>,
         Fuseable {
 
+  final CorePublisher<Payload> source;
   final String errorMessageOnSecondSubscription;
 
   CoreSubscriber<? super Payload> actual;
@@ -38,8 +39,8 @@ abstract class RequestOperator
       AtomicIntegerFieldUpdater.newUpdater(RequestOperator.class, "wip");
 
   RequestOperator(CorePublisher<Payload> source, String errorMessageOnSecondSubscription) {
+    this.source = source;
     this.errorMessageOnSecondSubscription = errorMessageOnSecondSubscription;
-    source.subscribe(this);
     WIP.lazySet(this, -1);
   }
 
@@ -52,6 +53,7 @@ abstract class RequestOperator
   public void subscribe(CoreSubscriber<? super Payload> actual) {
     if (this.wip == -1 && WIP.compareAndSet(this, -1, 0)) {
       this.actual = actual;
+      source.subscribe(this);
       actual.onSubscribe(this);
     } else {
       Operators.error(actual, new IllegalStateException(this.errorMessageOnSecondSubscription));
