@@ -27,8 +27,8 @@ repositories {
     maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.2'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.2'
+    implementation 'io.rsocket:rsocket-core:1.0.3'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.3'
 }
 ```
 
@@ -42,8 +42,8 @@ repositories {
     maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.3-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.3-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.0.4-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.4-SNAPSHOT'
 }
 ```
 
