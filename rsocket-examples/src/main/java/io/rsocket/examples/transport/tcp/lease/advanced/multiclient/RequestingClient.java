@@ -25,6 +25,7 @@ public class RequestingClient {
                 (registry) -> {
                   DefaultDeferringLeaseReceiver leaseReceiver =
                       new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
+
                   registry.forRequester(
                       (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver));
 

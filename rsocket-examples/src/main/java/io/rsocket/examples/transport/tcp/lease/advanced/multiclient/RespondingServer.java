@@ -72,7 +72,9 @@ public class RespondingServer {
                               .initialLimit(CONCURRENT_WORKERS_COUNT)
                               .maxConcurrency(QUEUE_CAPACITY)
                               .build());
+
                   registry.forRequestsInResponder(__ -> leaseSender);
+
                   return Leases.create().sender(leaseSender);
                 })
             .bindNow(TcpServerTransport.create("localhost", 7000));
