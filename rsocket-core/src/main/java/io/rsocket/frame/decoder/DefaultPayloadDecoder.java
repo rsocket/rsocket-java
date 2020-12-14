@@ -36,7 +36,6 @@ class DefaultPayloadDecoder implements PayloadDecoder {
         m = RequestStreamFrameCodec.metadata(byteBuf);
         break;
       case REQUEST_CHANNEL:
-      case REQUEST_CHANNEL_COMPLETE:
         d = RequestChannelFrameCodec.data(byteBuf);
         m = RequestChannelFrameCodec.metadata(byteBuf);
         break;
