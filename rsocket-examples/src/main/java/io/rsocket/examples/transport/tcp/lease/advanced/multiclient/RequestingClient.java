@@ -18,16 +18,18 @@ public class RequestingClient {
   private static final Logger logger = LoggerFactory.getLogger(RequestingClient.class);
 
   public static void main(String[] args) {
-    DefaultDeferringLeaseReceiver leaseReceiver =
-        new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
 
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease(() -> Leases.create().receiver(leaseReceiver))
-            .interceptors(
-                ir ->
-                    ir.forRequester(
-                        (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver)))
+            .lease(
+                (registry) -> {
+                  DefaultDeferringLeaseReceiver leaseReceiver =
+                      new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
+                  registry.forRequester(
+                      (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver));
+
+                  return Leases.create().receiver(leaseReceiver);
+                })
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 

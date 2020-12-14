@@ -66,4 +66,17 @@ public class InitializingInterceptorRegistry extends InterceptorRegistry {
     }
     return acceptor;
   }
+
+  public InitializingInterceptorRegistry copy() {
+    final InitializingInterceptorRegistry registry = new InitializingInterceptorRegistry();
+
+    registry.getRequestInterceptorsForRequester().addAll(this.getRequestInterceptorsForRequester());
+    registry.getRequestInterceptorsForResponder().addAll(this.getRequestInterceptorsForResponder());
+    registry.getConnectionInterceptors().addAll(this.getConnectionInterceptors());
+    registry.getRequesterInterceptors().addAll(this.getRequesterInterceptors());
+    registry.getResponderInterceptors().addAll(this.getResponderInterceptors());
+    registry.getSocketAcceptorInterceptors().addAll(this.getSocketAcceptorInterceptors());
+
+    return registry;
+  }
 }

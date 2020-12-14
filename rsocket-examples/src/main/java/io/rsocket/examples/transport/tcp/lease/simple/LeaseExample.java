@@ -25,7 +25,6 @@ import io.rsocket.lease.LeaseReceiver;
 import io.rsocket.lease.LeaseSender;
 import io.rsocket.lease.Leases;
 import io.rsocket.lease.MissingLeaseException;
-import io.rsocket.lease.RequestTracker;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -39,7 +38,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
-import reactor.util.annotation.Nullable;
 import reactor.util.retry.Retry;
 
 public class LeaseExample {
@@ -95,13 +93,13 @@ public class LeaseExample {
                             return Mono.empty();
                           }
                         }))
-            .lease(() -> Leases.create().sender(new LeaseCalculator(SERVER_TAG, messagesQueue)))
+            .lease((__) -> Leases.create().sender(new LeaseCalculator(SERVER_TAG, messagesQueue)))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     SimpleLeaseReceiver receiver = new SimpleLeaseReceiver(CLIENT_TAG);
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease(() -> Leases.create().receiver(receiver))
+            .lease((__) -> Leases.create().receiver(receiver))
             .connect(TcpClientTransport.create(server.address()))
             .block();
 
@@ -146,7 +144,7 @@ public class LeaseExample {
    * connection.<br>
    * In real-world projects this class has to issue leases based on real metrics
    */
-  private static class LeaseCalculator implements LeaseSender<RequestTracker> {
+  private static class LeaseCalculator implements LeaseSender {
     final String tag;
     final BlockingQueue<?> queue;
 
@@ -156,7 +154,7 @@ public class LeaseExample {
     }
 
     @Override
-    public Flux<Lease> send(@Nullable RequestTracker leaseStats) {
+    public Flux<Lease> send() {
       Duration ttlDuration = Duration.ofSeconds(5);
       // The interval function is used only for the demo purpose and should not be
       // considered as the way to issue leases.
@@ -205,7 +203,7 @@ public class LeaseExample {
      * new valid lease has come in
      */
     public Mono<Lease> notifyWhenNewLease() {
-      return lastLeaseReplay.filter(l -> l.isValid()).next();
+      return lastLeaseReplay.filter(Lease::isValid).next();
     }
   }
 }

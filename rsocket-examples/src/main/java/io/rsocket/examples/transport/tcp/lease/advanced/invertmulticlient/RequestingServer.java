@@ -19,7 +19,6 @@ package io.rsocket.examples.transport.tcp.lease.advanced.invertmulticlient;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.DefaultDeferringLeaseReceiver;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.DeferringLeaseReceiver;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseWaitingRSocket;
 import io.rsocket.lease.Leases;
 import io.rsocket.plugins.RSocketInterceptor;
@@ -38,8 +37,6 @@ public class RequestingServer {
 
   private static final Logger logger = LoggerFactory.getLogger(RequestingServer.class);
 
-  static final ThreadLocal<DeferringLeaseReceiver> CURRENT_LEASE_RECEIVER = new ThreadLocal<>();
-
   public static void main(String[] args) {
     PriorityBlockingQueue<RSocket> rSockets =
         new PriorityBlockingQueue<>(
@@ -53,17 +50,13 @@ public class RequestingServer {
                       .doAfterTerminate(() -> rSockets.put(sendingSocket));
                 })
             .lease(
-                () -> {
+                (registry) -> {
                   DefaultDeferringLeaseReceiver leaseReceiver =
                       new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
-                  CURRENT_LEASE_RECEIVER.set(leaseReceiver);
+                  registry.forRequester(
+                      (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver));
                   return Leases.create().receiver(leaseReceiver);
                 })
-            .interceptors(
-                ir ->
-                    ir.forRequester(
-                        (RSocketInterceptor)
-                            r -> new LeaseWaitingRSocket(r, CURRENT_LEASE_RECEIVER.get())))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     logger.info("Server started on port {}", server.address().getPort());

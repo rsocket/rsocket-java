@@ -98,7 +98,7 @@ class RSocketLeaseTest {
     connection = new TestDuplexConnection(byteBufAllocator);
     requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
-        new ResponderLeaseHandler.Impl(TAG, byteBufAllocator, stats -> leaseSender);
+        new ResponderLeaseHandler.Impl(TAG, byteBufAllocator, () -> leaseSender);
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
@@ -173,12 +173,11 @@ class RSocketLeaseTest {
             });
 
     rSocketResponder =
-        new LeaseEnabledRSocketResponder(
+        new RSocketResponder(
             multiplexer.asServerConnection(),
             mockRSocketHandler,
             payloadDecoder,
             responderLeaseHandler,
-            null,
             0,
             FRAME_LENGTH_MASK,
             Integer.MAX_VALUE,
@@ -215,7 +214,7 @@ class RSocketLeaseTest {
   @Test
   public void clientRSocketFactorySetsLeaseFlag() {
     TestClientTransport clientTransport = new TestClientTransport();
-    RSocketConnector.create().lease(Leases::new).connect(clientTransport).block();
+    RSocketConnector.create().lease(__ -> Leases.create()).connect(clientTransport).block();
 
     Collection<ByteBuf> sent = clientTransport.testConnection().getSent();
     Assertions.assertThat(sent).hasSize(1);

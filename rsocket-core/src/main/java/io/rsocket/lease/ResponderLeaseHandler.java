@@ -23,7 +23,6 @@ import io.rsocket.frame.LeaseFrameCodec;
 import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
-import reactor.util.annotation.Nullable;
 
 public interface ResponderLeaseHandler extends Availability {
 
@@ -31,7 +30,7 @@ public interface ResponderLeaseHandler extends Availability {
 
   Exception leaseError();
 
-  Disposable send(Consumer<ByteBuf> leaseFrameSender, @Nullable RequestTracker requestTracker);
+  Disposable send(Consumer<ByteBuf> leaseFrameSender);
 
   @SuppressWarnings("rawtypes")
   final class Impl implements ResponderLeaseHandler {
@@ -63,17 +62,13 @@ public interface ResponderLeaseHandler extends Availability {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Disposable send(Consumer<ByteBuf> leaseFrameSender, RequestTracker requestTracker) {
+    public Disposable send(Consumer<ByteBuf> leaseFrameSender) {
       return leaseSender
-          .send(requestTracker)
+          .send()
           .subscribe(
-              new Consumer<Lease>() {
-                @Override
-                public void accept(Lease lease) {
-                  currentLease = create(lease);
-                  leaseFrameSender.accept(Impl.this.createLeaseFrame(lease));
-                }
+              lease -> {
+                currentLease = create(lease);
+                leaseFrameSender.accept(Impl.this.createLeaseFrame(lease));
               });
     }
 
@@ -97,7 +92,6 @@ public interface ResponderLeaseHandler extends Availability {
     }
   }
 
-  @Deprecated
   ResponderLeaseHandler None =
       new ResponderLeaseHandler() {
         @Override
@@ -111,7 +105,7 @@ public interface ResponderLeaseHandler extends Availability {
         }
 
         @Override
-        public Disposable send(Consumer<ByteBuf> leaseFrameSender, RequestTracker requestTracker) {
+        public Disposable send(Consumer<ByteBuf> leaseFrameSender) {
           return Disposables.disposed();
         }
 

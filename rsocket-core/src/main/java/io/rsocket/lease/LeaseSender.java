@@ -1,9 +1,8 @@
 package io.rsocket.lease;
 
 import reactor.core.publisher.Flux;
-import reactor.util.annotation.Nullable;
 
-public interface LeaseSender<T extends RequestTracker> {
+public interface LeaseSender {
 
-  Flux<Lease> send(@Nullable T leaseTracker);
+  Flux<Lease> send();
 }

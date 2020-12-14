@@ -288,7 +288,6 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
 
   final void handleFireAndForget(int streamId, ByteBuf frame) {
     if (leaseHandler.useLease()) {
-
       if (FrameHeaderCodec.hasFollows(frame)) {
         final RequestInterceptor requestInterceptor = this.getRequestInterceptor();
         if (requestInterceptor != null) {

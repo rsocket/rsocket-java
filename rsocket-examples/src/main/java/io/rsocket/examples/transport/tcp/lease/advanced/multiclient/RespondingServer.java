@@ -19,8 +19,8 @@ package io.rsocket.examples.transport.tcp.lease.advanced.multiclient;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketServer;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.LimitBasedRequestTracker;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.PeriodicLeaseSender;
+import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseManager;
+import io.rsocket.examples.transport.tcp.lease.advanced.common.LimitBasedLeaseSender;
 import io.rsocket.examples.transport.tcp.lease.advanced.controller.TasksHandlingRSocket;
 import io.rsocket.lease.Leases;
 import io.rsocket.transport.netty.server.CloseableChannel;
@@ -41,7 +41,7 @@ public class RespondingServer {
 
   private static final Logger logger = LoggerFactory.getLogger(RespondingServer.class);
 
-  public static final int PROCESSING_TASK = 500;
+  public static final int TASK_PROCESSING_TIME = 500;
   public static final int CONCURRENT_WORKERS_COUNT = 1;
   public static final int QUEUE_CAPACITY = 50;
 
@@ -55,29 +55,26 @@ public class RespondingServer {
 
     Scheduler workScheduler = Schedulers.fromExecutorService(threadPoolExecutor);
 
-    PeriodicLeaseSender periodicLeaseSender =
-        new PeriodicLeaseSender(
-            CONCURRENT_WORKERS_COUNT,
-            PROCESSING_TASK,
-            Schedulers.newSingle("periodic-lease-sender").createWorker());
+    LeaseManager leaseManager = new LeaseManager(CONCURRENT_WORKERS_COUNT, TASK_PROCESSING_TIME);
 
     Disposable.Composite disposable = Disposables.composite();
     CloseableChannel server =
         RSocketServer.create(
                 SocketAcceptor.with(
-                    new TasksHandlingRSocket(disposable, workScheduler, PROCESSING_TASK)))
+                    new TasksHandlingRSocket(disposable, workScheduler, TASK_PROCESSING_TIME)))
             .lease(
-                () ->
-                    Leases.<LimitBasedRequestTracker>create()
-                        .tracker(
-                            new LimitBasedRequestTracker(
-                                UUID.randomUUID().toString(),
-                                periodicLeaseSender,
-                                VegasLimit.newBuilder()
-                                    .initialLimit(CONCURRENT_WORKERS_COUNT)
-                                    .maxConcurrency(QUEUE_CAPACITY)
-                                    .build()))
-                        .sender(periodicLeaseSender))
+                (registry) -> {
+                  final LimitBasedLeaseSender leaseSender =
+                      new LimitBasedLeaseSender(
+                          UUID.randomUUID().toString(),
+                          leaseManager,
+                          VegasLimit.newBuilder()
+                              .initialLimit(CONCURRENT_WORKERS_COUNT)
+                              .maxConcurrency(QUEUE_CAPACITY)
+                              .build());
+                  registry.forRequestsInResponder(__ -> leaseSender);
+                  return Leases.create().sender(leaseSender);
+                })
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     disposable.add(server);
