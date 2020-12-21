@@ -16,13 +16,12 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
-import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.TcpServerTransport;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -33,26 +32,28 @@ public final class ClientStreamingToServer {
 
   private static final Logger logger = LoggerFactory.getLogger(ClientStreamingToServer.class);
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws InterruptedException {
     RSocketServer.create(
             SocketAcceptor.forRequestStream(
                 payload ->
                     Flux.interval(Duration.ofMillis(100))
                         .map(aLong -> DefaultPayload.create("Interval: " + aLong))))
-        .bind(TcpServerTransport.create("localhost", 7000))
+        .bind(WebsocketServerTransport.create("localhost", 7000))
         .subscribe();
 
     RSocket socket =
         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();
 
-    socket
-        .requestStream(DefaultPayload.create("Hello"))
-        .map(Payload::getDataUtf8)
-        .doOnNext(logger::debug)
-        .take(10)
-        .then()
-        .doFinally(signalType -> socket.dispose())
-        .then()
-        .block();
+    //    socket
+    //        .requestStream(DefaultPayload.create("Hello"))
+    //        .map(Payload::getDataUtf8)
+    //        .doOnNext(logger::debug)
+    //        .take(10)
+    //        .then()
+    //        .doFinally(signalType -> socket.dispose())
+    //        .then()
+    //        .block();
+
+    Thread.sleep(1000000);
   }
 }

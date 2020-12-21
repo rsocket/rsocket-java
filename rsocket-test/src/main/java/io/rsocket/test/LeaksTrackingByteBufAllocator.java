@@ -80,7 +80,6 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           }
 
           if (!hasUnreleased) {
-            System.out.println(tag + " all the buffers are released...");
             return this;
           }
 
@@ -109,7 +108,6 @@ class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
                 return checkResult;
               },
               tag);
-      System.out.println(tag + " all the buffers are released...");
     } finally {
       tracker.clear();
     }

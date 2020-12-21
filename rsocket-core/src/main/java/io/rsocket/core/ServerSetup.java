@@ -65,7 +65,7 @@ abstract class ServerSetup {
 
       if (SetupFrameCodec.resumeEnabled(frame)) {
         sendError(duplexConnection, new UnsupportedSetupException("resume not supported"));
-        return Mono.empty();
+        return duplexConnection.onClose();
       } else {
         return then.apply(new DefaultKeepAliveHandler(duplexConnection), duplexConnection);
       }
