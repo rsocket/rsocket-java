@@ -385,13 +385,14 @@ public final class RSocketServer {
           clientServerConnection,
           new InvalidSetupException(
               "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)));
+      return clientServerConnection.onClose();
     }
 
     boolean leaseEnabled = leasesSupplier != null;
     if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
       serverSetup.sendError(
           clientServerConnection, new InvalidSetupException("lease is not supported"));
-      return Mono.empty();
+      return clientServerConnection.onClose();
     }
 
     return serverSetup.acceptRSocketSetup(
