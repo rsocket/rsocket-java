@@ -11,11 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket.internal.jctools.util;
+package io.rsocket.internal.jctools.queues;
 
 /** JVM Information that is standard and available on all JVMs (i.e. does not use unsafe) */
-@InternalAPI
-public interface PortableJvmInfo {
+interface PortableJvmInfo {
   int CACHE_LINE_SIZE = Integer.getInteger("jctools.cacheLineSize", 64);
   int CPUs = Runtime.getRuntime().availableProcessors();
   int RECOMENDED_OFFER_BATCH = CPUs * 4;
