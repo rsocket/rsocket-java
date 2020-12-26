@@ -11,11 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket.internal.jctools.util;
+package io.rsocket.internal.jctools.queues;
 
 /** Power of 2 utility functions. */
-@InternalAPI
-public final class Pow2 {
+final class Pow2 {
   public static final int MAX_POW2 = 1 << 30;
 
   /**

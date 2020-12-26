@@ -13,25 +13,38 @@
  */
 package io.rsocket.internal.jctools.queues;
 
-import static io.rsocket.internal.jctools.queues.CircularArrayOffsetCalculator.allocate;
 import static io.rsocket.internal.jctools.queues.LinkedArrayQueueUtil.length;
-import static io.rsocket.internal.jctools.queues.LinkedArrayQueueUtil.modifiedCalcElementOffset;
-import static io.rsocket.internal.jctools.util.UnsafeAccess.UNSAFE;
-import static io.rsocket.internal.jctools.util.UnsafeAccess.fieldOffset;
-import static io.rsocket.internal.jctools.util.UnsafeRefArrayAccess.calcElementOffset;
-import static io.rsocket.internal.jctools.util.UnsafeRefArrayAccess.lvElement;
-import static io.rsocket.internal.jctools.util.UnsafeRefArrayAccess.soElement;
+import static io.rsocket.internal.jctools.queues.LinkedArrayQueueUtil.modifiedCalcCircularRefElementOffset;
+import static io.rsocket.internal.jctools.queues.UnsafeAccess.UNSAFE;
+import static io.rsocket.internal.jctools.queues.UnsafeAccess.fieldOffset;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.allocateRefArray;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.calcCircularRefElementOffset;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.calcRefElementOffset;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.lvRefElement;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.soRefElement;
 
 import io.rsocket.internal.jctools.queues.IndexedQueueSizeUtil.IndexedQueue;
-import io.rsocket.internal.jctools.util.PortableJvmInfo;
-import io.rsocket.internal.jctools.util.Pow2;
-import io.rsocket.internal.jctools.util.RangeUtil;
 import java.util.AbstractQueue;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 abstract class BaseMpscLinkedArrayQueuePad1<E> extends AbstractQueue<E> implements IndexedQueue {
-  long p01, p02, p03, p04, p05, p06, p07;
-  long p10, p11, p12, p13, p14, p15, p16, p17;
+  byte b000, b001, b002, b003, b004, b005, b006, b007; //  8b
+  byte b010, b011, b012, b013, b014, b015, b016, b017; // 16b
+  byte b020, b021, b022, b023, b024, b025, b026, b027; // 24b
+  byte b030, b031, b032, b033, b034, b035, b036, b037; // 32b
+  byte b040, b041, b042, b043, b044, b045, b046, b047; // 40b
+  byte b050, b051, b052, b053, b054, b055, b056, b057; // 48b
+  byte b060, b061, b062, b063, b064, b065, b066, b067; // 56b
+  byte b070, b071, b072, b073, b074, b075, b076, b077; // 64b
+  byte b100, b101, b102, b103, b104, b105, b106, b107; // 72b
+  byte b110, b111, b112, b113, b114, b115, b116, b117; // 80b
+  byte b120, b121, b122, b123, b124, b125, b126, b127; // 88b
+  byte b130, b131, b132, b133, b134, b135, b136, b137; // 96b
+  byte b140, b141, b142, b143, b144, b145, b146, b147; // 104b
+  byte b150, b151, b152, b153, b154, b155, b156, b157; // 112b
+  byte b160, b161, b162, b163, b164, b165, b166, b167; // 120b
+  byte b170, b171, b172, b173, b174, b175, b176, b177; // 128b
 }
 
 // $gen:ordered-fields
@@ -56,8 +69,22 @@ abstract class BaseMpscLinkedArrayQueueProducerFields<E> extends BaseMpscLinkedA
 }
 
 abstract class BaseMpscLinkedArrayQueuePad2<E> extends BaseMpscLinkedArrayQueueProducerFields<E> {
-  long p01, p02, p03, p04, p05, p06, p07;
-  long p10, p11, p12, p13, p14, p15, p16, p17;
+  byte b000, b001, b002, b003, b004, b005, b006, b007; //  8b
+  byte b010, b011, b012, b013, b014, b015, b016, b017; // 16b
+  byte b020, b021, b022, b023, b024, b025, b026, b027; // 24b
+  byte b030, b031, b032, b033, b034, b035, b036, b037; // 32b
+  byte b040, b041, b042, b043, b044, b045, b046, b047; // 40b
+  byte b050, b051, b052, b053, b054, b055, b056, b057; // 48b
+  byte b060, b061, b062, b063, b064, b065, b066, b067; // 56b
+  byte b070, b071, b072, b073, b074, b075, b076, b077; // 64b
+  byte b100, b101, b102, b103, b104, b105, b106, b107; // 72b
+  byte b110, b111, b112, b113, b114, b115, b116, b117; // 80b
+  byte b120, b121, b122, b123, b124, b125, b126, b127; // 88b
+  byte b130, b131, b132, b133, b134, b135, b136, b137; // 96b
+  byte b140, b141, b142, b143, b144, b145, b146, b147; // 104b
+  byte b150, b151, b152, b153, b154, b155, b156, b157; // 112b
+  byte b160, b161, b162, b163, b164, b165, b166, b167; // 120b
+  byte b170, b171, b172, b173, b174, b175, b176, b177; // 128b
 }
 
 // $gen:ordered-fields
@@ -84,8 +111,22 @@ abstract class BaseMpscLinkedArrayQueueConsumerFields<E> extends BaseMpscLinkedA
 }
 
 abstract class BaseMpscLinkedArrayQueuePad3<E> extends BaseMpscLinkedArrayQueueConsumerFields<E> {
-  long p0, p1, p2, p3, p4, p5, p6, p7;
-  long p10, p11, p12, p13, p14, p15, p16, p17;
+  byte b000, b001, b002, b003, b004, b005, b006, b007; //  8b
+  byte b010, b011, b012, b013, b014, b015, b016, b017; // 16b
+  byte b020, b021, b022, b023, b024, b025, b026, b027; // 24b
+  byte b030, b031, b032, b033, b034, b035, b036, b037; // 32b
+  byte b040, b041, b042, b043, b044, b045, b046, b047; // 40b
+  byte b050, b051, b052, b053, b054, b055, b056, b057; // 48b
+  byte b060, b061, b062, b063, b064, b065, b066, b067; // 56b
+  byte b070, b071, b072, b073, b074, b075, b076, b077; // 64b
+  byte b100, b101, b102, b103, b104, b105, b106, b107; // 72b
+  byte b110, b111, b112, b113, b114, b115, b116, b117; // 80b
+  byte b120, b121, b122, b123, b124, b125, b126, b127; // 88b
+  byte b130, b131, b132, b133, b134, b135, b136, b137; // 96b
+  byte b140, b141, b142, b143, b144, b145, b146, b147; // 104b
+  byte b150, b151, b152, b153, b154, b155, b156, b157; // 112b
+  byte b160, b161, b162, b163, b164, b165, b166, b167; // 120b
+  byte b170, b171, b172, b173, b174, b175, b176, b177; // 128b
 }
 
 // $gen:ordered-fields
@@ -115,12 +156,9 @@ abstract class BaseMpscLinkedArrayQueueColdProducerFields<E>
  * An MPSC array queue which starts at <i>initialCapacity</i> and grows to <i>maxCapacity</i> in
  * linked chunks of the initial size. The queue grows only when the current buffer is full and
  * elements are not copied on resize, instead a link to the new buffer is stored in the old buffer
- * for the consumer to follow.<br>
- *
- * @param <E>
+ * for the consumer to follow.
  */
-public abstract class BaseMpscLinkedArrayQueue<E>
-    extends BaseMpscLinkedArrayQueueColdProducerFields<E>
+abstract class BaseMpscLinkedArrayQueue<E> extends BaseMpscLinkedArrayQueueColdProducerFields<E>
     implements MessagePassingQueue<E>, QueueProgressIndicators {
   // No post padding here, subclasses must add
   private static final Object JUMP = new Object();
@@ -141,7 +179,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     // leave lower bit of mask clear
     long mask = (p2capacity - 1) << 1;
     // need extra element to point at next array
-    E[] buffer = allocate(p2capacity + 1);
+    E[] buffer = allocateRefArray(p2capacity + 1);
     producerBuffer = buffer;
     producerMask = mask;
     consumerBuffer = buffer;
@@ -150,7 +188,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
   }
 
   @Override
-  public final int size() {
+  public int size() {
     // NOTE: because indices are on even numbers we cannot use the size util.
 
     /*
@@ -181,7 +219,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
   }
 
   @Override
-  public final boolean isEmpty() {
+  public boolean isEmpty() {
     // Order matters!
     // Loading consumer before producer allows for producer increments after consumer index is read.
     // This ensures this method is conservative in it's estimate. Note that as this is an MPMC there
@@ -240,8 +278,8 @@ public abstract class BaseMpscLinkedArrayQueue<E>
       }
     }
     // INDEX visible before ELEMENT
-    final long offset = modifiedCalcElementOffset(pIndex, mask);
-    soElement(buffer, offset, e); // release element e
+    final long offset = modifiedCalcCircularRefElementOffset(pIndex, mask);
+    soRefElement(buffer, offset, e); // release element e
     return true;
   }
 
@@ -257,8 +295,8 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     final long index = lpConsumerIndex();
     final long mask = consumerMask;
 
-    final long offset = modifiedCalcElementOffset(index, mask);
-    Object e = lvElement(buffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, mask);
+    Object e = lvRefElement(buffer, offset);
     if (e == null) {
       if (index != lvProducerIndex()) {
         // poll() == null iff queue is empty, null element is not strong enough indicator, so we
@@ -266,7 +304,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
         // check the producer index. If the queue is indeed not empty we spin until element is
         // visible.
         do {
-          e = lvElement(buffer, offset);
+          e = lvRefElement(buffer, offset);
         } while (e == null);
       } else {
         return null;
@@ -278,7 +316,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
       return newBufferPoll(nextBuffer, index);
     }
 
-    soElement(buffer, offset, null); // release element null
+    soRefElement(buffer, offset, null); // release element null
     soConsumerIndex(index + 2); // release cIndex
     return (E) e;
   }
@@ -295,14 +333,14 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     final long index = lpConsumerIndex();
     final long mask = consumerMask;
 
-    final long offset = modifiedCalcElementOffset(index, mask);
-    Object e = lvElement(buffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, mask);
+    Object e = lvRefElement(buffer, offset);
     if (e == null && index != lvProducerIndex()) {
       // peek() == null iff queue is empty, null element is not strong enough indicator, so we must
       // check the producer index. If the queue is indeed not empty we spin until element is
       // visible.
       do {
-        e = lvElement(buffer, offset);
+        e = lvRefElement(buffer, offset);
       } while (e == null);
     }
     if (e == JUMP) {
@@ -346,31 +384,31 @@ public abstract class BaseMpscLinkedArrayQueue<E>
   @SuppressWarnings("unchecked")
   private E[] nextBuffer(final E[] buffer, final long mask) {
     final long offset = nextArrayOffset(mask);
-    final E[] nextBuffer = (E[]) lvElement(buffer, offset);
+    final E[] nextBuffer = (E[]) lvRefElement(buffer, offset);
     consumerBuffer = nextBuffer;
     consumerMask = (length(nextBuffer) - 2) << 1;
-    soElement(buffer, offset, BUFFER_CONSUMED);
+    soRefElement(buffer, offset, BUFFER_CONSUMED);
     return nextBuffer;
   }
 
-  private long nextArrayOffset(long mask) {
-    return modifiedCalcElementOffset(mask + 2, Long.MAX_VALUE);
+  private static long nextArrayOffset(long mask) {
+    return modifiedCalcCircularRefElementOffset(mask + 2, Long.MAX_VALUE);
   }
 
   private E newBufferPoll(E[] nextBuffer, long index) {
-    final long offset = modifiedCalcElementOffset(index, consumerMask);
-    final E n = lvElement(nextBuffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, consumerMask);
+    final E n = lvRefElement(nextBuffer, offset);
     if (n == null) {
       throw new IllegalStateException("new buffer must have at least one element");
     }
-    soElement(nextBuffer, offset, null); // StoreStore
+    soRefElement(nextBuffer, offset, null);
     soConsumerIndex(index + 2);
     return n;
   }
 
   private E newBufferPeek(E[] nextBuffer, long index) {
-    final long offset = modifiedCalcElementOffset(index, consumerMask);
-    final E n = lvElement(nextBuffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, consumerMask);
+    final E n = lvRefElement(nextBuffer, offset);
     if (null == n) {
       throw new IllegalStateException("new buffer must have at least one element");
     }
@@ -402,8 +440,8 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     final long index = lpConsumerIndex();
     final long mask = consumerMask;
 
-    final long offset = modifiedCalcElementOffset(index, mask);
-    Object e = lvElement(buffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, mask);
+    Object e = lvRefElement(buffer, offset);
     if (e == null) {
       return null;
     }
@@ -411,7 +449,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
       final E[] nextBuffer = nextBuffer(buffer, mask);
       return newBufferPoll(nextBuffer, index);
     }
-    soElement(buffer, offset, null);
+    soRefElement(buffer, offset, null);
     soConsumerIndex(index + 2);
     return (E) e;
   }
@@ -423,8 +461,8 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     final long index = lpConsumerIndex();
     final long mask = consumerMask;
 
-    final long offset = modifiedCalcElementOffset(index, mask);
-    Object e = lvElement(buffer, offset); // LoadLoad
+    final long offset = modifiedCalcCircularRefElementOffset(index, mask);
+    Object e = lvRefElement(buffer, offset);
     if (e == JUMP) {
       return newBufferPeek(nextBuffer(buffer, mask), index);
     }
@@ -447,7 +485,11 @@ public abstract class BaseMpscLinkedArrayQueue<E>
   }
 
   @Override
-  public int fill(Supplier<E> s, int batchSize) {
+  public int fill(Supplier<E> s, int limit) {
+    if (null == s) throw new IllegalArgumentException("supplier is null");
+    if (limit < 0) throw new IllegalArgumentException("limit is negative:" + limit);
+    if (limit == 0) return 0;
+
     long mask;
     E[] buffer;
     long pIndex;
@@ -471,9 +513,10 @@ public abstract class BaseMpscLinkedArrayQueue<E>
       // a successful CAS ties the ordering, lv(pIndex) -> [mask/buffer] -> cas(pIndex)
 
       // we want 'limit' slots, but will settle for whatever is visible to 'producerLimit'
-      long batchIndex = Math.min(producerLimit, pIndex + 2 * batchSize);
+      long batchIndex =
+          Math.min(producerLimit, pIndex + 2l * limit); //  -> producerLimit >= batchIndex
 
-      if (pIndex >= producerLimit || producerLimit < batchIndex) {
+      if (pIndex >= producerLimit) {
         int result = offerSlowPath(mask, pIndex, producerLimit);
         switch (result) {
           case CONTINUE_TO_P_INDEX_CAS:
@@ -496,23 +539,15 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     }
 
     for (int i = 0; i < claimedSlots; i++) {
-      final long offset = modifiedCalcElementOffset(pIndex + 2 * i, mask);
-      soElement(buffer, offset, s.get());
+      final long offset = modifiedCalcCircularRefElementOffset(pIndex + 2l * i, mask);
+      soRefElement(buffer, offset, s.get());
     }
     return claimedSlots;
   }
 
   @Override
-  public void fill(Supplier<E> s, WaitStrategy w, ExitCondition exit) {
-
-    while (exit.keepRunning()) {
-      if (fill(s, PortableJvmInfo.RECOMENDED_OFFER_BATCH) == 0) {
-        int idleCounter = 0;
-        while (exit.keepRunning() && fill(s, PortableJvmInfo.RECOMENDED_OFFER_BATCH) == 0) {
-          idleCounter = w.idle(idleCounter);
-        }
-      }
-    }
+  public void fill(Supplier<E> s, WaitStrategy wait, ExitCondition exit) {
+    MessagePassingQueueUtil.fill(this, s, wait, exit);
   }
 
   @Override
@@ -521,30 +556,13 @@ public abstract class BaseMpscLinkedArrayQueue<E>
   }
 
   @Override
-  public int drain(final Consumer<E> c, final int limit) {
-    // Impl note: there are potentially some small gains to be had by manually inlining
-    // relaxedPoll() and hoisting
-    // reused fields out to reduce redundant reads.
-    int i = 0;
-    E m;
-    for (; i < limit && (m = relaxedPoll()) != null; i++) {
-      c.accept(m);
-    }
-    return i;
+  public int drain(Consumer<E> c, int limit) {
+    return MessagePassingQueueUtil.drain(this, c, limit);
   }
 
   @Override
-  public void drain(Consumer<E> c, WaitStrategy w, ExitCondition exit) {
-    int idleCounter = 0;
-    while (exit.keepRunning()) {
-      E e = relaxedPoll();
-      if (e == null) {
-        idleCounter = w.idle(idleCounter);
-        continue;
-      }
-      idleCounter = 0;
-      c.accept(e);
-    }
+  public void drain(Consumer<E> c, WaitStrategy wait, ExitCondition exit) {
+    MessagePassingQueueUtil.drain(this, c, wait, exit);
   }
 
   /**
@@ -559,19 +577,26 @@ public abstract class BaseMpscLinkedArrayQueue<E>
    */
   @Override
   public Iterator<E> iterator() {
-    return new WeakIterator();
+    return new WeakIterator(consumerBuffer, lvConsumerIndex(), lvProducerIndex());
   }
 
-  private final class WeakIterator implements Iterator<E> {
-
+  private static class WeakIterator<E> implements Iterator<E> {
+    private final long pIndex;
     private long nextIndex;
     private E nextElement;
     private E[] currentBuffer;
-    private int currentBufferLength;
+    private int mask;
 
-    WeakIterator() {
-      setBuffer(consumerBuffer);
+    WeakIterator(E[] currentBuffer, long cIndex, long pIndex) {
+      this.pIndex = pIndex >> 1;
+      this.nextIndex = cIndex >> 1;
+      setBuffer(currentBuffer);
       nextElement = getNext();
+    }
+
+    @Override
+    public void remove() {
+      throw new UnsupportedOperationException("remove");
     }
 
     @Override
@@ -581,37 +606,54 @@ public abstract class BaseMpscLinkedArrayQueue<E>
 
     @Override
     public E next() {
-      E e = nextElement;
+      final E e = nextElement;
+      if (e == null) {
+        throw new NoSuchElementException();
+      }
       nextElement = getNext();
       return e;
     }
 
     private void setBuffer(E[] buffer) {
       this.currentBuffer = buffer;
-      this.currentBufferLength = length(buffer);
-      this.nextIndex = 0;
+      this.mask = length(buffer) - 2;
     }
 
     private E getNext() {
-      while (true) {
-        while (nextIndex < currentBufferLength - 1) {
-          long offset = calcElementOffset(nextIndex++);
-          E e = lvElement(currentBuffer, offset);
-          if (e != null && e != JUMP) {
-            return e;
-          }
+      while (nextIndex < pIndex) {
+        long index = nextIndex++;
+        E e = lvRefElement(currentBuffer, calcCircularRefElementOffset(index, mask));
+        // skip removed/not yet visible elements
+        if (e == null) {
+          continue;
         }
-        long offset = calcElementOffset(currentBufferLength - 1);
-        Object nextArray = lvElement(currentBuffer, offset);
-        if (nextArray == BUFFER_CONSUMED) {
-          // Consumer may have passed us, just jump to the current consumer buffer
-          setBuffer(consumerBuffer);
-        } else if (nextArray != null) {
-          setBuffer((E[]) nextArray);
-        } else {
+
+        // not null && not JUMP -> found next element
+        if (e != JUMP) {
+          return e;
+        }
+
+        // need to jump to the next buffer
+        int nextBufferIndex = mask + 1;
+        Object nextBuffer = lvRefElement(currentBuffer, calcRefElementOffset(nextBufferIndex));
+
+        if (nextBuffer == BUFFER_CONSUMED || nextBuffer == null) {
+          // Consumer may have passed us, or the next buffer is not visible yet: drop out early
           return null;
         }
+
+        setBuffer((E[]) nextBuffer);
+        // now with the new array retry the load, it can't be a JUMP, but we need to repeat same
+        // index
+        e = lvRefElement(currentBuffer, calcCircularRefElementOffset(index, mask));
+        // skip removed/not yet visible elements
+        if (e == null) {
+          continue;
+        } else {
+          return e;
+        }
       }
+      return null;
     }
   }
 
@@ -620,7 +662,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     int newBufferLength = getNextBufferSize(oldBuffer);
     final E[] newBuffer;
     try {
-      newBuffer = allocate(newBufferLength);
+      newBuffer = allocateRefArray(newBufferLength);
     } catch (OutOfMemoryError oom) {
       assert lvProducerIndex() == pIndex + 1;
       soProducerIndex(pIndex);
@@ -631,11 +673,11 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     final int newMask = (newBufferLength - 2) << 1;
     producerMask = newMask;
 
-    final long offsetInOld = modifiedCalcElementOffset(pIndex, oldMask);
-    final long offsetInNew = modifiedCalcElementOffset(pIndex, newMask);
+    final long offsetInOld = modifiedCalcCircularRefElementOffset(pIndex, oldMask);
+    final long offsetInNew = modifiedCalcCircularRefElementOffset(pIndex, newMask);
 
-    soElement(newBuffer, offsetInNew, e == null ? s.get() : e); // element in new array
-    soElement(oldBuffer, nextArrayOffset(oldMask), newBuffer); // buffer linked
+    soRefElement(newBuffer, offsetInNew, e == null ? s.get() : e); // element in new array
+    soRefElement(oldBuffer, nextArrayOffset(oldMask), newBuffer); // buffer linked
 
     // ASSERT code
     final long cIndex = lvConsumerIndex();
@@ -652,7 +694,7 @@ public abstract class BaseMpscLinkedArrayQueue<E>
     // INDEX visible before ELEMENT, consistent with consumer expectation
 
     // make resize visible to consumer
-    soElement(oldBuffer, offsetInOld, JUMP);
+    soRefElement(oldBuffer, offsetInOld, JUMP);
   }
 
   /** @return next buffer size(inclusive of next array pointer) */

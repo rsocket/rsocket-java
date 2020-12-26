@@ -13,13 +13,11 @@
  */
 package io.rsocket.internal.jctools.queues;
 
-import static io.rsocket.internal.jctools.util.UnsafeRefArrayAccess.REF_ARRAY_BASE;
-import static io.rsocket.internal.jctools.util.UnsafeRefArrayAccess.REF_ELEMENT_SHIFT;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.REF_ARRAY_BASE;
+import static io.rsocket.internal.jctools.queues.UnsafeRefArrayAccess.REF_ELEMENT_SHIFT;
 
 /** This is used for method substitution in the LinkedArray classes code generation. */
 final class LinkedArrayQueueUtil {
-  private LinkedArrayQueueUtil() {}
-
   static int length(Object[] buf) {
     return buf.length;
   }
@@ -29,7 +27,7 @@ final class LinkedArrayQueueUtil {
    * is compensated for by reducing the element shift. The computation is constant folded, so
    * there's no cost.
    */
-  static long modifiedCalcElementOffset(long index, long mask) {
+  static long modifiedCalcCircularRefElementOffset(long index, long mask) {
     return REF_ARRAY_BASE + ((index & mask) << (REF_ELEMENT_SHIFT - 1));
   }
 
