@@ -11,10 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket.internal.jctools.util;
+package io.rsocket.internal.jctools.queues;
 
-@InternalAPI
-public final class RangeUtil {
+final class RangeUtil {
   public static long checkPositive(long n, String name) {
     if (n <= 0) {
       throw new IllegalArgumentException(name + ": " + n + " (expected: > 0)");

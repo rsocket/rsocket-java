@@ -13,10 +13,7 @@
  */
 package io.rsocket.internal.jctools.queues;
 
-import io.rsocket.internal.jctools.util.InternalAPI;
-
-@InternalAPI
-public final class IndexedQueueSizeUtil {
+final class IndexedQueueSizeUtil {
   public static int size(IndexedQueue iq) {
     /*
      * It is possible for a thread to be interrupted or reschedule between the read of the producer and
@@ -54,7 +51,6 @@ public final class IndexedQueueSizeUtil {
     return (iq.lvConsumerIndex() == iq.lvProducerIndex());
   }
 
-  @InternalAPI
   public interface IndexedQueue {
     long lvConsumerIndex();
 

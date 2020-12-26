@@ -80,11 +80,9 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           }
 
           if (!hasUnreleased) {
-            System.out.println(tag + " all the buffers are released...");
             return this;
           }
 
-          System.out.println(tag + " await buffers to be released");
           for (int i = 0; i < 100; i++) {
             System.gc();
             parkNanos(1000);
@@ -109,7 +107,6 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
                 return checkResult;
               },
               tag);
-      System.out.println(tag + " all the buffers are released...");
     } finally {
       tracker.clear();
     }
