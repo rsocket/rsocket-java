@@ -13,8 +13,8 @@
  */
 package io.rsocket.internal.jctools.queues;
 
-import static io.rsocket.internal.jctools.util.UnsafeAccess.UNSAFE;
-import static io.rsocket.internal.jctools.util.UnsafeAccess.fieldOffset;
+import static io.rsocket.internal.jctools.queues.UnsafeAccess.UNSAFE;
+import static io.rsocket.internal.jctools.queues.UnsafeAccess.fieldOffset;
 
 final class LinkedQueueNode<E> {
   private static final long NEXT_OFFSET = fieldOffset(LinkedQueueNode.class, "next");
@@ -51,6 +51,10 @@ final class LinkedQueueNode<E> {
 
   public void soNext(LinkedQueueNode<E> n) {
     UNSAFE.putOrderedObject(this, NEXT_OFFSET, n);
+  }
+
+  public void spNext(LinkedQueueNode<E> n) {
+    UNSAFE.putObject(this, NEXT_OFFSET, n);
   }
 
   public LinkedQueueNode<E> lvNext() {
