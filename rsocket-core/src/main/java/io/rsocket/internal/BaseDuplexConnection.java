@@ -27,7 +27,7 @@ public abstract class BaseDuplexConnection implements DuplexConnection {
   protected UnboundedProcessor sender = new UnboundedProcessor();
 
   public BaseDuplexConnection() {
-    onClose().doFinally(s -> doOnClose()).subscribe();
+    onClose().subscribe(null, t -> doOnClose(), this::doOnClose);
   }
 
   @Override
