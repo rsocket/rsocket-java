@@ -134,6 +134,14 @@ public interface TransportTest {
     return ByteBufPayload.create(MOCK_DATA, metadata);
   }
 
+  default RSocket getClient() {
+    return getTransportPair().getClient();
+  }
+
+  Duration getTimeout();
+
+  TransportPair getTransportPair();
+
   @DisplayName("makes 10 fireAndForget requests")
   @Test
   default void fireAndForget10() {
@@ -143,7 +151,8 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(getTransportPair().responder.awaitUntilObserved(10, getTimeout()))
+              .isTrue();
   }
 
   @DisplayName("makes 10 fireAndForget with Large Payload in Requests")
@@ -155,16 +164,9 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(getTransportPair().responder.awaitUntilObserved(10, getTimeout()))
+              .isTrue();
   }
-
-  default RSocket getClient() {
-    return getTransportPair().getClient();
-  }
-
-  Duration getTimeout();
-
-  TransportPair getTransportPair();
 
   @DisplayName("makes 10 metadataPush requests")
   @Test
@@ -176,7 +178,8 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(getTransportPair().responder.awaitUntilObserved(10, getTimeout()))
+              .isTrue();
   }
 
   @DisplayName("makes 10 metadataPush with Large Metadata in requests")
@@ -189,7 +192,8 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(getTransportPair().responder.awaitUntilObserved(10, getTimeout()))
+              .isTrue();
   }
 
   @DisplayName("makes 1 requestChannel request with 0 payloads")
@@ -452,6 +456,7 @@ public interface TransportTest {
     private static final String metadata = "metadata";
 
     private final boolean withResumability;
+    private final boolean withAsyncSupport;
 
     private final LeaksTrackingByteBufAllocator byteBufAllocator1 =
         LeaksTrackingByteBufAllocator.instrument(
@@ -492,122 +497,143 @@ public interface TransportTest {
         BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
         boolean withRandomFragmentation,
         boolean withResumability) {
-      this.withResumability = withResumability;
+      this(
+          addressSupplier,
+          clientTransportSupplier,
+          serverTransportSupplier,
+          withRandomFragmentation,
+          withResumability,
+          true);
+    }
 
-      T address = addressSupplier.get();
+    public TransportPair(
+        Supplier<T> addressSupplier,
+        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
+        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
+        boolean withRandomFragmentation,
+        boolean withResumability,
+        boolean withAsyncSupport) {
 
-      final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
-      final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+        this.withResumability = withResumability;
+        this.withAsyncSupport = withAsyncSupport;
 
-      ByteBufAllocator allocatorToSupply1;
-      ByteBufAllocator allocatorToSupply2;
-      if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
-          || ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.PARANOID) {
-        logger.info("Using LeakTrackingByteBufAllocator");
-        allocatorToSupply1 = byteBufAllocator1;
-        allocatorToSupply2 = byteBufAllocator2;
-      } else {
-        allocatorToSupply1 = ByteBufAllocator.DEFAULT;
-        allocatorToSupply2 = ByteBufAllocator.DEFAULT;
-      }
-      responder = new TestRSocket(TransportPair.data, metadata);
-      final RSocketServer rSocketServer =
-          RSocketServer.create((setup, sendingSocket) -> Mono.just(responder))
-              .payloadDecoder(PayloadDecoder.ZERO_COPY)
-              .interceptors(
-                  registry -> {
-                    if (runServerWithAsyncInterceptors && !withResumability) {
-                      logger.info(
-                          "Perform Integration Test with Async Interceptors Enabled For Server");
-                      registry
-                          .forConnection(
-                              (type, duplexConnection) ->
-                                  new AsyncDuplexConnection(duplexConnection))
-                          .forSocketAcceptor(
-                              delegate ->
-                                  (connectionSetupPayload, sendingSocket) ->
-                                      delegate
-                                          .accept(connectionSetupPayload, sendingSocket)
-                                          .subscribeOn(Schedulers.parallel()));
-                    }
+        T address = addressSupplier.get();
 
-                    if (withResumability) {
-                      registry.forConnection(
-                          (type, duplexConnection) ->
-                              type == DuplexConnectionInterceptor.Type.SOURCE
-                                  ? new DisconnectingDuplexConnection(
-                                      "Server",
-                                      duplexConnection,
-                                      Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(100, 1000)))
-                                  : duplexConnection);
-                    }
-                  });
+        final boolean runClientWithAsyncInterceptors =
+            ThreadLocalRandom.current().nextBoolean() && withAsyncSupport;
+        final boolean runServerWithAsyncInterceptors =
+            ThreadLocalRandom.current().nextBoolean() && withAsyncSupport;
 
-      if (withResumability) {
-        rSocketServer.resume(
-            new Resume()
-                .storeFactory(
-                    token -> new InMemoryResumableFramesStore("server", token, Integer.MAX_VALUE)));
-      }
+        ByteBufAllocator allocatorToSupply1;
+        ByteBufAllocator allocatorToSupply2;
+        if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
+            || ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.PARANOID) {
+          logger.info("Using LeakTrackingByteBufAllocator");
+          allocatorToSupply1 = byteBufAllocator1;
+          allocatorToSupply2 = byteBufAllocator2;
+        } else {
+          allocatorToSupply1 = ByteBufAllocator.DEFAULT;
+          allocatorToSupply2 = ByteBufAllocator.DEFAULT;
+        }
+        responder = new TestRSocket(TransportPair.data, metadata);
+        final RSocketServer rSocketServer =
+            RSocketServer.create((setup, sendingSocket) -> Mono.just(responder))
+                .payloadDecoder(PayloadDecoder.ZERO_COPY)
+                .interceptors(
+                    registry -> {
+                      if (runServerWithAsyncInterceptors && !withResumability) {
+                        logger.info(
+                            "Perform Integration Test with Async Interceptors Enabled For Server");
+                        registry
+                            .forConnection(
+                                (type, duplexConnection) ->
+                                    new AsyncDuplexConnection(duplexConnection))
+                            .forSocketAcceptor(
+                                delegate ->
+                                    (connectionSetupPayload, sendingSocket) ->
+                                        delegate
+                                            .accept(connectionSetupPayload, sendingSocket)
+                                            .subscribeOn(Schedulers.parallel()));
+                      }
 
-      if (withRandomFragmentation) {
-        rSocketServer.fragment(ThreadLocalRandom.current().nextInt(256, 512));
-      }
+                      if (withResumability) {
+                        registry.forConnection(
+                            (type, duplexConnection) ->
+                                type == DuplexConnectionInterceptor.Type.SOURCE
+                                    ? new DisconnectingDuplexConnection(
+                                        "Server",
+                                        duplexConnection,
+                                        Duration.ofMillis(
+                                            ThreadLocalRandom.current().nextInt(100, 1000)))
+                                    : duplexConnection);
+                      }
+                    });
 
-      server =
-          rSocketServer.bind(serverTransportSupplier.apply(address, allocatorToSupply2)).block();
+        if (withResumability) {
+          rSocketServer.resume(
+              new Resume()
+                  .storeFactory(
+                      token -> new InMemoryResumableFramesStore("server", token,Integer.MAX_VALUE)));
+        }
 
-      final RSocketConnector rSocketConnector =
-          RSocketConnector.create()
-              .payloadDecoder(PayloadDecoder.ZERO_COPY)
-              .keepAlive(Duration.ofMillis(10), Duration.ofHours(1))
-              .interceptors(
-                  registry -> {
-                    if (runClientWithAsyncInterceptors && !withResumability) {
-                      logger.info(
-                          "Perform Integration Test with Async Interceptors Enabled For Client");
-                      registry
-                          .forConnection(
-                              (type, duplexConnection) ->
-                                  new AsyncDuplexConnection(duplexConnection))
-                          .forSocketAcceptor(
-                              delegate ->
-                                  (connectionSetupPayload, sendingSocket) ->
-                                      delegate
-                                          .accept(connectionSetupPayload, sendingSocket)
-                                          .subscribeOn(Schedulers.parallel()));
-                    }
+        if (withRandomFragmentation) {
+          rSocketServer.fragment(ThreadLocalRandom.current().nextInt(256, 512));
+        }
 
-                    if (withResumability) {
-                      registry.forConnection(
-                          (type, duplexConnection) ->
-                              type == DuplexConnectionInterceptor.Type.SOURCE
-                                  ? new DisconnectingDuplexConnection(
-                                      "Client",
-                                      duplexConnection,
-                                      Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(10, 1500)))
-                                  : duplexConnection);
-                    }
-                  });
+        server =
+            rSocketServer.bind(serverTransportSupplier.apply(address, allocatorToSupply2)).block();
 
-      if (withResumability) {
-        rSocketConnector.resume(
-            new Resume()
-                .storeFactory(
-                    token -> new InMemoryResumableFramesStore("client", token, Integer.MAX_VALUE)));
-      }
+        final RSocketConnector rSocketConnector =
+            RSocketConnector.create()
+                .payloadDecoder(PayloadDecoder.ZERO_COPY)
+                .keepAlive(
+                    Duration.ofMillis(10), Duration.ofSeconds(10))
+                .interceptors(
+                    registry -> {
+                      if (runClientWithAsyncInterceptors && !withResumability) {
+                        logger.info(
+                            "Perform Integration Test with Async Interceptors Enabled For Client");
+                        registry
+                            .forConnection(
+                                (type, duplexConnection) ->
+                                    new AsyncDuplexConnection(duplexConnection))
+                            .forSocketAcceptor(
+                                delegate ->
+                                    (connectionSetupPayload, sendingSocket) ->
+                                        delegate
+                                            .accept(connectionSetupPayload, sendingSocket)
+                                            .subscribeOn(Schedulers.parallel()));
+                      }
 
-      if (withRandomFragmentation) {
-        rSocketConnector.fragment(ThreadLocalRandom.current().nextInt(256, 512));
-      }
+                      if (withResumability) {
+                        registry.forConnection(
+                            (type, duplexConnection) ->
+                                type == DuplexConnectionInterceptor.Type.SOURCE
+                                    ? new DisconnectingDuplexConnection(
+                                        "Client",
+                                        duplexConnection,
+                                        Duration.ofMillis(
+                                            ThreadLocalRandom.current().nextInt(10, 1500)))
+                                    : duplexConnection);
+                      }
+                    });
 
-      client =
-          rSocketConnector
-              .connect(clientTransportSupplier.apply(address, server, allocatorToSupply1))
-              .doOnError(Throwable::printStackTrace)
-              .block();
+        if (withResumability) {
+          rSocketConnector.resume(
+              new Resume()
+                  .storeFactory(
+                      token -> new InMemoryResumableFramesStore("client", token, Integer.MAX_VALUE)));
+        }
+
+        if (withRandomFragmentation) {
+          rSocketConnector.fragment(ThreadLocalRandom.current().nextInt(256, 512));
+        }
+
+        client =
+            rSocketConnector
+                .connect(clientTransportSupplier.apply(address, server, allocatorToSupply1))
+                .doOnError(Throwable::printStackTrace)
+                .block();
     }
 
     @Override

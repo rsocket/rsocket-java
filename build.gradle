@@ -45,6 +45,7 @@ subprojects {
     ext['assertj.version'] = '3.19.0'
     ext['netflix.limits.version'] = '0.3.6'
     ext['bouncycastle-bcpkix.version'] = '1.68'
+    ext['aeron.version'] = '1.31.1'
 
     group = "io.rsocket"
 
@@ -86,6 +87,10 @@ subprojects {
             dependencySet(group: 'org.openjdk.jmh', version: ext['jmh.version']) {
                 entry 'jmh-core'
                 entry 'jmh-generator-annprocess'
+            }
+            dependencySet(group: 'io.aeron', version: ext['aeron.version']) {
+                entry 'aeron-client'
+                entry 'aeron-driver'
             }
         }
         generatedPomCustomization {

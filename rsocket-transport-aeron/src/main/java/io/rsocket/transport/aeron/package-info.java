@@ -13,30 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-plugins {
-    id 'com.gradle.enterprise' version '3.1'
-}
 
-rootProject.name = 'rsocket-java'
+/** The Netty-based RSocket transport implementations. */
+@NonNullApi
+package io.rsocket.transport.aeron;
 
-include 'rsocket-core'
-include 'rsocket-load-balancer'
-include 'rsocket-micrometer'
-include 'rsocket-test'
-include 'rsocket-transport-local'
-include 'rsocket-transport-netty'
-include 'rsocket-transport-aeron'
-include 'rsocket-bom'
-
-include 'rsocket-examples'
-include 'benchmarks'
-
-
-
-gradleEnterprise {
-    buildScan {
-        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-        termsOfServiceAgree = 'yes'
-    }
-}
-
+import reactor.util.annotation.NonNullApi;
