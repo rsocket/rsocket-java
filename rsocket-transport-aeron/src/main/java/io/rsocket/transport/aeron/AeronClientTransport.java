@@ -213,7 +213,7 @@ public class AeronClientTransport implements ClientTransport {
   public static AeronClientTransport createUdp(
       Aeron aeron, String host, int port, EventLoopGroup resources) {
     final Supplier<IdleStrategy> idleStrategySupplier =
-        () -> new BackoffIdleStrategy(100, 1000, 10000, 100000);
+        () -> new BackoffIdleStrategy(/* maxSpins */ 100, /* maxYields */ 1000, /* minParkPeriodNs */ 10000, /* maxParkPeriodNs */100000);
     return new AeronClientTransport(
         aeron,
         new ChannelUriStringBuilder()
