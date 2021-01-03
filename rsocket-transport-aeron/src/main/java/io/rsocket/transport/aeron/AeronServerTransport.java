@@ -132,7 +132,7 @@ public class AeronServerTransport implements ServerTransport<AeronServer> {
               effort);
 
       logger.info(
-          "received connection [{}] from aeron channel {}", clientConnectionId, clientChannel);
+          "received connection [{}] from aeron channel [{}]", clientConnectionId, clientChannel);
 
       final BufferClaim bufferClaim = BUFFER_CLAIM.get();
       if (!PublicationUtils.tryOfferSetupFrame(
