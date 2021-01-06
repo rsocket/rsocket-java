@@ -40,4 +40,4 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
-description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'
+description = 'Aeron RSocket transport implementations'
