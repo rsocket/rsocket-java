@@ -117,7 +117,9 @@ public class AeronClientTransport implements ClientTransport {
 
                 return Mono.error(
                     new TimeoutException(
-                        "Timeout on send SetupFrame { connection: [{}]; stream: [{}]; channel: [{}] }"));
+                        String.format(
+                            "Timeout on send SetupFrame { connection: [%s]; stream: [%s]; channel: [%s] }",
+                            connectionId, streamId, channel)));
               }
 
               CloseHelper.quietClose(serverManagementPublication);
@@ -170,8 +172,7 @@ public class AeronClientTransport implements ClientTransport {
 
                         final NanoClock nanoClock = aeron.context().nanoClock();
                         final long nowNs = nanoClock.nanoTime();
-                        final long deadlineNs =
-                            nowNs + aeron.context().keepAliveIntervalNs() * 1000;
+                        final long deadlineNs = nowNs + timeoutNs;
 
                         idleStrategy.reset();
                         for (; ; ) {
@@ -213,7 +214,12 @@ public class AeronClientTransport implements ClientTransport {
   public static AeronClientTransport createUdp(
       Aeron aeron, String host, int port, EventLoopGroup resources) {
     final Supplier<IdleStrategy> idleStrategySupplier =
-        () -> new BackoffIdleStrategy(/* maxSpins */ 100, /* maxYields */ 1000, /* minParkPeriodNs */ 10000, /* maxParkPeriodNs */100000);
+        () ->
+            new BackoffIdleStrategy(
+                /* maxSpins */ 100, /* maxYields */
+                1000, /* minParkPeriodNs */
+                10000, /* maxParkPeriodNs */
+                100000);
     return new AeronClientTransport(
         aeron,
         new ChannelUriStringBuilder()

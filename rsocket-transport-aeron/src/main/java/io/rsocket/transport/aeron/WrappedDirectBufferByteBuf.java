@@ -230,10 +230,10 @@ class WrappedDirectBufferByteBuf extends AbstractByteBuf {
 
   @Override
   public ByteBuffer nioBuffer(int index, int length) {
-    // FIXME: works incorrectly
     final ByteBuffer byteBuffer =
         BufferUtil.allocateDirectAligned(length, BitUtil.CACHE_LINE_LENGTH);
     directBuffer.getBytes(index, byteBuffer, length);
+    byteBuffer.flip();
     return byteBuffer;
   }
 
