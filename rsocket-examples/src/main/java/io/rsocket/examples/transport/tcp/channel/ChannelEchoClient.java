@@ -43,9 +43,7 @@ public final class ChannelEchoClient {
                     .map(s -> "Echo: " + s)
                     .map(DefaultPayload::create));
 
-    RSocketServer.create(echoAcceptor)
-        .bind(TcpServerTransport.create("localhost", 7000))
-        .subscribe();
+    RSocketServer.create(echoAcceptor).bindNow(TcpServerTransport.create("localhost", 7000));
 
     RSocket socket =
         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();

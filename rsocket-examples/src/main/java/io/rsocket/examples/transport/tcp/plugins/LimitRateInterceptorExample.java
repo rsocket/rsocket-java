@@ -39,8 +39,7 @@ public class LimitRateInterceptorExample {
                   }
                 }))
         .interceptors(registry -> registry.forResponder(LimitRateInterceptor.forResponder(64)))
-        .bind(TcpServerTransport.create("localhost", 7000))
-        .subscribe();
+        .bindNow(TcpServerTransport.create("localhost", 7000));
 
     RSocket socket =
         RSocketConnector.create()

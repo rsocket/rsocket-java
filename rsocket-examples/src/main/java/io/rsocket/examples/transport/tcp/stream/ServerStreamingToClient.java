@@ -43,8 +43,7 @@ public final class ServerStreamingToClient {
 
               return Mono.just(new RSocket() {});
             })
-        .bind(TcpServerTransport.create("localhost", 7000))
-        .subscribe();
+        .bindNow(TcpServerTransport.create("localhost", 7000));
 
     RSocket rsocket =
         RSocketConnector.create()

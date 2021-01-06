@@ -34,7 +34,7 @@ public class RSocketClientExample {
         .bind(TcpServerTransport.create("localhost", 7000))
         .delaySubscription(Duration.ofSeconds(5))
         .doOnNext(cc -> logger.info("Server started on the address : {}", cc.address()))
-        .subscribe();
+        .block();
 
     Mono<RSocket> source =
         RSocketConnector.create()

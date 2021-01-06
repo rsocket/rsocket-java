@@ -66,8 +66,7 @@ public class ResumeFileTransfer {
                           .log("server");
                     }))
             .resume(resume)
-            .bind(TcpServerTransport.create("localhost", 8000))
-            .block();
+            .bindNow(TcpServerTransport.create("localhost", 8000));
 
     RSocket client =
         RSocketConnector.create()

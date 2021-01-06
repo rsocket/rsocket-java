@@ -16,12 +16,13 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
+import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.WebsocketServerTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -38,21 +39,24 @@ public final class ClientStreamingToServer {
                 payload ->
                     Flux.interval(Duration.ofMillis(100))
                         .map(aLong -> DefaultPayload.create("Interval: " + aLong))))
-        .bind(WebsocketServerTransport.create("localhost", 7000))
-        .subscribe();
+        .bindNow(TcpServerTransport.create("localhost", 7000));
 
     RSocket socket =
-        RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();
+        RSocketConnector.create()
+            .setupPayload(DefaultPayload.create("test", "test"))
+            .connect(TcpClientTransport.create("localhost", 7000))
+            .block();
 
-    //    socket
-    //        .requestStream(DefaultPayload.create("Hello"))
-    //        .map(Payload::getDataUtf8)
-    //        .doOnNext(logger::debug)
-    //        .take(10)
-    //        .then()
-    //        .doFinally(signalType -> socket.dispose())
-    //        .then()
-    //        .block();
+    final Payload payload = DefaultPayload.create("Hello");
+    socket
+        .requestStream(payload)
+        .map(Payload::getDataUtf8)
+        .doOnNext(logger::debug)
+        .take(10)
+        .then()
+        .doFinally(signalType -> socket.dispose())
+        .then()
+        .block();
 
     Thread.sleep(1000000);
   }

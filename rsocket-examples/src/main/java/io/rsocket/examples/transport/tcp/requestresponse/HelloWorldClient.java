@@ -50,8 +50,7 @@ public final class HelloWorldClient {
         };
 
     RSocketServer.create(SocketAcceptor.with(rsocket))
-        .bind(TcpServerTransport.create("localhost", 7000))
-        .subscribe();
+        .bindNow(TcpServerTransport.create("localhost", 7000));
 
     RSocket socket =
         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();
