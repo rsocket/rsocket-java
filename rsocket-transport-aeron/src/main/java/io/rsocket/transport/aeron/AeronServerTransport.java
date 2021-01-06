@@ -205,6 +205,6 @@ public class AeronServerTransport implements ServerTransport<AeronServer> {
         ByteBufAllocator.DEFAULT,
         256,
         256,
-        Duration.ofSeconds(5).toNanos());
+        Duration.ofSeconds(50).toNanos());
   }
 }
