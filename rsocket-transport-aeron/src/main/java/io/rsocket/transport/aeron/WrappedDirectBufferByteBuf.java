@@ -25,8 +25,6 @@ import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
-import org.agrona.BitUtil;
-import org.agrona.BufferUtil;
 import org.agrona.DirectBuffer;
 
 class WrappedDirectBufferByteBuf extends AbstractByteBuf {
@@ -245,21 +243,23 @@ class WrappedDirectBufferByteBuf extends AbstractByteBuf {
 
   @Override
   public ByteBuffer nioBuffer(int index, int length) {
-    final ByteBuffer byteBuffer =
-        BufferUtil.allocateDirectAligned(length, BitUtil.CACHE_LINE_LENGTH);
-    directBuffer.getBytes(index, byteBuffer, length);
-    byteBuffer.flip();
-    return byteBuffer;
+    final ByteBuffer buffer = directBuffer.byteBuffer();
+    if (buffer != null) {
+      return buffer.duplicate().position(index).limit(index + length);
+    } else {
+      final byte[] bytes = directBuffer.byteArray();
+      return ByteBuffer.wrap(bytes, index, length);
+    }
   }
 
   @Override
   public ByteBuffer internalNioBuffer(int index, int length) {
-    return directBuffer.byteBuffer();
+    return nioBuffer(index, length);
   }
 
   @Override
   public ByteBuffer[] nioBuffers(int index, int length) {
-    return new ByteBuffer[] {directBuffer.byteBuffer().duplicate()};
+    return new ByteBuffer[] {nioBuffer(index, length)};
   }
 
   @Override

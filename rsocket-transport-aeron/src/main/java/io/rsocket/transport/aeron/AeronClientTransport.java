@@ -231,10 +231,10 @@ public class AeronClientTransport implements ClientTransport {
     final Supplier<IdleStrategy> idleStrategySupplier =
         () ->
             new BackoffIdleStrategy(
-                /* maxSpins */ 100, /* maxYields */
-                1000, /* minParkPeriodNs */
-                10000, /* maxParkPeriodNs */
-                100000);
+                /* maxSpins */ 100,
+                /* maxYields */ 1000,
+                /* minParkPeriodNs */ 10000,
+                /* maxParkPeriodNs */ 100000);
     return new AeronClientTransport(
         aeron,
         new ChannelUriStringBuilder()
@@ -247,6 +247,26 @@ public class AeronClientTransport implements ClientTransport {
         ByteBufAllocator.DEFAULT,
         256,
         256,
-        Duration.ofSeconds(50).toNanos());
+        Duration.ofSeconds(5).toNanos());
+  }
+
+  public static AeronClientTransport createIpc(Aeron aeron, EventLoopGroup resources) {
+    final Supplier<IdleStrategy> idleStrategySupplier =
+        () ->
+            new BackoffIdleStrategy(
+                /* maxSpins */ 100,
+                /* maxYields */ 1000,
+                /* minParkPeriodNs */ 10000,
+                /* maxParkPeriodNs */ 100000);
+    return new AeronClientTransport(
+        aeron,
+        new ChannelUriStringBuilder().media(CommonContext.IPC_MEDIA).build(),
+        Schedulers.boundedElastic(),
+        resources,
+        idleStrategySupplier.get(),
+        ByteBufAllocator.DEFAULT,
+        256,
+        256,
+        Duration.ofSeconds(5).toNanos());
   }
 }

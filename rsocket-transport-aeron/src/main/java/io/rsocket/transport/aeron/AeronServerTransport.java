@@ -205,6 +205,21 @@ public class AeronServerTransport implements ServerTransport<AeronServer> {
         ByteBufAllocator.DEFAULT,
         256,
         256,
-        Duration.ofSeconds(50).toNanos());
+        Duration.ofSeconds(5).toNanos());
+  }
+
+  public static AeronServerTransport createIpc(Aeron aeron, EventLoopGroup resources) {
+    final Supplier<IdleStrategy> idleStrategySupplier =
+        () -> new BackoffIdleStrategy(100, 1000, 10000, 100000);
+    return new AeronServerTransport(
+        aeron,
+        new ChannelUriStringBuilder().media(CommonContext.IPC_MEDIA).build(),
+        Schedulers.boundedElastic(),
+        resources,
+        idleStrategySupplier.get(),
+        ByteBufAllocator.DEFAULT,
+        256,
+        256,
+        Duration.ofSeconds(5).toNanos());
   }
 }

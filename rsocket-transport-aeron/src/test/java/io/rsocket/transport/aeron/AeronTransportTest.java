@@ -28,9 +28,7 @@ final class AeronTransportTest implements TransportTest {
 
   static final MediaDriver mediaDriver =
       MediaDriver.launch(
-          new MediaDriver.Context()
-              .threadingMode(ThreadingMode.SHARED_NETWORK)
-              .dirDeleteOnStart(true));
+          new MediaDriver.Context().threadingMode(ThreadingMode.DEDICATED).dirDeleteOnStart(true));
 
   static final Aeron clientAeron = Aeron.connect();
   static final Aeron serverAeron = Aeron.connect();
@@ -61,11 +59,8 @@ final class AeronTransportTest implements TransportTest {
               InetSocketAddress.createUnresolved(
                   "127.0.0.1", ThreadLocalRandom.current().nextInt(20000) + 5000),
           (address, server, allocator) ->
-              AeronClientTransport.createUdp(
-                  clientAeron, address.getHostName(), address.getPort(), eventLoopGroup),
-          (address, allocator) ->
-              AeronServerTransport.createUdp(
-                  serverAeron, address.getHostName(), address.getPort(), eventLoopGroup),
+              AeronClientTransport.createIpc(clientAeron, eventLoopGroup),
+          (address, allocator) -> AeronServerTransport.createIpc(serverAeron, eventLoopGroup),
           false,
           false,
           false);
