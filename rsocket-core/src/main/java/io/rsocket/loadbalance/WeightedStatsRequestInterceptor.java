@@ -1,8 +1,10 @@
 package io.rsocket.loadbalance;
 
 import io.netty.buffer.ByteBuf;
+import io.rsocket.RSocket;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.RequestInterceptor;
+import io.rsocket.util.RSocketProxy;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -88,4 +90,46 @@ public class WeightedStatsRequestInterceptor extends BaseWeightedStats
 
   @Override
   public void dispose() {}
+
+  /**
+   * Wraps an RSocket with a proxy that implements WeightedStats
+   * @param rSocket the RSocket to proxy.
+   * @return the wrapped RSocket.
+   */
+  public RSocket wrap(RSocket rSocket) {
+    return new WeightedStatsAwareRSocket(rSocket);
+  }
+
+  private class WeightedStatsAwareRSocket extends RSocketProxy implements WeightedStats {
+
+    public WeightedStatsAwareRSocket(RSocket source) {
+      super(source);
+    }
+
+    @Override
+    public double higherQuantileLatency() {
+      return WeightedStatsRequestInterceptor.this.higherQuantileLatency();
+    }
+
+    @Override
+    public double lowerQuantileLatency() {
+      return WeightedStatsRequestInterceptor.this.lowerQuantileLatency();
+    }
+
+    @Override
+    public int pending() {
+      return WeightedStatsRequestInterceptor.this.pending();
+    }
+
+    @Override
+    public double predictedLatency() {
+      return WeightedStatsRequestInterceptor.this.predictedLatency();
+    }
+
+    @Override
+    public double weightedAvailability() {
+      return WeightedStatsRequestInterceptor.this.weightedAvailability();
+    }
+
+  }
 }
