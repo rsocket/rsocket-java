@@ -61,18 +61,20 @@ import reactor.util.retry.Retry;
  * <pre>{@code
  * import io.rsocket.transport.netty.client.TcpClientTransport;
  *
- * RSocketClient client =
- *         RSocketConnector.createRSocketClient(TcpClientTransport.create("localhost", 7000));
+ * Mono<RSocket> source =
+ *         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000));
+ * RSocketClient client = RSocketClient.from(source);
  * }</pre>
  *
  * <p>To customize connection settings before connecting:
  *
  * <pre>{@code
- * RSocketClient client =
+ * Mono<RSocket> source =
  *         RSocketConnector.create()
  *                 .metadataMimeType("message/x.rsocket.composite-metadata.v0")
  *                 .dataMimeType("application/cbor")
- *                 .toRSocketClient(TcpClientTransport.create("localhost", 7000));
+ *                 .connect(TcpClientTransport.create("localhost", 7000));
+ * RSocketClient client = RSocketClient.from(source);
  * }</pre>
  */
 public class RSocketConnector {
@@ -112,7 +114,7 @@ public class RSocketConnector {
    * Static factory method to connect with default settings, effectively a shortcut for:
    *
    * <pre class="code">
-   * RSocketConnector.create().connectWith(transport);
+   * RSocketConnector.create().connect(transport);
    * </pre>
    *
    * @param transport the transport of choice to connect with
