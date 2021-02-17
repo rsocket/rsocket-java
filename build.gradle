@@ -34,8 +34,8 @@ subprojects {
 
     ext['reactor-bom.version'] = '2020.0.0'
     ext['logback.version'] = '1.2.3'
-    ext['netty-bom.version'] = '4.1.52.Final'
-    ext['netty-boringssl.version'] = '2.0.34.Final'
+    ext['netty-bom.version'] = '4.1.59.Final'
+    ext['netty-boringssl.version'] = '2.0.36.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '3.2.0'
     ext['slf4j.version'] = '1.7.25'
