@@ -32,7 +32,6 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
-import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -63,7 +62,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
 
-  private final RequesterLeaseHandler leaseHandler;
+  @Nullable private final RequesterLeaseTracker leaseHandler;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private final MonoProcessor<Void> onClose;
 
@@ -78,7 +77,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       Function<RSocket, RequestInterceptor> requestInterceptorFunction,
-      RequesterLeaseHandler leaseHandler) {
+      @Nullable RequesterLeaseTracker leaseHandler) {
     super(
         mtu,
         maxFrameLength,
@@ -111,7 +110,11 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return new FireAndForgetRequesterMono(payload, this);
+    if (this.leaseHandler == null) {
+      return new FireAndForgetRequesterMono(payload, this);
+    } else {
+      return new SlowFireAndForgetRequesterMono(payload, this);
+    }
   }
 
   @Override
@@ -141,12 +144,12 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
   }
 
   @Override
-  public int getNextStreamId() {
-    RequesterLeaseHandler leaseHandler = this.leaseHandler;
-    if (!leaseHandler.useLease()) {
-      throw reactor.core.Exceptions.propagate(leaseHandler.leaseError());
-    }
+  public RequesterLeaseTracker getRequesterLeaseTracker() {
+    return this.leaseHandler;
+  }
 
+  @Override
+  public int getNextStreamId() {
     int nextStreamId = super.getNextStreamId();
 
     Throwable terminationError = this.terminationError;
@@ -159,11 +162,6 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public int addAndGetNextStreamId(FrameHandler frameHandler) {
-    RequesterLeaseHandler leaseHandler = this.leaseHandler;
-    if (!leaseHandler.useLease()) {
-      throw reactor.core.Exceptions.propagate(leaseHandler.leaseError());
-    }
-
     int nextStreamId = super.addAndGetNextStreamId(frameHandler);
 
     Throwable terminationError = this.terminationError;
@@ -177,7 +175,12 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public double availability() {
-    return Math.min(getDuplexConnection().availability(), leaseHandler.availability());
+    final RequesterLeaseTracker leaseHandler = this.leaseHandler;
+    if (leaseHandler != null) {
+      return Math.min(getDuplexConnection().availability(), leaseHandler.availability());
+    } else {
+      return getDuplexConnection().availability();
+    }
   }
 
   @Override
@@ -218,7 +221,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         tryTerminateOnZeroError(frame);
         break;
       case LEASE:
-        leaseHandler.receive(frame);
+        leaseHandler.handleLeaseFrame(frame);
         break;
       case KEEPALIVE:
         if (keepAliveFramesAcceptor != null) {
@@ -333,7 +336,11 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     if (requestInterceptor != null) {
       requestInterceptor.dispose();
     }
-    leaseHandler.dispose();
+
+    final RequesterLeaseTracker requesterLeaseTracker = leaseHandler;
+    if (requesterLeaseTracker != null) {
+      requesterLeaseTracker.dispose(e);
+    }
 
     synchronized (this) {
       activeStreams

@@ -3,6 +3,7 @@ package io.rsocket.examples.transport.tcp.lease.advanced.common;
 import com.netflix.concurrency.limits.Limit;
 import io.rsocket.lease.Lease;
 import io.rsocket.lease.LeaseSender;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -33,7 +34,7 @@ public class LimitBasedLeaseSender extends LimitBasedStatsCollector implements L
   }
 
   public void sendLease(int ttl, int amount) {
-    final Lease nextLease = Lease.create(ttl, amount);
+    final Lease nextLease = Lease.create(Duration.ofMillis(ttl), amount);
     final Sinks.EmitResult result = sink.tryEmitNext(nextLease);
 
     if (result.isFailure()) {

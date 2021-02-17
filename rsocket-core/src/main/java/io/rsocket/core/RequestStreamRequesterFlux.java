@@ -43,7 +43,7 @@ import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
 final class RequestStreamRequesterFlux extends Flux<Payload>
-    implements RequesterFrameHandler, Subscription, Scannable {
+    implements RequesterFrameHandler, LeaseHandler, Subscription, Scannable {
 
   final ByteBufAllocator allocator;
   final Payload payload;
@@ -54,6 +54,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
 
+  @Nullable final RequesterLeaseTracker leaseTracker;
   @Nullable final RequestInterceptor requestInterceptor;
 
   volatile long state;
@@ -74,6 +75,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
+    this.leaseTracker = requesterResponderSupport.getRequesterLeaseTracker();
     this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
   }
 
@@ -132,7 +134,9 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    long previousState = addRequestN(STATE, this, n);
+    final RequesterLeaseTracker leaseHandler = this.leaseTracker;
+    final boolean leaseEnabled = leaseHandler != null;
+    final long previousState = addRequestN(STATE, this, n, !leaseEnabled);
     if (isTerminated(previousState)) {
       return;
     }
@@ -147,7 +151,23 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
+    if (leaseEnabled) {
+      leaseHandler.issue(this);
+      return;
+    }
+
     sendFirstPayload(this.payload, n);
+  }
+
+  @Override
+  public void handleLease() {
+    final long previousState = markPrepared(STATE, this);
+
+    if (isTerminated(previousState)) {
+      return;
+    }
+
+    sendFirstPayload(this.payload, extractRequestN(previousState));
   }
 
   void sendFirstPayload(Payload payload, long initialRequestN) {
@@ -261,7 +281,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       if (requestInterceptor != null) {
         requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
       }
-    } else if (!hasRequested(previousState)) {
+    } else if (!isPrepared(previousState)) {
       // no need to send anything, since the first request has not happened
       this.payload.release();
     }
@@ -316,14 +336,23 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    final int streamId = this.streamId;
-    this.requesterResponderSupport.remove(streamId, this);
+    if (isPrepared(previousState)) {
+      final int streamId = this.streamId;
+      this.requesterResponderSupport.remove(streamId, this);
 
-    ReassemblyUtils.synchronizedRelease(this, previousState);
+      ReassemblyUtils.synchronizedRelease(this, previousState);
 
-    final RequestInterceptor requestInterceptor = this.requestInterceptor;
-    if (requestInterceptor != null) {
-      requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, cause);
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, cause);
+      }
+    } else {
+      final Payload p = this.payload;
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onReject(cause, FrameType.REQUEST_STREAM, p.metadata());
+      }
+      p.release();
     }
 
     this.inboundSubscriber.onError(cause);

@@ -14,37 +14,35 @@
  * limitations under the License.
  */
 
-package io.rsocket.lease;
+package io.rsocket.core;
 
+import io.rsocket.lease.LeaseSender;
 import reactor.core.publisher.Flux;
+import reactor.util.concurrent.Queues;
 
-public class Leases {
-  private static final LeaseSender noopLeaseSender = Flux::never;
-  private static final LeaseReceiver noopLeaseReceiver = leases -> {};
+public final class LeaseConfig {
 
-  private LeaseSender leaseSender = noopLeaseSender;
+  LeaseSender sender = Flux::never;
+  int maxPendingRequests = 0;
 
-  private LeaseReceiver leaseReceiver = noopLeaseReceiver;
+  LeaseConfig() {}
 
-  public static Leases create() {
-    return new Leases();
-  }
-
-  public Leases sender(LeaseSender leaseSender) {
-    this.leaseSender = leaseSender;
+  public LeaseConfig sender(LeaseSender sender) {
+    this.sender = sender;
     return this;
   }
 
-  public Leases receiver(LeaseReceiver leaseReceiver) {
-    this.leaseReceiver = leaseReceiver;
+  public LeaseConfig failOnNoLease() {
+    this.maxPendingRequests = 0;
     return this;
   }
 
-  public LeaseReceiver leaseReceiver() {
-    return leaseReceiver;
+  public LeaseConfig deferOnNoLease() {
+    return deferOnNoLease(Queues.SMALL_BUFFER_SIZE);
   }
 
-  public LeaseSender leaseSender() {
-    return leaseSender;
+  public LeaseConfig deferOnNoLease(int maxPendingRequests) {
+    this.maxPendingRequests = maxPendingRequests;
+    return this;
   }
 }

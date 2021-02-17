@@ -1,15 +1,11 @@
 package io.rsocket.examples.transport.tcp.lease.advanced.multiclient;
 
 import io.rsocket.RSocket;
+import io.rsocket.core.LeaseConfig;
 import io.rsocket.core.RSocketConnector;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.DefaultDeferringLeaseReceiver;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseWaitingRSocket;
-import io.rsocket.lease.Leases;
-import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.util.Objects;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -21,16 +17,7 @@ public class RequestingClient {
 
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease(
-                (registry) -> {
-                  DefaultDeferringLeaseReceiver leaseReceiver =
-                      new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
-
-                  registry.forRequester(
-                      (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver));
-
-                  return Leases.create().receiver(leaseReceiver);
-                })
+            .lease(LeaseConfig::deferOnNoLease)
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 

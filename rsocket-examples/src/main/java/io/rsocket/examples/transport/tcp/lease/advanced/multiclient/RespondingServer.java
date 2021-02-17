@@ -22,7 +22,6 @@ import io.rsocket.core.RSocketServer;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseManager;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.LimitBasedLeaseSender;
 import io.rsocket.examples.transport.tcp.lease.advanced.controller.TasksHandlingRSocket;
-import io.rsocket.lease.Leases;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.util.UUID;
@@ -63,20 +62,15 @@ public class RespondingServer {
                 SocketAcceptor.with(
                     new TasksHandlingRSocket(disposable, workScheduler, TASK_PROCESSING_TIME)))
             .lease(
-                (registry) -> {
-                  final LimitBasedLeaseSender leaseSender =
-                      new LimitBasedLeaseSender(
-                          UUID.randomUUID().toString(),
-                          leaseManager,
-                          VegasLimit.newBuilder()
-                              .initialLimit(CONCURRENT_WORKERS_COUNT)
-                              .maxConcurrency(QUEUE_CAPACITY)
-                              .build());
-
-                  registry.forRequestsInResponder(__ -> leaseSender);
-
-                  return Leases.create().sender(leaseSender);
-                })
+                (config) ->
+                    config.sender(
+                        new LimitBasedLeaseSender(
+                            UUID.randomUUID().toString(),
+                            leaseManager,
+                            VegasLimit.newBuilder()
+                                .initialLimit(CONCURRENT_WORKERS_COUNT)
+                                .maxConcurrency(QUEUE_CAPACITY)
+                                .build())))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     disposable.add(server);

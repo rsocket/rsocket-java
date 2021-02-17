@@ -27,8 +27,6 @@ import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.lease.RequesterLeaseHandler;
-import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
@@ -566,7 +564,7 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               PayloadDecoder.DEFAULT,
-              ResponderLeaseHandler.None,
+              null,
               0,
               FRAME_LENGTH_MASK,
               Integer.MAX_VALUE,
@@ -584,7 +582,7 @@ public class RSocketTest {
               0,
               null,
               __ -> null,
-              RequesterLeaseHandler.None);
+              null);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

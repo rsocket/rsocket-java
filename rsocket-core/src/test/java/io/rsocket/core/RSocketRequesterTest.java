@@ -62,7 +62,6 @@ import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
@@ -1420,7 +1419,7 @@ public class RSocketRequesterTest {
           Integer.MAX_VALUE,
           null,
           (__) -> null,
-          RequesterLeaseHandler.None);
+          null);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

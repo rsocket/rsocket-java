@@ -34,9 +34,6 @@ import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.lease.Leases;
-import io.rsocket.lease.RequesterLeaseHandler;
-import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
@@ -44,7 +41,6 @@ import io.rsocket.resume.SessionManager;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
@@ -67,7 +63,7 @@ public final class RSocketServer {
   private InitializingInterceptorRegistry interceptors = new InitializingInterceptorRegistry();
 
   private Resume resume;
-  private Function<InterceptorRegistry, Leases> leasesCreator = null;
+  private Consumer<LeaseConfig> leaseConfigurer = null;
 
   private int mtu = 0;
   private int maxInboundPayloadSize = Integer.MAX_VALUE;
@@ -185,21 +181,24 @@ public final class RSocketServer {
    *
    * <pre>{@code
    * RSocketServer.create(SocketAcceptor.with(new RSocket() {...}))
-   *         .lease(Leases::new)
+   *         .lease(config ->
+   *            config.sender(() -> Flux.interval(ofSeconds(1))
+   *                                    .map(__ -> Lease.create(ofSeconds(1), 1)))
+   *         )
    *         .bind(TcpServerTransport.create("localhost", 7000))
    *         .subscribe();
    * }</pre>
    *
    * <p>By default this is not enabled.
    *
-   * @param factory function which accepts {@link InterceptorRegistry} and use it for a {@link
-   *     Leases} creating
+   * @param leaseConfigurer consumer which accepts {@link io.rsocket.core.LeaseConfig} and use it
+   *     for configuring
    * @return the same instance for method chaining
    * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#lease-semantics">Lease
    *     Semantics</a>
    */
-  public RSocketServer lease(Function<InterceptorRegistry, Leases> factory) {
-    this.leasesCreator = factory;
+  public RSocketServer lease(Consumer<LeaseConfig> leaseConfigurer) {
+    this.leaseConfigurer = leaseConfigurer;
     return this;
   }
 
@@ -389,7 +388,7 @@ public final class RSocketServer {
       return clientServerConnection.onClose();
     }
 
-    boolean leaseEnabled = leasesCreator != null;
+    boolean leaseEnabled = leaseConfigurer != null;
     if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
       serverSetup.sendError(
           clientServerConnection, new InvalidSetupException("lease is not supported"));
@@ -402,22 +401,21 @@ public final class RSocketServer {
         (keepAliveHandler, wrappedDuplexConnection) -> {
           ConnectionSetupPayload setupPayload =
               new DefaultConnectionSetupPayload(setupFrame.retain());
+          final InitializingInterceptorRegistry interceptors = this.interceptors;
           final ClientServerInputMultiplexer multiplexer =
               new ClientServerInputMultiplexer(wrappedDuplexConnection, interceptors, false);
 
-          final Leases leases;
-          final InitializingInterceptorRegistry interceptors;
+          final LeaseConfig leases;
+          final RequesterLeaseTracker requesterLeaseTracker;
           if (leaseEnabled) {
-            interceptors = this.interceptors.copy();
-            leases = leasesCreator.apply(interceptors);
+            leases = new LeaseConfig();
+            leaseConfigurer.accept(leases);
+            requesterLeaseTracker =
+                new RequesterLeaseTracker(SERVER_TAG, leases.maxPendingRequests);
           } else {
-            interceptors = this.interceptors;
             leases = null;
+            requesterLeaseTracker = null;
           }
-          final RequesterLeaseHandler requesterLeaseHandler =
-              leaseEnabled
-                  ? new RequesterLeaseHandler.Impl(SERVER_TAG, leases.leaseReceiver())
-                  : RequesterLeaseHandler.None;
 
           RSocket rSocketRequester =
               new RSocketRequester(
@@ -431,7 +429,7 @@ public final class RSocketServer {
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
                   interceptors::initRequesterRequestInterceptor,
-                  requesterLeaseHandler);
+                  requesterLeaseTracker);
 
           RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 
@@ -445,18 +443,17 @@ public final class RSocketServer {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
                     DuplexConnection clientConnection = multiplexer.asClientConnection();
 
-                    ResponderLeaseHandler responderLeaseHandler =
+                    ResponderLeaseTracker responderLeaseTracker =
                         leaseEnabled
-                            ? new ResponderLeaseHandler.Impl(
-                                SERVER_TAG, clientConnection.alloc(), leases.leaseSender())
-                            : ResponderLeaseHandler.None;
+                            ? new ResponderLeaseTracker(SERVER_TAG, clientConnection, leases.sender)
+                            : null;
 
                     RSocket rSocketResponder =
                         new RSocketResponder(
                             clientConnection,
                             wrappedRSocketHandler,
                             payloadDecoder,
-                            responderLeaseHandler,
+                            responderLeaseTracker,
                             mtu,
                             maxFrameLength,
                             maxInboundPayloadSize,

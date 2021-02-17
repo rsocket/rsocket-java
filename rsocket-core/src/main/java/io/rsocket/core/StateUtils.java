@@ -13,27 +13,36 @@ final class StateUtils {
   /** Bit Flag that indicates Requester Producer has been subscribed once */
   static final long SUBSCRIBED_FLAG =
       0b000000000000000000000000000000001_0000000000000000000000000000000L;
+  /** Bit Flag that indicates that the first payload in RequestChannel scenario is received */
+  static final long FIRST_PAYLOAD_RECEIVED_FLAG =
+      0b000000000000000000000000000000010_0000000000000000000000000000000L;
+  /**
+   * Bit Flag that indicates that the logical stream is prepared for the first initial frame sending
+   * (applicable for requester only)
+   */
+  static final long PREPARED_FLAG =
+      0b000000000000000000000000000000100_0000000000000000000000000000000L;
   /**
    * Bit Flag that indicates that sent first initial frame was sent (in case of requester) or
    * consumed (if responder)
    */
   static final long FIRST_FRAME_SENT_FLAG =
-      0b000000000000000000000000000000010_0000000000000000000000000000000L;
+      0b000000000000000000000000000001000_0000000000000000000000000000000L;
   /** Bit Flag that indicates that there is a frame being reassembled */
   static final long REASSEMBLING_FLAG =
-      0b000000000000000000000000000000100_0000000000000000000000000000000L;
+      0b000000000000000000000000000010000_0000000000000000000000000000000L;
   /**
    * Bit Flag that indicates requestChannel stream is half terminated. In this case flag indicates
    * that the inbound is terminated
    */
   static final long INBOUND_TERMINATED_FLAG =
-      0b000000000000000000000000000001000_0000000000000000000000000000000L;
+      0b000000000000000000000000000100000_0000000000000000000000000000000L;
   /**
    * Bit Flag that indicates requestChannel stream is half terminated. In this case flag indicates
    * that the outbound is terminated
    */
   static final long OUTBOUND_TERMINATED_FLAG =
-      0b000000000000000000000000000010000_0000000000000000000000000000000L;
+      0b000000000000000000000000001000000_0000000000000000000000000000000L;
   /** Initial state for any request operator */
   static final long UNSUBSCRIBED_STATE =
       0b000000000000000000000000000000000_0000000000000000000000000000000L;
@@ -54,6 +63,24 @@ final class StateUtils {
    * @return return previous state before setting the new one
    */
   static <T> long markSubscribed(AtomicLongFieldUpdater<T> updater, T instance) {
+    return markSubscribed(updater, instance, false);
+  }
+
+  /**
+   * Adds (if possible) to the given state the {@link #SUBSCRIBED_FLAG} flag which indicates that
+   * the given stream has already been subscribed once
+   *
+   * <p>Note, the flag will not be added if the stream has already been terminated or if the stream
+   * has already been subscribed once
+   *
+   * @param updater of the volatile state field
+   * @param instance instance holder of the volatile state
+   * @param markPrepared indicates whether the given instance should be marked as prepared
+   * @param <T> generic type of the instance
+   * @return return previous state before setting the new one
+   */
+  static <T> long markSubscribed(
+      AtomicLongFieldUpdater<T> updater, T instance, boolean markPrepared) {
     for (; ; ) {
       long state = updater.get(instance);
 
@@ -65,7 +92,8 @@ final class StateUtils {
         return state;
       }
 
-      if (updater.compareAndSet(instance, state, state | SUBSCRIBED_FLAG)) {
+      if (updater.compareAndSet(
+          instance, state, state | SUBSCRIBED_FLAG | (markPrepared ? PREPARED_FLAG : 0))) {
         return state;
       }
     }
@@ -119,6 +147,86 @@ final class StateUtils {
    */
   static boolean isFirstFrameSent(long state) {
     return (state & FIRST_FRAME_SENT_FLAG) == FIRST_FRAME_SENT_FLAG;
+  }
+
+  /**
+   * Adds (if possible) to the given state the {@link #PREPARED_FLAG} flag which indicates that the
+   * logical stream is ready for initial frame sending.
+   *
+   * <p>Note, the flag will not be added if the stream has already been terminated or if the stream
+   * has already been marked as prepared
+   *
+   * @param updater of the volatile state field
+   * @param instance instance holder of the volatile state
+   * @param <T> generic type of the instance
+   * @return return previous state before setting the new one
+   */
+  static <T> long markPrepared(AtomicLongFieldUpdater<T> updater, T instance) {
+    for (; ; ) {
+      long state = updater.get(instance);
+
+      if (state == TERMINATED_STATE) {
+        return TERMINATED_STATE;
+      }
+
+      if ((state & PREPARED_FLAG) == PREPARED_FLAG) {
+        return state;
+      }
+
+      if (updater.compareAndSet(instance, state, state | PREPARED_FLAG)) {
+        return state;
+      }
+    }
+  }
+
+  /**
+   * Indicates that the logical stream is ready for initial frame sending
+   *
+   * @param state to check whether stream is prepared for initial frame sending
+   * @return true if the {@link #FIRST_PAYLOAD_RECEIVED_FLAG} flag is set
+   */
+  static boolean isPrepared(long state) {
+    return (state & PREPARED_FLAG) == PREPARED_FLAG;
+  }
+
+  /**
+   * Adds (if possible) to the given state the {@link #FIRST_PAYLOAD_RECEIVED_FLAG} flag which
+   * indicates that the logical stream is ready for initial frame sending.
+   *
+   * <p>Note, the flag will not be added if the stream has already been terminated or if the stream
+   * has already been marked as prepared
+   *
+   * @param updater of the volatile state field
+   * @param instance instance holder of the volatile state
+   * @param <T> generic type of the instance
+   * @return return previous state before setting the new one
+   */
+  static <T> long markFirstPayloadReceived(AtomicLongFieldUpdater<T> updater, T instance) {
+    for (; ; ) {
+      long state = updater.get(instance);
+
+      if (state == TERMINATED_STATE) {
+        return TERMINATED_STATE;
+      }
+
+      if ((state & FIRST_PAYLOAD_RECEIVED_FLAG) == FIRST_PAYLOAD_RECEIVED_FLAG) {
+        return state;
+      }
+
+      if (updater.compareAndSet(instance, state, state | FIRST_PAYLOAD_RECEIVED_FLAG)) {
+        return state;
+      }
+    }
+  }
+
+  /**
+   * Indicates that the logical stream is ready for initial frame sending
+   *
+   * @param state to check whether stream is established
+   * @return true if the {@link #FIRST_PAYLOAD_RECEIVED_FLAG} flag is set
+   */
+  static boolean isFirstPayloadReceived(long state) {
+    return (state & FIRST_PAYLOAD_RECEIVED_FLAG) == FIRST_PAYLOAD_RECEIVED_FLAG;
   }
 
   /**
@@ -327,14 +435,12 @@ final class StateUtils {
     return state == TERMINATED_STATE || (state & SUBSCRIBED_FLAG) == SUBSCRIBED_FLAG;
   }
 
-  /**
-   * @param updater
-   * @param instance
-   * @param toAdd
-   * @param <T>
-   * @return
-   */
   static <T> long addRequestN(AtomicLongFieldUpdater<T> updater, T instance, long toAdd) {
+    return addRequestN(updater, instance, toAdd, false);
+  }
+
+  static <T> long addRequestN(
+      AtomicLongFieldUpdater<T> updater, T instance, long toAdd, boolean markPrepared) {
     long currentState, flags, requestN, nextRequestN;
     for (; ; ) {
       currentState = updater.get(instance);
@@ -348,7 +454,7 @@ final class StateUtils {
         return currentState;
       }
 
-      flags = currentState & FLAGS_MASK;
+      flags = (currentState & FLAGS_MASK) | (markPrepared ? PREPARED_FLAG : 0);
       nextRequestN = addRequestN(requestN, toAdd);
 
       if (updater.compareAndSet(instance, currentState, nextRequestN | flags)) {

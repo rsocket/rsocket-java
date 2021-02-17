@@ -21,10 +21,7 @@ import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.lease.Lease;
-import io.rsocket.lease.LeaseReceiver;
 import io.rsocket.lease.LeaseSender;
-import io.rsocket.lease.Leases;
-import io.rsocket.lease.MissingLeaseException;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -37,8 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.ReplayProcessor;
-import reactor.util.retry.Retry;
 
 public class LeaseExample {
 
@@ -93,13 +88,12 @@ public class LeaseExample {
                             return Mono.empty();
                           }
                         }))
-            .lease((__) -> Leases.create().sender(new LeaseCalculator(SERVER_TAG, messagesQueue)))
+            .lease(leases -> leases.sender(new LeaseCalculator(SERVER_TAG, messagesQueue)))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
-    SimpleLeaseReceiver receiver = new SimpleLeaseReceiver(CLIENT_TAG);
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease((__) -> Leases.create().receiver(receiver))
+            .lease((config) -> config.deferOnNoLease(1))
             .connect(TcpClientTransport.create(server.address()))
             .block();
 
@@ -114,22 +108,10 @@ public class LeaseExample {
             })
         // here we wait for the first lease for the responder side and start execution
         // on if there is allowance
-        .delaySubscription(receiver.notifyWhenNewLease().then())
         .concatMap(
             tick -> {
               logger.info("Requesting FireAndForget({})", tick);
-              return Mono.defer(() -> clientRSocket.fireAndForget(ByteBufPayload.create("" + tick)))
-                  .retryWhen(
-                      Retry.indefinitely()
-                          // ensures that error is the result of missed lease
-                          .filter(t -> t instanceof MissingLeaseException)
-                          .doBeforeRetryAsync(
-                              rs -> {
-                                // here we create a mechanism to delay the retry until
-                                // the new lease allowance comes in.
-                                logger.info("Ran out of leases {}", rs);
-                                return receiver.notifyWhenNewLease().then();
-                              }));
+              return clientRSocket.fireAndForget(ByteBufPayload.create("" + tick));
             })
         .blockLast();
 
@@ -170,40 +152,9 @@ public class LeaseExample {
                 // reissue new lease only if queue has remaining capacity to
                 // accept more requests
                 if (requests > 0) {
-                  long ttl = ttlDuration.toMillis();
-                  sink.next(Lease.create((int) ttl, requests));
+                  sink.next(Lease.create(ttlDuration, requests));
                 }
               });
-    }
-  }
-
-  private static class SimpleLeaseReceiver implements LeaseReceiver {
-    final String tag;
-    final ReplayProcessor<Lease> lastLeaseReplay = ReplayProcessor.cacheLast();
-
-    public SimpleLeaseReceiver(String tag) {
-      this.tag = tag;
-    }
-
-    @Override
-    public void receive(Flux<Lease> receivedLeases) {
-      receivedLeases.subscribe(
-          l -> {
-            logger.info(
-                "{} received leases - ttl: {}, requests: {}",
-                tag,
-                l.getTimeToLiveMillis(),
-                l.getAllowedRequests());
-            lastLeaseReplay.onNext(l);
-          });
-    }
-
-    /**
-     * This method allows to listen to new incoming leases and delay some action (e.g . retry) until
-     * new valid lease has come in
-     */
-    public Mono<Lease> notifyWhenNewLease() {
-      return lastLeaseReplay.filter(Lease::isValid).next();
     }
   }
 }

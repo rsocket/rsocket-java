@@ -17,16 +17,12 @@
 package io.rsocket.examples.transport.tcp.lease.advanced.invertmulticlient;
 
 import io.rsocket.RSocket;
+import io.rsocket.core.LeaseConfig;
 import io.rsocket.core.RSocketServer;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.DefaultDeferringLeaseReceiver;
-import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseWaitingRSocket;
-import io.rsocket.lease.Leases;
-import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.util.Comparator;
-import java.util.UUID;
 import java.util.concurrent.PriorityBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,14 +45,7 @@ public class RequestingServer {
                   return Mono.<RSocket>just(new RSocket() {})
                       .doAfterTerminate(() -> rSockets.put(sendingSocket));
                 })
-            .lease(
-                (registry) -> {
-                  DefaultDeferringLeaseReceiver leaseReceiver =
-                      new DefaultDeferringLeaseReceiver(UUID.randomUUID().toString());
-                  registry.forRequester(
-                      (RSocketInterceptor) r -> new LeaseWaitingRSocket(r, leaseReceiver));
-                  return Leases.create().receiver(leaseReceiver);
-                })
+            .lease(LeaseConfig::deferOnNoLease)
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     logger.info("Server started on port {}", server.address().getPort());

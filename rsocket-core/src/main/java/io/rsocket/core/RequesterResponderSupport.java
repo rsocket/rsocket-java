@@ -68,6 +68,11 @@ class RequesterResponderSupport {
   }
 
   @Nullable
+  public RequesterLeaseTracker getRequesterLeaseTracker() {
+    return null;
+  }
+
+  @Nullable
   public RequestInterceptor getRequestInterceptor() {
     return requestInterceptor;
   }
@@ -110,6 +115,12 @@ class RequesterResponderSupport {
     } else {
       throw new UnsupportedOperationException("Responder can not issue id");
     }
+  }
+
+  public synchronized boolean add(int streamId, FrameHandler frameHandler) {
+    final FrameHandler previousHandler = this.activeStreams.putIfAbsent(streamId, frameHandler);
+
+    return previousHandler == null;
   }
 
   /**

@@ -18,18 +18,43 @@ package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.rsocket.Availability;
+import java.time.Duration;
 import reactor.util.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
-public interface Lease extends Availability {
+public final class Lease {
 
-  static Lease create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
-    return LeaseImpl.create(timeToLiveMillis, numberOfRequests, metadata);
+  public static Lease create(
+      Duration timeToLive, int numberOfRequests, @Nullable ByteBuf metadata) {
+    return new Lease(timeToLive, numberOfRequests, metadata);
   }
 
-  static Lease create(int timeToLiveMillis, int numberOfRequests) {
-    return create(timeToLiveMillis, numberOfRequests, Unpooled.EMPTY_BUFFER);
+  public static Lease create(Duration timeToLive, int numberOfRequests) {
+    return create(timeToLive, numberOfRequests, Unpooled.EMPTY_BUFFER);
+  }
+
+  public static Lease unbounded() {
+    return unbounded(null);
+  }
+
+  public static Lease unbounded(@Nullable ByteBuf metadata) {
+    return create(Duration.ofMillis(Integer.MAX_VALUE), Integer.MAX_VALUE, metadata);
+  }
+
+  public static Lease empty() {
+    return create(Duration.ZERO, 0);
+  }
+
+  final int timeToLiveMillis;
+  final int allowedRequests;
+  final ByteBuf metadata;
+  final long expireAt;
+
+  Lease(Duration timeToLive, int allowedRequests, @Nullable ByteBuf metadata) {
+    this.allowedRequests = allowedRequests;
+    this.timeToLiveMillis = (int) Math.min(timeToLive.toMillis(), Integer.MAX_VALUE);
+    this.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
+    this.expireAt = timeToLive.isZero() ? 0 : System.currentTimeMillis() + timeToLive.toMillis();
   }
 
   /**
@@ -37,32 +62,17 @@ public interface Lease extends Availability {
    *
    * @return The number of requests allowed by this lease.
    */
-  int getAllowedRequests();
-
-  /**
-   * Initial number of requests allowed by this lease.
-   *
-   * @return initial number of requests allowed by this lease.
-   */
-  default int getStartingAllowedRequests() {
-    throw new UnsupportedOperationException("Not implemented");
+  public int allowedRequests() {
+    return allowedRequests;
   }
 
   /**
-   * Number of milliseconds that this lease is valid from the time it is received.
+   * Time to live for the given lease
    *
-   * @return Number of milliseconds that this lease is valid from the time it is received.
+   * @return relative duration in milliseconds
    */
-  int getTimeToLiveMillis();
-
-  /**
-   * Number of milliseconds that this lease is still valid from now.
-   *
-   * @param now millis since epoch
-   * @return Number of milliseconds that this lease is still valid from now, or 0 if expired.
-   */
-  default int getRemainingTimeToLiveMillis(long now) {
-    return isEmpty() ? 0 : (int) Math.max(0, expiry() - now);
+  public int timeToLiveInMillis() {
+    return this.timeToLiveMillis;
   }
 
   /**
@@ -70,41 +80,29 @@ public interface Lease extends Availability {
    *
    * @return Absolute time since epoch at which this lease will expire.
    */
-  long expiry();
+  public long expireAt() {
+    return expireAt;
+  }
 
   /**
    * Metadata for the lease.
    *
    * @return Metadata for the lease.
    */
-  ByteBuf getMetadata();
-
-  /**
-   * Checks if the lease is expired now.
-   *
-   * @return {@code true} if the lease has expired.
-   */
-  default boolean isExpired() {
-    return isExpired(System.currentTimeMillis());
+  @Nullable
+  public ByteBuf metadata() {
+    return metadata;
   }
 
-  /**
-   * Checks if the lease is expired for the passed {@code now}.
-   *
-   * @param now current time in millis.
-   * @return {@code true} if the lease has expired.
-   */
-  default boolean isExpired(long now) {
-    return now > expiry();
-  }
-
-  /** Checks if the lease has not expired and there are allowed requests available */
-  default boolean isValid() {
-    return !isExpired() && getAllowedRequests() > 0;
-  }
-
-  /** Checks if the lease is empty(default value if no lease was received yet) */
-  default boolean isEmpty() {
-    return getAllowedRequests() == 0 && getTimeToLiveMillis() == 0;
+  @Override
+  public String toString() {
+    return "Lease{"
+        + "timeToLiveMillis="
+        + timeToLiveMillis
+        + ", allowedRequests="
+        + allowedRequests
+        + ", expiredAt="
+        + expireAt
+        + '}';
   }
 }

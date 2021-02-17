@@ -7,7 +7,6 @@ import io.rsocket.core.RSocketConnector;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.LeaseManager;
 import io.rsocket.examples.transport.tcp.lease.advanced.common.LimitBasedLeaseSender;
 import io.rsocket.examples.transport.tcp.lease.advanced.controller.TasksHandlingRSocket;
-import io.rsocket.lease.Leases;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import java.util.Objects;
 import java.util.UUID;
@@ -49,18 +48,15 @@ public class RespondingClient {
                 SocketAcceptor.with(
                     new TasksHandlingRSocket(disposable, workScheduler, PROCESSING_TASK_TIME)))
             .lease(
-                (interceptorRegistry) -> {
-                  final LimitBasedLeaseSender sender =
-                      new LimitBasedLeaseSender(
-                          UUID.randomUUID().toString(),
-                          periodicLeaseSender,
-                          VegasLimit.newBuilder()
-                              .initialLimit(CONCURRENT_WORKERS_COUNT)
-                              .maxConcurrency(QUEUE_CAPACITY)
-                              .build());
-                  interceptorRegistry.forRequestsInResponder(r -> sender);
-                  return Leases.create().sender(sender);
-                })
+                (config) ->
+                    config.sender(
+                        new LimitBasedLeaseSender(
+                            UUID.randomUUID().toString(),
+                            periodicLeaseSender,
+                            VegasLimit.newBuilder()
+                                .initialLimit(CONCURRENT_WORKERS_COUNT)
+                                .maxConcurrency(QUEUE_CAPACITY)
+                                .build())))
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 
