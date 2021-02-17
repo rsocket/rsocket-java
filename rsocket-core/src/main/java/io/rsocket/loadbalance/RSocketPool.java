@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,22 +39,18 @@ import reactor.util.annotation.Nullable;
 class RSocketPool extends ResolvingOperator<Object>
     implements CoreSubscriber<List<LoadbalanceTarget>> {
 
-  final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
-  final RSocketConnector connector;
-  final LoadbalanceStrategy loadbalanceStrategy;
-
-  volatile PooledRSocket[] activeSockets;
-
   static final AtomicReferenceFieldUpdater<RSocketPool, PooledRSocket[]> ACTIVE_SOCKETS =
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketPool.class, PooledRSocket[].class, "activeSockets");
-
   static final PooledRSocket[] EMPTY = new PooledRSocket[0];
   static final PooledRSocket[] TERMINATED = new PooledRSocket[0];
-
-  volatile Subscription s;
   static final AtomicReferenceFieldUpdater<RSocketPool, Subscription> S =
       AtomicReferenceFieldUpdater.newUpdater(RSocketPool.class, Subscription.class, "s");
+  final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
+  final RSocketConnector connector;
+  final LoadbalanceStrategy loadbalanceStrategy;
+  volatile PooledRSocket[] activeSockets;
+  volatile Subscription s;
 
   public RSocketPool(
       RSocketConnector connector,
@@ -85,31 +81,27 @@ class RSocketPool extends ResolvingOperator<Object>
     }
   }
 
-  /**
-   * This operation should happen rarely relatively compares the number of the {@link #select()}
-   * method invocations, therefore it is acceptable to have it algorithmically inefficient. The
-   * algorithmic complexity of this method is
-   *
-   * @param targets set which represents RSocket targets to balance on
-   */
   @Override
   public void onNext(List<LoadbalanceTarget> targets) {
     if (isDisposed()) {
       return;
     }
 
+    // This operation should happen less frequently than calls to select() (which are per request)
+    // and therefore it is acceptable somewhat less efficient.
+
     PooledRSocket[] previouslyActiveSockets;
-    PooledRSocket[] activeSockets;
     PooledRSocket[] inactiveSockets;
+    PooledRSocket[] socketsToUse;
     for (; ; ) {
-      HashMap<LoadbalanceTarget, Integer> rSocketSuppliersCopy = new HashMap<>();
+      HashMap<LoadbalanceTarget, Integer> rSocketSuppliersCopy = new HashMap<>(targets.size());
 
       int j = 0;
       for (LoadbalanceTarget target : targets) {
         rSocketSuppliersCopy.put(target, j++);
       }
 
-      // checking intersection of active RSocket with the newly received set
+      // Intersect current and new list of targets and find the ones to keep vs dispose
       previouslyActiveSockets = this.activeSockets;
       inactiveSockets = new PooledRSocket[previouslyActiveSockets.length];
       PooledRSocket[] nextActiveSockets =
@@ -141,20 +133,18 @@ class RSocketPool extends ResolvingOperator<Object>
         }
       }
 
-      // going though brightly new rsocket
+      // The remainder are the brand new targets
       for (LoadbalanceTarget target : rSocketSuppliersCopy.keySet()) {
         nextActiveSockets[activeSocketsPosition++] =
             new PooledRSocket(this, this.connector.connect(target.getTransport()), target);
       }
 
-      // shrank to actual length
       if (activeSocketsPosition == 0) {
-        activeSockets = EMPTY;
+        socketsToUse = EMPTY;
       } else {
-        activeSockets = Arrays.copyOf(nextActiveSockets, activeSocketsPosition);
+        socketsToUse = Arrays.copyOf(nextActiveSockets, activeSocketsPosition);
       }
-
-      if (ACTIVE_SOCKETS.compareAndSet(this, previouslyActiveSockets, activeSockets)) {
+      if (ACTIVE_SOCKETS.compareAndSet(this, previouslyActiveSockets, socketsToUse)) {
         break;
       }
     }
@@ -169,7 +159,7 @@ class RSocketPool extends ResolvingOperator<Object>
 
     if (isPending()) {
       // notifies that upstream is resolved
-      if (activeSockets != EMPTY) {
+      if (socketsToUse != EMPTY) {
         //noinspection ConstantConditions
         complete(this);
       }
