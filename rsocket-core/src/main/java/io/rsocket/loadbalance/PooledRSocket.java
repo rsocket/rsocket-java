@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,8 +85,8 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
     }
 
     this.doFinally();
-    // terminate upstream which means retryBackoff has exhausted
-    this.terminate(t);
+    // terminate upstream (retryBackoff has exhausted) and remove from the parent target list
+    this.doCleanup(t);
   }
 
   @Override
@@ -108,15 +108,15 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
 
   @Override
   protected void doOnValueResolved(RSocket value) {
-    value.onClose().subscribe(null, t -> this.doCleanup(), this::doCleanup);
+    value.onClose().subscribe(null, this::doCleanup, () -> doCleanup(ON_DISPOSE));
   }
 
-  void doCleanup() {
+  void doCleanup(Throwable t) {
     if (isDisposed()) {
       return;
     }
 
-    this.dispose();
+    this.terminate(t);
 
     final RSocketPool parent = this.parent;
     for (; ; ) {
