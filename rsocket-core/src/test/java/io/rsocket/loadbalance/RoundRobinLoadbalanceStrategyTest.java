@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Offset;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import reactor.core.publisher.Hooks;
@@ -19,10 +21,18 @@ import reactor.test.publisher.TestPublisher;
 
 public class RoundRobinLoadbalanceStrategyTest {
 
+  @BeforeEach
+  void setUp() {
+    Hooks.onErrorDropped((__) -> {});
+  }
+
+  @AfterAll
+  static void afterAll() {
+    Hooks.resetOnErrorDropped();
+  }
+
   @Test
   public void shouldDeliverValuesProportionally() {
-    Hooks.onErrorDropped((__) -> {});
-
     final AtomicInteger counter1 = new AtomicInteger();
     final AtomicInteger counter2 = new AtomicInteger();
     final ClientTransport mockTransport = Mockito.mock(ClientTransport.class);
@@ -71,8 +81,6 @@ public class RoundRobinLoadbalanceStrategyTest {
 
   @Test
   public void shouldDeliverValuesToNewlyConnectedSockets() {
-    Hooks.onErrorDropped((__) -> {});
-
     final AtomicInteger counter1 = new AtomicInteger();
     final AtomicInteger counter2 = new AtomicInteger();
     final ClientTransport mockTransport1 = Mockito.mock(ClientTransport.class);
@@ -104,7 +112,7 @@ public class RoundRobinLoadbalanceStrategyTest {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
-    source.next(Arrays.asList(LoadbalanceTarget.from("1", mockTransport1)));
+    source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport1)));
 
     Assertions.assertThat(counter1.get()).isCloseTo(1000, Offset.offset(1));
 
@@ -114,7 +122,7 @@ public class RoundRobinLoadbalanceStrategyTest {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
-    source.next(Arrays.asList(LoadbalanceTarget.from("1", mockTransport1)));
+    source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport1)));
 
     Assertions.assertThat(counter1.get()).isCloseTo(2000, Offset.offset(1));
 
@@ -130,7 +138,7 @@ public class RoundRobinLoadbalanceStrategyTest {
     Assertions.assertThat(counter1.get()).isCloseTo(2500, Offset.offset(1));
     Assertions.assertThat(counter2.get()).isCloseTo(500, Offset.offset(1));
 
-    source.next(Arrays.asList(LoadbalanceTarget.from("2", mockTransport1)));
+    source.next(Collections.singletonList(LoadbalanceTarget.from("2", mockTransport1)));
 
     for (int j = 0; j < 1000; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
