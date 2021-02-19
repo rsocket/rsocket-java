@@ -32,6 +32,7 @@ import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
+import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.resume.ClientRSocketSession;
 import io.rsocket.resume.ResumableDuplexConnection;
 import io.rsocket.resume.ResumableFramesStore;
@@ -702,7 +703,22 @@ public class RSocketConnector {
                                                     mtu,
                                                     maxFrameLength,
                                                     maxInboundPayloadSize,
-                                                    interceptors::initResponderRequestInterceptor);
+                                                    leaseEnabled && leases.statsCollector != null
+                                                        ? rSocket -> {
+                                                          final RequestInterceptor interceptor =
+                                                              interceptors
+                                                                  .initResponderRequestInterceptor(
+                                                                      rSocket);
+                                                          if (interceptor != null) {
+                                                            return RequestInterceptor.compose(
+                                                                interceptor, leases.statsCollector);
+                                                          }
+
+                                                          return RequestInterceptor.compose(
+                                                              leases.statsCollector);
+                                                        }
+                                                        : interceptors
+                                                            ::initResponderRequestInterceptor);
 
                                             return wrappedRSocketRequester;
                                           })

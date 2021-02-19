@@ -17,18 +17,25 @@
 package io.rsocket.core;
 
 import io.rsocket.lease.LeaseSender;
+import io.rsocket.plugins.RequestInterceptor;
 import reactor.core.publisher.Flux;
 import reactor.util.concurrent.Queues;
 
 public final class LeaseConfig {
 
   LeaseSender sender = Flux::never;
+  RequestInterceptor statsCollector = null;
   int maxPendingRequests = 0;
 
   LeaseConfig() {}
 
   public LeaseConfig sender(LeaseSender sender) {
     this.sender = sender;
+    return this;
+  }
+
+  public LeaseConfig statsCollector(RequestInterceptor requestInterceptor) {
+    this.statsCollector = requestInterceptor;
     return this;
   }
 

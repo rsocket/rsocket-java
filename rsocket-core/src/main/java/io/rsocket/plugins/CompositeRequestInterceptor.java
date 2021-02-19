@@ -13,7 +13,7 @@ class CompositeRequestInterceptor implements RequestInterceptor {
 
   final RequestInterceptor[] requestInterceptors;
 
-  public CompositeRequestInterceptor(RequestInterceptor[] requestInterceptors) {
+  CompositeRequestInterceptor(RequestInterceptor[] requestInterceptors) {
     this.requestInterceptors = requestInterceptors;
   }
 

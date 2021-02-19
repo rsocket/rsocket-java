@@ -97,7 +97,6 @@ final class RequesterLeaseTracker implements Availability {
       if (queue.size() > 0) {
         do {
           final LeaseHandler handler = queue.poll();
-          System.out.println("here " + availableRequests);
           handler.handleLease();
         } while (--availableRequests > 0 && queue.size() > 0);
       }

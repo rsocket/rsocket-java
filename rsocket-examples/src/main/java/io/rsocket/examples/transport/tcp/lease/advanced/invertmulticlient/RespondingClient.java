@@ -48,15 +48,17 @@ public class RespondingClient {
                 SocketAcceptor.with(
                     new TasksHandlingRSocket(disposable, workScheduler, PROCESSING_TASK_TIME)))
             .lease(
-                (config) ->
-                    config.sender(
-                        new LimitBasedLeaseSender(
-                            UUID.randomUUID().toString(),
-                            periodicLeaseSender,
-                            VegasLimit.newBuilder()
-                                .initialLimit(CONCURRENT_WORKERS_COUNT)
-                                .maxConcurrency(QUEUE_CAPACITY)
-                                .build())))
+                (config) -> {
+                  final LimitBasedLeaseSender senderAndStatsCollector =
+                      new LimitBasedLeaseSender(
+                          UUID.randomUUID().toString(),
+                          periodicLeaseSender,
+                          VegasLimit.newBuilder()
+                              .initialLimit(CONCURRENT_WORKERS_COUNT)
+                              .maxConcurrency(QUEUE_CAPACITY)
+                              .build());
+                  config.sender(senderAndStatsCollector).statsCollector(senderAndStatsCollector);
+                })
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 

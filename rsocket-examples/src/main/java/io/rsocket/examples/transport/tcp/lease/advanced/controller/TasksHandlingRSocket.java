@@ -38,6 +38,7 @@ public class TasksHandlingRSocket implements RSocket {
             t -> {
               logger.error("Queue has been overflowed. Terminating server");
               terminatable.dispose();
+              System.exit(9);
             });
   }
 }

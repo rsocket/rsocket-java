@@ -37,6 +37,7 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
+import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.resume.SessionManager;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
@@ -457,7 +458,18 @@ public final class RSocketServer {
                             mtu,
                             maxFrameLength,
                             maxInboundPayloadSize,
-                            interceptors::initResponderRequestInterceptor);
+                            leaseEnabled && leases.statsCollector != null
+                                ? rSocket -> {
+                                  final RequestInterceptor interceptor =
+                                      interceptors.initResponderRequestInterceptor(rSocket);
+                                  if (interceptor != null) {
+                                    return RequestInterceptor.compose(
+                                        interceptor, leases.statsCollector);
+                                  }
+
+                                  return RequestInterceptor.compose(leases.statsCollector);
+                                }
+                                : interceptors::initResponderRequestInterceptor);
                   })
               .doFinally(signalType -> setupPayload.release())
               .then();

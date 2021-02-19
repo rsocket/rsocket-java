@@ -24,7 +24,7 @@
     </appender>
 
     <logger name="io.rsocket.examples" level="DEBUG"/>
-    <logger name="io.rsocket.FrameLogger" level="DEBUG"/>
+    <logger name="io.rsocket.FrameLogger" level="INFO"/>
     <logger name="reactor.netty" level="INFO"/>
 
     <root level="INFO">

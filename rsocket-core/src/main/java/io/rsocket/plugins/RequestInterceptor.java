@@ -2,6 +2,8 @@ package io.rsocket.plugins;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.frame.FrameType;
+import java.util.Arrays;
+import java.util.stream.Stream;
 import reactor.core.Disposable;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
@@ -76,4 +78,27 @@ public interface RequestInterceptor extends Disposable {
    * @param metadata taken from the initial frame
    */
   void onReject(Throwable rejectionReason, FrameType requestType, @Nullable ByteBuf metadata);
+
+  @Nullable
+  static RequestInterceptor compose(RequestInterceptor... interceptors) {
+    switch (interceptors.length) {
+      case 0:
+        return null;
+      case 1:
+        return new CompositeRequestInterceptor.SafeRequestInterceptor(interceptors[0]);
+      default:
+        return new CompositeRequestInterceptor(
+            Arrays.stream(interceptors)
+                .flatMap(
+                    ri ->
+                        ri instanceof CompositeRequestInterceptor
+                            ? Arrays.stream(((CompositeRequestInterceptor) ri).requestInterceptors)
+                            : ri instanceof CompositeRequestInterceptor.SafeRequestInterceptor
+                                ? Stream.of(
+                                    ((CompositeRequestInterceptor.SafeRequestInterceptor) ri)
+                                        .requestInterceptor)
+                                : Stream.of(ri))
+                .toArray(RequestInterceptor[]::new));
+    }
+  }
 }
