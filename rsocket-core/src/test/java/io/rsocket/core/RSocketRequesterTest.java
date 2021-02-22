@@ -1168,8 +1168,7 @@ public class RSocketRequesterTest {
             assertSubscriber.request(1);
           });
 
-      Assertions.assertThat(rule.connection.getSent())
-          .allMatch(ByteBuf::release);
+      Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
 
       Assertions.assertThat(rule.socket.isDisposed()).isFalse();
 
