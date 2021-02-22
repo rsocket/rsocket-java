@@ -1142,6 +1142,45 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
   }
 
+  @Test
+  // see https://github.com/rsocket/rsocket-java/issues/959
+  public void testWorkaround959() {
+    for (int i = 1; i < 100000; i += 2) {
+      ByteBuf buffer = rule.alloc().buffer();
+      buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+
+      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(3);
+      rule.socket.requestStream(ByteBufPayload.create(buffer)).subscribe(assertSubscriber);
+
+      final ByteBuf payloadFrame =
+          PayloadFrameCodec.encode(
+              rule.alloc(), i, false, false, true, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+
+      RaceTestUtils.race(
+          () -> {
+            rule.connection.addToReceivedBuffer(payloadFrame.copy());
+            rule.connection.addToReceivedBuffer(payloadFrame.copy());
+            rule.connection.addToReceivedBuffer(payloadFrame);
+          },
+          () -> {
+            assertSubscriber.request(1);
+            assertSubscriber.request(1);
+            assertSubscriber.request(1);
+          });
+
+      Assertions.assertThat(rule.connection.getSent())
+          .allMatch(ByteBuf::release);
+
+      Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+
+      assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
+      assertSubscriber.assertNoError();
+
+      rule.connection.clearSendReceiveBuffers();
+      rule.assertHasNoLeaks();
+    }
+  }
+
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
     protected RSocketRequester newRSocket() {
