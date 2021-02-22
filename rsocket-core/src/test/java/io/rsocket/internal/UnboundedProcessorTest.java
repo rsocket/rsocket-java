@@ -16,12 +16,22 @@
 
 package io.rsocket.internal;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import reactor.core.Fuseable;
+import reactor.core.scheduler.Schedulers;
+import reactor.test.util.RaceTestUtils;
 
 public class UnboundedProcessorTest {
   @Test
@@ -111,6 +121,45 @@ public class UnboundedProcessorTest {
     Payload closestPayload = processor.poll();
 
     Assert.assertEquals(closestPayload.getDataUtf8(), "test");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
+    final LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    for (int i = 0; i < 100000; i++) {
+      final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
+
+      final ByteBuf buffer1 = allocator.buffer();
+      final ByteBuf buffer2 = allocator.buffer();
+
+      final AssertSubscriber<Object> assertSubscriber =
+          new AssertSubscriber<>(0)
+              .requestedFusionMode(withFusionEnabled ? Fuseable.ANY : Fuseable.NONE);
+
+      unboundedProcessor.subscribe(assertSubscriber);
+
+      RaceTestUtils.race(
+          () ->
+              RaceTestUtils.race(
+                  () ->
+                      RaceTestUtils.race(
+                          () -> {
+                            unboundedProcessor.onNext(buffer1);
+                            unboundedProcessor.onNext(buffer2);
+                          },
+                          unboundedProcessor::dispose, Schedulers.elastic()),
+                  assertSubscriber::cancel, Schedulers.elastic()),
+          () -> {
+            assertSubscriber.request(1);
+            assertSubscriber.request(1);
+          }, Schedulers.elastic());
+
+      assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
+
+      allocator.assertHasNoLeaks();
+    }
   }
 
   public void testOnNextAfterSubscribeN(int n) throws Exception {
