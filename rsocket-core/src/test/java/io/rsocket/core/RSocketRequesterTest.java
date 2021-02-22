@@ -1142,15 +1142,22 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
   }
 
-  @Test
+  @ParameterizedTest
+  @ValueSource(strings = {"stream", "channel"})
   // see https://github.com/rsocket/rsocket-java/issues/959
-  public void testWorkaround959() {
-    for (int i = 1; i < 100000; i += 2) {
+  public void testWorkaround959(String type) {
+    for (int i = 1; i < 20000; i += 2) {
       ByteBuf buffer = rule.alloc().buffer();
       buffer.writeCharSequence("test", CharsetUtil.UTF_8);
 
       final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(3);
-      rule.socket.requestStream(ByteBufPayload.create(buffer)).subscribe(assertSubscriber);
+      if (type.equals("stream")) {
+        rule.socket.requestStream(ByteBufPayload.create(buffer)).subscribe(assertSubscriber);
+      } else if (type.equals("channel")) {
+        rule.socket
+            .requestChannel(Flux.just(ByteBufPayload.create(buffer)))
+            .subscribe(assertSubscriber);
+      }
 
       final ByteBuf payloadFrame =
           PayloadFrameCodec.encode(
