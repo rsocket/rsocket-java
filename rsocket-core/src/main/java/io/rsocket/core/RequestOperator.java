@@ -93,7 +93,6 @@ abstract class RequestOperator
 
   @Override
   public void request(long n) {
-    this.s.request(n);
     if (!firstRequest) {
       try {
         this.hookOnRemainingRequests(n);
@@ -115,6 +114,7 @@ abstract class RequestOperator
       if (firstLoop) {
         firstLoop = false;
         try {
+          this.s.request(Long.MAX_VALUE);
           this.hookOnFirstRequest(n);
         } catch (Throwable throwable) {
           onError(throwable);
