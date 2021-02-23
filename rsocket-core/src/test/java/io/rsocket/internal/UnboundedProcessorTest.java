@@ -126,8 +126,8 @@ public class UnboundedProcessorTest {
     for (int i = 0; i < 100000; i++) {
       final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
 
-      final ByteBuf buffer1 = allocator.buffer();
-      final ByteBuf buffer2 = allocator.buffer();
+      final ByteBuf buffer1 = allocator.buffer(1);
+      final ByteBuf buffer2 = allocator.buffer(2);
 
       final AssertSubscriber<Object> assertSubscriber =
           new AssertSubscriber<>(0)

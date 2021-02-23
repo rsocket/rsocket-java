@@ -882,6 +882,10 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
   public void onNext(T t) {
     if (establishedFusionMode == Fuseable.ASYNC) {
       for (; ; ) {
+        if (isCancelled()) {
+          qs.clear();
+          break;
+        }
         t = qs.poll();
         if (t == null) {
           break;
