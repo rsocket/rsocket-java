@@ -216,6 +216,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
       while (r != e) {
         ByteBuf t;
+        boolean done = this.done;
         boolean empty;
 
         if (!pq.isEmpty()) {
@@ -226,7 +227,10 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
           empty = t == null;
         }
 
-        if (checkTerminated(empty, a)) {
+        if (checkTerminated(done, empty, a)) {
+          if (!empty) {
+            release(t);
+          }
           return;
         }
 
@@ -240,7 +244,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       }
 
       if (r == e) {
-        if (checkTerminated(q.isEmpty() && pq.isEmpty(), a)) {
+        if (checkTerminated(this.done, q.isEmpty() && pq.isEmpty(), a)) {
           return;
         }
       }
@@ -263,12 +267,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   void drainFused(long expectedState, Subscriber<? super ByteBuf> a) {
     for (; ; ) {
-      boolean d = done;
+      boolean d = this.done;
 
       a.onNext(null);
 
       if (d) {
-        Throwable ex = error;
+        Throwable ex = this.error;
         if (ex != null) {
           a.onError(ex);
         } else {
@@ -288,7 +292,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
   }
 
-  boolean checkTerminated(boolean empty, Subscriber<? super ByteBuf> a) {
+  boolean checkTerminated(boolean done, boolean empty, Subscriber<? super ByteBuf> a) {
     final long state = this.state;
     if (isCancelled(state)) {
       clearAndTerminate(this);
@@ -296,7 +300,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
 
     if (done && empty) {
-      Throwable e = error;
+      Throwable e = this.error;
       if (e != null) {
         a.onError(e);
       } else {
@@ -312,7 +316,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   @Override
   public void onSubscribe(Subscription s) {
     final long state = this.state;
-    if (done || isTerminated(state) || isCancelled(state)) {
+    if (this.done || isTerminated(state) || isCancelled(state)) {
       s.cancel();
     } else {
       s.request(Long.MAX_VALUE);
@@ -349,7 +353,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       return;
     }
 
-    if (outputFused) {
+    if (this.outputFused) {
       return;
     }
 
@@ -408,18 +412,18 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public int size() {
-    return priorityQueue.size() + queue.size();
+    return this.priorityQueue.size() + this.queue.size();
   }
 
   @Override
   public boolean isEmpty() {
-    return priorityQueue.isEmpty() && queue.isEmpty();
+    return this.priorityQueue.isEmpty() && this.queue.isEmpty();
   }
 
   @Override
   public int requestFusion(int requestedMode) {
     if ((requestedMode & Fuseable.ASYNC) != 0) {
-      outputFused = true;
+      this.outputFused = true;
       return Fuseable.ASYNC;
     }
     return Fuseable.NONE;
@@ -447,7 +451,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   public Throwable getError() {
     final long state = this.state;
     if (isTerminated(state) || done) {
-      return error;
+      return this.error;
     } else {
       return null;
     }
@@ -460,7 +464,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public boolean hasDownstreams() {
-    return (state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE && actual != null;
+    return (this.state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE && this.actual != null;
   }
 
   static void release(ByteBuf byteBuf) {
@@ -551,10 +555,11 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   }
 
   static void clearAndTerminate(UnboundedProcessor instance) {
+    final boolean outputFused = instance.outputFused;
     for (; ; ) {
       long state = instance.state;
 
-      if (instance.outputFused) {
+      if (outputFused) {
         instance.clearSafely();
       } else {
         instance.clearUnsafely();

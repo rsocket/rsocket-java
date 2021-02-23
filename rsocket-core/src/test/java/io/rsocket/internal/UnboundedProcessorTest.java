@@ -20,11 +20,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
-import java.util.concurrent.CountDownLatch;
-
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -93,34 +92,20 @@ public class UnboundedProcessorTest {
     testOnNextAfterSubscribeN(1000);
   }
 
-  @Test
-  public void testPrioritizedSending() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testPrioritizedSending(boolean fusedCase) {
     UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < 1000; i++) {
       processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
-    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
+    processor.onNextPrioritized(Unpooled.copiedBuffer("test", CharsetUtil.UTF_8));
 
-    ByteBuf byteBuf = processor.next().block();
+    ByteBuf closestPayload = fusedCase ? processor.poll() : processor.next().block();
 
-    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
-  }
-
-  @Test
-  public void testPrioritizedFused() {
-    UnboundedProcessor processor = new UnboundedProcessor();
-
-    for (int i = 0; i < 1000; i++) {
-      processor.onNext(Unpooled.EMPTY_BUFFER);
-    }
-
-    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
-
-    ByteBuf byteBuf = processor.poll();
-
-    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
+    Assert.assertEquals(closestPayload.toString(CharsetUtil.UTF_8), "test");
   }
 
   @ParameterizedTest
@@ -128,7 +113,7 @@ public class UnboundedProcessorTest {
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
