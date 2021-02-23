@@ -18,12 +18,11 @@ package io.rsocket.internal;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
+import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
-import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.util.ByteBufPayload;
-import io.rsocket.util.EmptyPayload;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
@@ -65,10 +64,10 @@ public class UnboundedProcessorTest {
   }
 
   public void testOnNextBeforeSubscribeN(int n) {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < n; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
     processor.onComplete();
@@ -93,34 +92,20 @@ public class UnboundedProcessorTest {
     testOnNextAfterSubscribeN(1000);
   }
 
-  @Test
-  public void testPrioritizedSending() {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testPrioritizedSending(boolean fusedCase) {
+    UnboundedProcessor processor = new UnboundedProcessor();
 
     for (int i = 0; i < 1000; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
-    processor.onNextPrioritized(ByteBufPayload.create("test"));
+    processor.onNextPrioritized(Unpooled.copiedBuffer("test", CharsetUtil.UTF_8));
 
-    Payload closestPayload = processor.next().block();
+    ByteBuf closestPayload = fusedCase ? processor.poll() : processor.next().block();
 
-    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
-  }
-
-  @Test
-  public void testPrioritizedFused() {
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
-
-    for (int i = 0; i < 1000; i++) {
-      processor.onNext(EmptyPayload.INSTANCE);
-    }
-
-    processor.onNextPrioritized(ByteBufPayload.create("test"));
-
-    Payload closestPayload = processor.poll();
-
-    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
+    Assert.assertEquals(closestPayload.toString(CharsetUtil.UTF_8), "test");
   }
 
   @ParameterizedTest
@@ -128,8 +113,8 @@ public class UnboundedProcessorTest {
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-    for (int i = 0; i < 100000; i++) {
-      final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
+    for (int i = 0; i < 10000; i++) {
+      final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
       final ByteBuf buffer2 = allocator.buffer(2);
@@ -164,12 +149,12 @@ public class UnboundedProcessorTest {
 
   public void testOnNextAfterSubscribeN(int n) throws Exception {
     CountDownLatch latch = new CountDownLatch(n);
-    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+    UnboundedProcessor processor = new UnboundedProcessor();
     processor.log().doOnNext(integer -> latch.countDown()).subscribe();
 
     for (int i = 0; i < n; i++) {
       System.out.println("onNexting -> " + i);
-      processor.onNext(EmptyPayload.INSTANCE);
+      processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
     processor.drain();

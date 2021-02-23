@@ -98,7 +98,7 @@ class RSocketResponder implements RSocket {
   private final IntObjectMap<Subscription> sendingSubscriptions;
   private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
-  private final UnboundedProcessor<ByteBuf> sendProcessor;
+  private final UnboundedProcessor sendProcessor;
   private final ByteBufAllocator allocator;
 
   RSocketResponder(
@@ -126,7 +126,7 @@ class RSocketResponder implements RSocket {
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
-    this.sendProcessor = new UnboundedProcessor<>();
+    this.sendProcessor = new UnboundedProcessor();
 
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 

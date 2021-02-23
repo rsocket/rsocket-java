@@ -103,7 +103,7 @@ class RSocketRequester implements RSocket {
   private final StreamIdSupplier streamIdSupplier;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
-  private final UnboundedProcessor<ByteBuf> sendProcessor;
+  private final UnboundedProcessor sendProcessor;
   private final int mtu;
   private final int maxFrameLength;
   private final RequesterLeaseHandler leaseHandler;
@@ -136,7 +136,7 @@ class RSocketRequester implements RSocket {
     this.serialScheduler = serialScheduler;
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
-    this.sendProcessor = new UnboundedProcessor<>();
+    this.sendProcessor = new UnboundedProcessor();
 
     connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
@@ -264,7 +264,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
+    final UnboundedProcessor sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
     return Mono.fromDirect(
             new RequestOperator(
@@ -332,7 +332,7 @@ class RSocketRequester implements RSocket {
       return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
+    final UnboundedProcessor sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
 
     return Flux.from(
@@ -425,7 +425,7 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<? extends Payload> handleChannel(Payload initialPayload, Flux<Payload> inboundFlux) {
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
+    final UnboundedProcessor sendProcessor = this.sendProcessor;
 
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
 
