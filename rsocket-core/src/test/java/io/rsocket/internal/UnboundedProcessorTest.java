@@ -119,7 +119,7 @@ public class UnboundedProcessorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
+  @ValueSource(booleans = {true})
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
@@ -144,12 +144,15 @@ public class UnboundedProcessorTest {
                             unboundedProcessor.onNext(buffer1);
                             unboundedProcessor.onNext(buffer2);
                           },
-                          unboundedProcessor::dispose, Schedulers.elastic()),
-                  assertSubscriber::cancel, Schedulers.elastic()),
+                          unboundedProcessor::dispose,
+                          Schedulers.elastic()),
+                  assertSubscriber::cancel,
+                  Schedulers.elastic()),
           () -> {
             assertSubscriber.request(1);
             assertSubscriber.request(1);
-          }, Schedulers.elastic());
+          },
+          Schedulers.elastic());
 
       assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
 
