@@ -25,8 +25,6 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import java.util.concurrent.CountDownLatch;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.Fuseable;
@@ -35,36 +33,11 @@ import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
 
 public class UnboundedProcessorTest {
-  @Test
-  public void testOnNextBeforeSubscribe_10() {
-    testOnNextBeforeSubscribeN(10);
-  }
 
-  @Test
-  public void testOnNextBeforeSubscribe_100() {
-    testOnNextBeforeSubscribeN(100);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_10_000() {
-    testOnNextBeforeSubscribeN(10_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_100_000() {
-    testOnNextBeforeSubscribeN(100_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_1_000_000() {
-    testOnNextBeforeSubscribeN(1_000_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_10_000_000() {
-    testOnNextBeforeSubscribeN(10_000_000);
-  }
-
+  @ParameterizedTest(
+      name =
+          "Test that emitting {0} onNext before subscribe and requestN should deliver all the signals once the subscriber is available")
+  @ValueSource(ints = {10, 100, 10_000, 100_000, 1_000_000, 10_000_000})
   public void testOnNextBeforeSubscribeN(int n) {
     UnboundedProcessor processor = new UnboundedProcessor();
 
@@ -74,25 +47,29 @@ public class UnboundedProcessorTest {
 
     processor.onComplete();
 
-    StepVerifier.create(processor.count()).expectNext(Long.valueOf(n)).expectComplete().verify();
+    StepVerifier.create(processor.count()).expectNext(Long.valueOf(n)).verifyComplete();
   }
 
-  @Test
-  public void testOnNextAfterSubscribe_10() throws Exception {
-    testOnNextAfterSubscribeN(10);
+  @ParameterizedTest(
+      name =
+          "Test that emitting {0} onNext after subscribe and requestN should deliver all the signals")
+  @ValueSource(ints = {10, 100, 10_000})
+  public void testOnNextAfterSubscribeN(int n) {
+    UnboundedProcessor processor = new UnboundedProcessor();
+    AssertSubscriber<ByteBuf> assertSubscriber = AssertSubscriber.create();
+
+    processor.subscribe(assertSubscriber);
+
+    for (int i = 0; i < n; i++) {
+      processor.onNext(Unpooled.EMPTY_BUFFER);
+    }
+
+    assertSubscriber.awaitAndAssertNextValueCount(n);
   }
 
-  @Test
-  public void testOnNextAfterSubscribe_100() throws Exception {
-    testOnNextAfterSubscribeN(100);
-  }
-
-  @Test
-  public void testOnNextAfterSubscribe_1000() throws Exception {
-    testOnNextAfterSubscribeN(1000);
-  }
-
-  @ParameterizedTest
+  @ParameterizedTest(
+      name =
+          "Test that prioritized value sending deliver prioritized signals before the others mode[fusionEnabled={0}]")
   @ValueSource(booleans = {true, false})
   public void testPrioritizedSending(boolean fusedCase) {
     UnboundedProcessor processor = new UnboundedProcessor();
@@ -103,15 +80,15 @@ public class UnboundedProcessorTest {
 
     processor.onNextPrioritized(Unpooled.copiedBuffer("test", CharsetUtil.UTF_8));
 
-    ByteBuf byteBuf = fusedCase ? processor.poll() : processor.next().block();
-
-    assertThat(byteBuf)
+    assertThat(fusedCase ? processor.poll() : processor.next().block())
         .isNotNull()
         .extracting(bb -> bb.toString(CharsetUtil.UTF_8))
         .isEqualTo("test");
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(
+      name =
+          "Ensures that racing between onNext | dispose | cancel | request(n) will not cause any issues and leaks; mode[fusionEnabled={0}]")
   @ValueSource(booleans = {true, false})
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
@@ -151,19 +128,5 @@ public class UnboundedProcessorTest {
 
       allocator.assertHasNoLeaks();
     }
-  }
-
-  public void testOnNextAfterSubscribeN(int n) throws Exception {
-    CountDownLatch latch = new CountDownLatch(n);
-    UnboundedProcessor processor = new UnboundedProcessor();
-    processor.log().doOnNext(integer -> latch.countDown()).subscribe();
-
-    for (int i = 0; i < n; i++) {
-      processor.onNext(Unpooled.EMPTY_BUFFER);
-    }
-
-    processor.drain();
-
-    latch.await();
   }
 }
