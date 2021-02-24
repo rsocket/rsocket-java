@@ -16,6 +16,8 @@
 
 package io.rsocket.internal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -24,12 +26,12 @@ import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.util.concurrent.CountDownLatch;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.Fuseable;
 import reactor.core.scheduler.Schedulers;
+import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
 
 public class UnboundedProcessorTest {
@@ -72,9 +74,7 @@ public class UnboundedProcessorTest {
 
     processor.onComplete();
 
-    long count = processor.count().block();
-
-    Assert.assertEquals(n, count);
+    StepVerifier.create(processor.count()).expectNext(Long.valueOf(n)).expectComplete().verify();
   }
 
   @Test
@@ -103,9 +103,12 @@ public class UnboundedProcessorTest {
 
     processor.onNextPrioritized(Unpooled.copiedBuffer("test", CharsetUtil.UTF_8));
 
-    ByteBuf closestPayload = fusedCase ? processor.poll() : processor.next().block();
+    ByteBuf byteBuf = fusedCase ? processor.poll() : processor.next().block();
 
-    Assert.assertEquals(closestPayload.toString(CharsetUtil.UTF_8), "test");
+    assertThat(byteBuf)
+        .isNotNull()
+        .extracting(bb -> bb.toString(CharsetUtil.UTF_8))
+        .isEqualTo("test");
   }
 
   @ParameterizedTest
@@ -156,7 +159,6 @@ public class UnboundedProcessorTest {
     processor.log().doOnNext(integer -> latch.countDown()).subscribe();
 
     for (int i = 0; i < n; i++) {
-      System.out.println("onNexting -> " + i);
       processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
