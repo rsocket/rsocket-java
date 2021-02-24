@@ -92,12 +92,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   }
 
   public void onNextPrioritized(ByteBuf t) {
-    if (done) {
+    if (this.done) {
       release(t);
       return;
     }
 
-    if (!priorityQueue.offer(t)) {
+    if (!this.priorityQueue.offer(t)) {
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
@@ -110,12 +110,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public void onNext(ByteBuf t) {
-    if (done) {
+    if (this.done) {
       release(t);
       return;
     }
 
-    if (!queue.offer(t)) {
+    if (!this.queue.offer(t)) {
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
@@ -128,24 +128,24 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public void onError(Throwable t) {
-    if (done) {
+    if (this.done) {
       Operators.onErrorDropped(t, currentContext());
       return;
     }
 
-    error = t;
-    done = true;
+    this.error = t;
+    this.done = true;
 
     drain();
   }
 
   @Override
   public void onComplete() {
-    if (done) {
+    if (this.done) {
       return;
     }
 
-    done = true;
+    this.done = true;
 
     drain();
   }
@@ -183,7 +183,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
     long expectedState = previousState + 1;
     for (; ; ) {
-      final Subscriber<? super ByteBuf> a = actual;
+      final Subscriber<? super ByteBuf> a = this.actual;
       if (a != null) {
         if (outputFused) {
           drainFused(expectedState, a);
@@ -206,12 +206,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   }
 
   void drainRegular(long expectedState, Subscriber<? super ByteBuf> a) {
-    final Queue<ByteBuf> q = queue;
-    final Queue<ByteBuf> pq = priorityQueue;
+    final Queue<ByteBuf> q = this.queue;
+    final Queue<ByteBuf> pq = this.priorityQueue;
 
     for (; ; ) {
 
-      long r = requested;
+      long r = this.requested;
       long e = 0L;
 
       while (r != e) {
@@ -372,7 +372,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     if (!pq.isEmpty()) {
       return pq.poll();
     }
-    return queue.poll();
+    return this.queue.poll();
   }
 
   @Override
@@ -437,20 +437,20 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   @Override
   public boolean isDisposed() {
     final long state = this.state;
-    return isTerminated(state) || isCancelled(state) || done;
+    return isTerminated(state) || isCancelled(state) || this.done;
   }
 
   @Override
   public boolean isTerminated() {
     final long state = this.state;
-    return isTerminated(state) || done;
+    return isTerminated(state) || this.done;
   }
 
   @Override
   @Nullable
   public Throwable getError() {
     final long state = this.state;
-    if (isTerminated(state) || done) {
+    if (isTerminated(state) || this.done) {
       return this.error;
     } else {
       return null;

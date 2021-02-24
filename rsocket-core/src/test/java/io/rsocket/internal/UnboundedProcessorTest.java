@@ -113,7 +113,7 @@ public class UnboundedProcessorTest {
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 100000; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
