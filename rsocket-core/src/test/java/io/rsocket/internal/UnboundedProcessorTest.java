@@ -17,9 +17,14 @@
 package io.rsocket.internal;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import java.util.concurrent.CountDownLatch;
+
+import io.netty.util.ReferenceCountUtil;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -119,18 +124,18 @@ public class UnboundedProcessorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true})
+  @ValueSource(booleans = {true, false})
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     for (int i = 0; i < 100000; i++) {
-      final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
+      final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
       final ByteBuf buffer2 = allocator.buffer(2);
 
-      final AssertSubscriber<Object> assertSubscriber =
-          new AssertSubscriber<>(0)
+      final AssertSubscriber<ByteBuf> assertSubscriber =
+          new AssertSubscriber<ByteBuf>(0)
               .requestedFusionMode(withFusionEnabled ? Fuseable.ANY : Fuseable.NONE);
 
       unboundedProcessor.subscribe(assertSubscriber);
