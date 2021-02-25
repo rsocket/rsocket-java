@@ -93,7 +93,6 @@ abstract class RequestOperator
 
   @Override
   public void request(long n) {
-    this.s.request(n);
     if (!firstRequest) {
       try {
         this.hookOnRemainingRequests(n);
@@ -115,6 +114,15 @@ abstract class RequestOperator
       if (firstLoop) {
         firstLoop = false;
         try {
+          // since in all the scenarios where RequestOperator is used, the
+          // CorePublisher is either UnicastProcessor or UnicastProcessor.next()
+          // we are free to propagate unbounded demand to that publisher right after
+          // the first request happens. UnicastProcessor is only there to allow sending signals from
+          // the
+          // connection to a real subscriber and does not have to check the real demand
+          // For more info see
+          // https://github.com/rsocket/rsocket/blob/master/Protocol.md#handling-the-unexpected
+          this.s.request(Long.MAX_VALUE);
           this.hookOnFirstRequest(n);
         } catch (Throwable throwable) {
           onError(throwable);
