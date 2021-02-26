@@ -443,7 +443,6 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
           try {
             a.onError(error);
           } catch (Throwable ignored) {
-            ignored.printStackTrace();
           }
         }
 
