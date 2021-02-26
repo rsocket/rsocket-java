@@ -176,7 +176,10 @@ public class UnboundedProcessorTest {
         unboundedProcessor::dispose,
         Schedulers.elastic());
 
-    assertSubscriber.await(Duration.ofSeconds(50)).values().forEach(ReferenceCountUtil::safeRelease);
+    assertSubscriber
+        .await(Duration.ofSeconds(50))
+        .values()
+        .forEach(ReferenceCountUtil::safeRelease);
 
     allocator.assertHasNoLeaks();
   }
