@@ -105,6 +105,8 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
 
   private final CountDownLatch cdl = new CountDownLatch(1);
 
+  volatile boolean done;
+
   volatile Subscription s;
 
   volatile long requested;
@@ -879,53 +881,77 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
 
   @Override
   public void onComplete() {
+    done = true;
     completionCount++;
+
+    if (establishedFusionMode == Fuseable.ASYNC) {
+      drain();
+      return;
+    }
+
     cdl.countDown();
   }
 
   @Override
   public void onError(Throwable t) {
+    done = true;
     errors.add(t);
+
+    if (establishedFusionMode == Fuseable.ASYNC) {
+      drain();
+      return;
+    }
+
     cdl.countDown();
   }
 
   @Override
   public void onNext(T t) {
     if (establishedFusionMode == Fuseable.ASYNC) {
-      if (this.wip != 0 || WIP.getAndIncrement(this) != 0) {
-        if (isCancelled()) {
-          qs.clear();
-        }
-        return;
-      }
-
-      int m = 0;
-      for (; ; ) {
-        if (isCancelled()) {
-          qs.clear();
-          break;
-        }
-        t = qs.poll();
-        if (t == null) {
-          m = WIP.addAndGet(this, -m);
-          if (m == 0) {
+      drain();
+    } else {
+      valueCount++;
+      if (valuesStorage) {
+        List<T> nextValuesSnapshot;
+        for (; ; ) {
+          nextValuesSnapshot = values;
+          nextValuesSnapshot.add(t);
+          if (NEXT_VALUES.compareAndSet(this, nextValuesSnapshot, nextValuesSnapshot)) {
             break;
           }
-          continue;
-        }
-        valueCount++;
-        if (valuesStorage) {
-          List<T> nextValuesSnapshot;
-          for (; ; ) {
-            nextValuesSnapshot = values;
-            nextValuesSnapshot.add(t);
-            if (NEXT_VALUES.compareAndSet(this, nextValuesSnapshot, nextValuesSnapshot)) {
-              break;
-            }
-          }
         }
       }
-    } else {
+    }
+  }
+
+  void drain() {
+    if (this.wip != 0 || WIP.getAndIncrement(this) != 0) {
+      if (isCancelled()) {
+        qs.clear();
+      }
+      return;
+    }
+
+    T t;
+    int m = 0;
+    for (; ; ) {
+      if (isCancelled()) {
+        qs.clear();
+        break;
+      }
+      boolean done = this.done;
+      t = qs.poll();
+      if (t == null) {
+        if (done) {
+          cdl.countDown();
+          return;
+        }
+        m = WIP.addAndGet(this, -m);
+        if (m == 0) {
+          break;
+        }
+        continue;
+      }
       valueCount++;
       if (valuesStorage) {
         List<T> nextValuesSnapshot;

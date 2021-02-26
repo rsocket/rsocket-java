@@ -25,17 +25,28 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.Fuseable;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Operators;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
 
 public class UnboundedProcessorTest {
+
+  @BeforeAll
+  public static void setup() {
+    Hooks.onErrorDropped(__ -> {});
+  }
+
+  public static void teardown() {
+    Hooks.resetOnErrorDropped();
+  }
 
   @ParameterizedTest(
       name =
@@ -96,7 +107,7 @@ public class UnboundedProcessorTest {
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-    for (int i = 0; i < 10000000; i++) {
+    for (int i = 0; i < 100000; i++) {
       final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -135,7 +146,7 @@ public class UnboundedProcessorTest {
 
   @RepeatedTest(
       name =
-          "Ensures that racing between onNext | dispose | cancel | request(n) will not cause any issues and leaks",
+          "Ensures that racing between onNext | dispose | cancel | request(n) will not cause any issues and leaks in async backFused mode",
       value = 100000)
   @Timeout(10)
   public void ensureUnboundedProcessorDisposesQueueProperlyAsyncMode() {
