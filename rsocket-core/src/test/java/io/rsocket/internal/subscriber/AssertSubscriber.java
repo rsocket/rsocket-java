@@ -933,7 +933,7 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
     }
 
     T t;
-    int m = 0;
+    int m = 1;
     for (; ; ) {
       if (isCancelled()) {
         qs.clear();

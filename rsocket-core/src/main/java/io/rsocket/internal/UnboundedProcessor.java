@@ -20,6 +20,7 @@ import io.netty.util.ReferenceCounted;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscriber;
@@ -162,7 +163,6 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     for (; ; ) {
 
       if (cancelled) {
-        this.clear();
         hasDownstream = false;
         return;
       }
@@ -176,6 +176,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
         Throwable ex = error;
         if (ex != null) {
+          System.out.println("Send Error");
           a.onError(ex);
         } else {
           a.onComplete();
@@ -352,12 +353,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
     cancelled = true;
 
-    if (outputFused) {
-      return;
-    }
-
     if (WIP.getAndIncrement(this) == 0) {
-      this.clear();
+      if (!outputFused) {
+        this.clear();
+      }
       hasDownstream = false;
     }
   }
@@ -422,11 +421,43 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void dispose() {
-    try {
-      super.dispose();
-    } catch (Throwable ignored) {
+    if (cancelled) {
+      return;
     }
-    cancel();
+
+    error = new CancellationException("Disposed");
+    done = true;
+
+    boolean once = true;
+    if (WIP.getAndIncrement(this) == 0) {
+      cancelled = true;
+      int m = 1;
+      for (; ; ) {
+        final CoreSubscriber<? super T> a = this.actual;
+
+        if (!outputFused) {
+          clear();
+        }
+
+        if (a != null && once) {
+          try {
+            a.onError(error);
+          } catch (Throwable ignored) {
+          }
+        }
+
+        cancelled = true;
+        once = false;
+
+        int wip = this.wip;
+        if (wip == m) {
+          break;
+        }
+        m = wip;
+      }
+
+      hasDownstream = false;
+    }
   }
 
   @Override
