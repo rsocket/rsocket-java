@@ -352,6 +352,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
     cancelled = true;
 
+    if (outputFused) {
+      return;
+    }
+
     if (WIP.getAndIncrement(this) == 0) {
       this.clear();
       hasDownstream = false;
@@ -418,6 +422,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void dispose() {
+    super.dispose();
     cancel();
   }
 
