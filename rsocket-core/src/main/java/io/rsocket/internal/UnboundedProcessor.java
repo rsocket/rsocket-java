@@ -422,7 +422,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void dispose() {
-    super.dispose();
+    try {
+      super.dispose();
+    } catch (Throwable ignored) {
+    }
     cancel();
   }
 
