@@ -25,6 +25,7 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import java.time.Duration;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Timeout;
@@ -146,10 +147,10 @@ public class UnboundedProcessorTest {
 
   @RepeatedTest(
       name =
-          "Ensures that racing between onNext | dispose | cancel | request(n) will not cause any issues and leaks in async backFused mode",
+          "Ensures that racing between onNext + dispose | downstream async drain) should not cause any issues and leaks",
       value = 100000)
   @Timeout(10)
-  public void ensureUnboundedProcessorDisposesQueueProperlyAsyncMode() {
+  public void ensuresAsyncFusionAndDisposureHasNoDeadlock() {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     final UnboundedProcessor<ByteBuf> unboundedProcessor = new UnboundedProcessor<>();
@@ -175,7 +176,7 @@ public class UnboundedProcessorTest {
         unboundedProcessor::dispose,
         Schedulers.elastic());
 
-    assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
+    assertSubscriber.await(Duration.ofSeconds(5)).values().forEach(ReferenceCountUtil::safeRelease);
 
     allocator.assertHasNoLeaks();
   }
