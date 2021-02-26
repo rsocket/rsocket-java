@@ -26,6 +26,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.time.Duration;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Timeout;
@@ -45,6 +46,7 @@ public class UnboundedProcessorTest {
     Hooks.onErrorDropped(__ -> {});
   }
 
+  @AfterAll
   public static void teardown() {
     Hooks.resetOnErrorDropped();
   }
