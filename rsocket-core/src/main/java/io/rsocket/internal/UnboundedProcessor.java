@@ -124,6 +124,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
         }
 
         if (checkTerminated(d, empty, a)) {
+          if (!empty) {
+            release(t);
+          }
           return;
         }
 
