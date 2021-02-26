@@ -149,7 +149,7 @@ public class UnboundedProcessorTest {
       name =
           "Ensures that racing between onNext + dispose | downstream async drain) should not cause any issues and leaks",
       value = 100000)
-  @Timeout(10)
+  @Timeout(60)
   public void ensuresAsyncFusionAndDisposureHasNoDeadlock() {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
@@ -176,7 +176,7 @@ public class UnboundedProcessorTest {
         unboundedProcessor::dispose,
         Schedulers.elastic());
 
-    assertSubscriber.await(Duration.ofSeconds(5)).values().forEach(ReferenceCountUtil::safeRelease);
+    assertSubscriber.await(Duration.ofSeconds(50)).values().forEach(ReferenceCountUtil::safeRelease);
 
     allocator.assertHasNoLeaks();
   }

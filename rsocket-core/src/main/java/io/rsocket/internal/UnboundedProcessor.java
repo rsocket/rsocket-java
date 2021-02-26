@@ -176,7 +176,6 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
         Throwable ex = error;
         if (ex != null) {
-          System.out.println("Send Error");
           a.onError(ex);
         } else {
           a.onComplete();
