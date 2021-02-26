@@ -147,7 +147,7 @@ public class UnboundedProcessorTest {
 
   @RepeatedTest(
       name =
-          "Ensures that racing between onNext + dispose | downstream async drain) should not cause any issues and leaks",
+          "Ensures that racing between onNext + dispose | downstream async drain should not cause any issues and leaks",
       value = 100000)
   @Timeout(60)
   public void ensuresAsyncFusionAndDisposureHasNoDeadlock() {

@@ -440,8 +440,11 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
         if (a != null && once) {
           try {
+            System.out.println("sending error");
             a.onError(error);
           } catch (Throwable ignored) {
+            System.out.println("bubbled");
+            ignored.printStackTrace();
           }
         }
 
