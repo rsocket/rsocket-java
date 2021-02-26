@@ -20,6 +20,7 @@ import io.netty.util.ReferenceCounted;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscriber;
@@ -54,6 +55,8 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   volatile CoreSubscriber<? super T> actual;
 
   volatile boolean cancelled;
+
+  volatile boolean terminated;
 
   volatile int once;
 
@@ -124,6 +127,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
         }
 
         if (checkTerminated(d, empty, a)) {
+          if (!empty) {
+            release(t);
+          }
           return;
         }
 
@@ -159,7 +165,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     for (; ; ) {
 
       if (cancelled) {
-        this.clear();
+        if (terminated) {
+          this.clear();
+        }
         hasDownstream = false;
         return;
       }
@@ -189,7 +197,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   public void drain() {
     if (WIP.getAndIncrement(this) != 0) {
-      if (cancelled) {
+      if ((!outputFused && cancelled) || terminated) {
         this.clear();
       }
       return;
@@ -350,7 +358,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     cancelled = true;
 
     if (WIP.getAndIncrement(this) == 0) {
-      this.clear();
+      if (!outputFused || terminated) {
+        this.clear();
+      }
       hasDownstream = false;
     }
   }
@@ -377,6 +387,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void clear() {
+    terminated = true;
     if (DISCARD_GUARD.getAndIncrement(this) != 0) {
       return;
     }
@@ -384,17 +395,12 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     int missed = 1;
 
     for (; ; ) {
-      while (!queue.isEmpty()) {
-        T t = queue.poll();
-        if (t != null) {
-          release(t);
-        }
+      T t;
+      while ((t = queue.poll()) != null) {
+        release(t);
       }
-      while (!priorityQueue.isEmpty()) {
-        T t = priorityQueue.poll();
-        if (t != null) {
-          release(t);
-        }
+      while ((t = priorityQueue.poll()) != null) {
+        release(t);
       }
 
       missed = DISCARD_GUARD.addAndGet(this, -missed);
@@ -415,7 +421,43 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void dispose() {
-    cancel();
+    if (cancelled) {
+      return;
+    }
+
+    error = new CancellationException("Disposed");
+    done = true;
+
+    boolean once = true;
+    if (WIP.getAndIncrement(this) == 0) {
+      cancelled = true;
+      int m = 1;
+      for (; ; ) {
+        final CoreSubscriber<? super T> a = this.actual;
+
+        if (!outputFused || terminated) {
+          clear();
+        }
+
+        if (a != null && once) {
+          try {
+            a.onError(error);
+          } catch (Throwable ignored) {
+          }
+        }
+
+        cancelled = true;
+        once = false;
+
+        int wip = this.wip;
+        if (wip == m) {
+          break;
+        }
+        m = wip;
+      }
+
+      hasDownstream = false;
+    }
   }
 
   @Override
