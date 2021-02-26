@@ -56,6 +56,8 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   volatile boolean cancelled;
 
+  volatile boolean terminated;
+
   volatile int once;
 
   @SuppressWarnings("rawtypes")
@@ -163,6 +165,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     for (; ; ) {
 
       if (cancelled) {
+        if (terminated) {
+          this.clear();
+        }
         hasDownstream = false;
         return;
       }
@@ -192,7 +197,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   public void drain() {
     if (WIP.getAndIncrement(this) != 0) {
-      if (cancelled) {
+      if ((!outputFused && cancelled) || terminated) {
         this.clear();
       }
       return;
@@ -353,7 +358,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     cancelled = true;
 
     if (WIP.getAndIncrement(this) == 0) {
-      if (!outputFused) {
+      if (!outputFused || terminated) {
         this.clear();
       }
       hasDownstream = false;
@@ -382,6 +387,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void clear() {
+    terminated = true;
     if (DISCARD_GUARD.getAndIncrement(this) != 0) {
       return;
     }
@@ -389,17 +395,12 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     int missed = 1;
 
     for (; ; ) {
-      while (!queue.isEmpty()) {
-        T t = queue.poll();
-        if (t != null) {
-          release(t);
-        }
+      T t;
+      while ((t = queue.poll()) != null) {
+        release(t);
       }
-      while (!priorityQueue.isEmpty()) {
-        T t = priorityQueue.poll();
-        if (t != null) {
-          release(t);
-        }
+      while ((t = priorityQueue.poll()) != null) {
+        release(t);
       }
 
       missed = DISCARD_GUARD.addAndGet(this, -missed);
@@ -434,16 +435,14 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       for (; ; ) {
         final CoreSubscriber<? super T> a = this.actual;
 
-        if (!outputFused) {
+        if (!outputFused || terminated) {
           clear();
         }
 
         if (a != null && once) {
           try {
-            System.out.println("sending error");
             a.onError(error);
           } catch (Throwable ignored) {
-            System.out.println("bubbled");
             ignored.printStackTrace();
           }
         }

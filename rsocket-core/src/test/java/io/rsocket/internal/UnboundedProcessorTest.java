@@ -173,8 +173,7 @@ public class UnboundedProcessorTest {
           unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
           unboundedProcessor.dispose();
         },
-        unboundedProcessor::dispose,
-        Schedulers.elastic());
+        unboundedProcessor::dispose);
 
     assertSubscriber
         .await(Duration.ofSeconds(50))
