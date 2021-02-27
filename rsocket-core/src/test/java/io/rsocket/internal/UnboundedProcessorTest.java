@@ -132,14 +132,14 @@ public class UnboundedProcessorTest {
                             unboundedProcessor.onNext(buffer2);
                           },
                           unboundedProcessor::dispose,
-                          Schedulers.elastic()),
+                          Schedulers.boundedElastic()),
                   assertSubscriber::cancel,
-                  Schedulers.elastic()),
+                  Schedulers.boundedElastic()),
           () -> {
             assertSubscriber.request(1);
             assertSubscriber.request(1);
           },
-          Schedulers.elastic());
+          Schedulers.boundedElastic());
 
       assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
 

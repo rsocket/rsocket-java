@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscriber;
@@ -50,12 +51,14 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   static final long STATE_TERMINATED =
       0b1000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
-  static final long FLAG_CANCELLED =
+  static final long FLAG_DISPOSED =
       0b0100_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
-  static final long FLAG_SUBSCRIBED_ONCE =
+  static final long FLAG_CANCELLED =
       0b0010_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
-  static final long MAX_VALUE =
-      0b0001_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
+  static final long FLAG_SUBSCRIBED_ONCE =
+      0b0001_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
+  static final long MAX_WIP_VALUE =
+      0b0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
 
   volatile long state;
 
@@ -86,18 +89,18 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public Object scanUnsafe(Attr key) {
-    if (Attr.BUFFERED == key) return queue.size();
+    if (Attr.BUFFERED == key) return this.queue.size() + this.priorityQueue.size();
     if (Attr.PREFETCH == key) return Integer.MAX_VALUE;
     return super.scanUnsafe(key);
   }
 
   public void onNextPrioritized(ByteBuf t) {
-    if (done) {
+    if (this.done) {
       release(t);
       return;
     }
 
-    if (!priorityQueue.offer(t)) {
+    if (!this.priorityQueue.offer(t)) {
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
@@ -110,12 +113,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public void onNext(ByteBuf t) {
-    if (done) {
+    if (this.done) {
       release(t);
       return;
     }
 
-    if (!queue.offer(t)) {
+    if (!this.queue.offer(t)) {
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
@@ -128,24 +131,24 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public void onError(Throwable t) {
-    if (done) {
+    if (this.done) {
       Operators.onErrorDropped(t, currentContext());
       return;
     }
 
-    error = t;
-    done = true;
+    this.error = t;
+    this.done = true;
 
     drain();
   }
 
   @Override
   public void onComplete() {
-    if (done) {
+    if (this.done) {
       return;
     }
 
-    done = true;
+    this.done = true;
 
     drain();
   }
@@ -159,8 +162,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       drain();
     } else {
       Operators.error(
-          actual,
-          new IllegalStateException("UnboundedProcessor " + "allows only a single Subscriber"));
+          actual, new IllegalStateException("UnboundedProcessor allows only a single Subscriber"));
     }
   }
 
@@ -175,30 +177,46 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       return;
     }
 
-    final boolean outputFused = this.outputFused;
-    if (isCancelled(previousState) && !outputFused) {
-      clearAndTerminate(this);
-      return;
-    }
-
     long expectedState = previousState + 1;
     for (; ; ) {
-      final Subscriber<? super ByteBuf> a = actual;
-      if (a != null) {
+      if (isSubscribedOnce(expectedState)) {
+        final boolean outputFused = this.outputFused;
+        final Subscriber<? super ByteBuf> a = this.actual;
+
         if (outputFused) {
+          if (isCancelled(expectedState)) {
+            return;
+          }
+
+          if (isDisposed(expectedState)) {
+            a.onError(new CancellationException("Disposed"));
+            return;
+          }
+
           drainFused(expectedState, a);
         } else {
+          if (isCancelled(expectedState)) {
+            clearAndTerminate(this);
+            return;
+          }
+
+          if (isDisposed(expectedState)) {
+            clearAndTerminate(this);
+            a.onError(new CancellationException("Disposed"));
+            return;
+          }
+
           drainRegular(expectedState, a);
         }
         return;
+      } else {
+        if (isCancelled(expectedState) || isDisposed(expectedState)) {
+          clearAndTerminate(this);
+          return;
+        }
       }
 
       expectedState = wipRemoveMissing(this, expectedState);
-      if (isCancelled(expectedState)) {
-        clearAndTerminate(this);
-        return;
-      }
-
       if (!isWorkInProgress(expectedState)) {
         return;
       }
@@ -206,15 +224,20 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   }
 
   void drainRegular(long expectedState, Subscriber<? super ByteBuf> a) {
-    final Queue<ByteBuf> q = queue;
-    final Queue<ByteBuf> pq = priorityQueue;
+    final Queue<ByteBuf> q = this.queue;
+    final Queue<ByteBuf> pq = this.priorityQueue;
 
     for (; ; ) {
 
-      long r = requested;
+      long r = this.requested;
       long e = 0L;
 
       while (r != e) {
+        // done has to be read before queue.poll to ensure there was no racing:
+        // Thread1: <#drain>: queue.poll(null) --------------------> this.done(true)
+        // Thread2: ------------------> <#onNext(V)> --> <#onComplete()>
+        boolean done = this.done;
+
         ByteBuf t;
         boolean empty;
 
@@ -226,7 +249,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
           empty = t == null;
         }
 
-        if (checkTerminated(empty, a)) {
+        if (checkTerminated(done, empty, a)) {
           if (!empty) {
             release(t);
           }
@@ -243,7 +266,10 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       }
 
       if (r == e) {
-        if (checkTerminated(q.isEmpty() && pq.isEmpty(), a)) {
+        // done has to be read before queue.isEmpty to ensure there was no racing:
+        // Thread1: <#drain>: queue.isEmpty(true) --------------------> this.done(true)
+        // Thread2: --------------------> <#onNext(V)> ---> <#onComplete()>
+        if (checkTerminated(this.done, q.isEmpty() && pq.isEmpty(), a)) {
           return;
         }
       }
@@ -258,6 +284,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return;
       }
 
+      if (isDisposed(expectedState)) {
+        clearAndTerminate(this);
+        a.onError(new CancellationException("Disposed"));
+        return;
+      }
+
       if (!isWorkInProgress(expectedState)) {
         break;
       }
@@ -266,12 +298,14 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   void drainFused(long expectedState, Subscriber<? super ByteBuf> a) {
     for (; ; ) {
-      boolean d = done;
+      // done has to be read before queue.poll to ensure there was no racing:
+      // Thread1: <#drain>: queue.poll(null) --------------------> this.done(true)
+      boolean d = this.done;
 
       a.onNext(null);
 
       if (d) {
-        Throwable ex = error;
+        Throwable ex = this.error;
         if (ex != null) {
           a.onError(ex);
         } else {
@@ -285,21 +319,32 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return;
       }
 
+      if (isDisposed(expectedState)) {
+        a.onError(new CancellationException("Disposed"));
+        return;
+      }
+
       if (!isWorkInProgress(expectedState)) {
         break;
       }
     }
   }
 
-  boolean checkTerminated(boolean empty, Subscriber<? super ByteBuf> a) {
+  boolean checkTerminated(boolean done, boolean empty, Subscriber<? super ByteBuf> a) {
     final long state = this.state;
     if (isCancelled(state)) {
       clearAndTerminate(this);
       return true;
     }
 
+    if (isDisposed(state)) {
+      clearAndTerminate(this);
+      a.onError(new CancellationException("Disposed"));
+      return true;
+    }
+
     if (done && empty) {
-      Throwable e = error;
+      Throwable e = this.error;
       if (e != null) {
         a.onError(e);
       } else {
@@ -315,7 +360,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   @Override
   public void onSubscribe(Subscription s) {
     final long state = this.state;
-    if (done || isTerminated(state) || isCancelled(state)) {
+    if (this.done || isTerminated(state) || isCancelled(state) || isDisposed(state)) {
       s.cancel();
     } else {
       s.request(Long.MAX_VALUE);
@@ -352,16 +397,28 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       return;
     }
 
-    if (outputFused) {
+    if (!this.outputFused) {
+      clearAndTerminate(this);
+    }
+  }
+
+  @Override
+  public void dispose() {
+    final long previousState = markDisposed(this);
+    if (isTerminated(previousState)
+        || isCancelled(previousState)
+        || isDisposed(previousState)
+        || isWorkInProgress(previousState)) {
       return;
     }
 
-    final long state = wipIncrement(this);
-    if (isWorkInProgress(state)) {
-      return;
+    if (!this.outputFused) {
+      clearAndTerminate(this);
     }
 
-    clearAndTerminate(this);
+    if (isSubscribedOnce(previousState)) {
+      this.actual.onError(new CancellationException("Disposed"));
+    }
   }
 
   @Override
@@ -371,9 +428,16 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     if (!pq.isEmpty()) {
       return pq.poll();
     }
-    return queue.poll();
+    return this.queue.poll();
   }
 
+  /**
+   * Clears all elements from queues and set state to terminate. This method MUST be called only by
+   * the downstream subscriber which has enabled {@link Fuseable#ASYNC} fusion with the given {@link
+   * UnboundedProcessor} and is and indicator that the downstream is done with draining, it has
+   * observed any terminal signal (ON_COMPLETE or ON_ERROR or CANCEL) and will never be interacting
+   * with SingleConsumer queue anymore.
+   */
   @Override
   public void clear() {
     clearAndTerminate(this);
@@ -411,46 +475,41 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public int size() {
-    return priorityQueue.size() + queue.size();
+    return this.priorityQueue.size() + this.queue.size();
   }
 
   @Override
   public boolean isEmpty() {
-    return priorityQueue.isEmpty() && queue.isEmpty();
+    return this.priorityQueue.isEmpty() && this.queue.isEmpty();
   }
 
   @Override
   public int requestFusion(int requestedMode) {
     if ((requestedMode & Fuseable.ASYNC) != 0) {
-      outputFused = true;
+      this.outputFused = true;
       return Fuseable.ASYNC;
     }
     return Fuseable.NONE;
   }
 
   @Override
-  public void dispose() {
-    cancel();
-  }
-
-  @Override
   public boolean isDisposed() {
     final long state = this.state;
-    return isTerminated(state) || isCancelled(state) || done;
+    return isTerminated(state) || isCancelled(state) || isDisposed(state) || this.done;
   }
 
   @Override
   public boolean isTerminated() {
     final long state = this.state;
-    return isTerminated(state) || done;
+    return isTerminated(state) || this.done;
   }
 
   @Override
   @Nullable
   public Throwable getError() {
     final long state = this.state;
-    if (isTerminated(state) || done) {
-      return error;
+    if (isTerminated(state) || this.done) {
+      return this.error;
     } else {
       return null;
     }
@@ -463,7 +522,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   @Override
   public boolean hasDownstreams() {
-    return (state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE && actual != null;
+    return (this.state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE && this.actual != null;
   }
 
   static void release(ByteBuf byteBuf) {
@@ -476,6 +535,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
   }
 
+  /**
+   * Tries to set {@link #FLAG_SUBSCRIBED_ONCE} flag if it was not set before and if state is not
+   * {@link #STATE_TERMINATED} and flags {@link #FLAG_CANCELLED} or {@link #FLAG_DISPOSED} are unset
+   *
+   * @return {@code true} if {@link #FLAG_SUBSCRIBED_ONCE} was successfully set
+   */
   static boolean markSubscribedOnce(UnboundedProcessor instance) {
     for (; ; ) {
       long state = instance.state;
@@ -485,7 +550,8 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       }
 
       if ((state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE
-          || (state & FLAG_CANCELLED) == FLAG_CANCELLED) {
+          || (state & FLAG_CANCELLED) == FLAG_CANCELLED
+          || (state & FLAG_DISPOSED) == FLAG_DISPOSED) {
         return false;
       }
 
@@ -495,6 +561,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
   }
 
+  /**
+   * Tries to set {@link #FLAG_CANCELLED} flag if it was not set before and if state is not {@link
+   * #STATE_TERMINATED}. Also, this method increments number of work in progress (WIP)
+   *
+   * @return {@code true} if {@link #FLAG_CANCELLED} was successfully set
+   */
   static boolean markCancelled(UnboundedProcessor instance) {
     for (; ; ) {
       long state = instance.state;
@@ -507,12 +579,53 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return false;
       }
 
-      if (STATE.compareAndSet(instance, state, state | FLAG_CANCELLED)) {
-        return true;
+      long nextState = state + 1;
+      if ((nextState & MAX_WIP_VALUE) == 0) {
+        nextState = state;
+      }
+
+      if (STATE.compareAndSet(instance, state, nextState | FLAG_CANCELLED)) {
+        return !isWorkInProgress(state);
       }
     }
   }
 
+  /**
+   * Tries to set {@link #FLAG_DISPOSED} flag if it was not set before and if state is not {@link
+   * #STATE_TERMINATED} and flags {@link #FLAG_CANCELLED} are unset. Also, this method increments
+   * number of work in progress (WIP)
+   *
+   * @return previous state
+   */
+  static long markDisposed(UnboundedProcessor instance) {
+    for (; ; ) {
+      long state = instance.state;
+
+      if (state == STATE_TERMINATED) {
+        return STATE_TERMINATED;
+      }
+
+      if ((state & FLAG_CANCELLED) == FLAG_CANCELLED || (state & FLAG_DISPOSED) == FLAG_DISPOSED) {
+        return state;
+      }
+
+      long nextState = state + 1;
+      if ((nextState & MAX_WIP_VALUE) == 0) {
+        nextState = state;
+      }
+
+      if (STATE.compareAndSet(instance, state, nextState | FLAG_DISPOSED)) {
+        return state;
+      }
+    }
+  }
+
+  /**
+   * Tries to increment the amount of work in progress (max value is {@link #MAX_WIP_VALUE} on the
+   * given state. Fails if state is {@link #STATE_TERMINATED}.
+   *
+   * @return previous state
+   */
   static long wipIncrement(UnboundedProcessor instance) {
     for (; ; ) {
       long state = instance.state;
@@ -522,7 +635,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       }
 
       final long nextState = state + 1;
-      if ((nextState & MAX_VALUE) == 0) {
+      if ((nextState & MAX_WIP_VALUE) == 0) {
         return state;
       }
 
@@ -532,8 +645,15 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
   }
 
+  /**
+   * Tries to decrement the amount of work in progress by the given amount on the given state. Fails
+   * if state is {@link #STATE_TERMINATED} or it has flags {@link #FLAG_CANCELLED} or {@link
+   * #FLAG_DISPOSED} set.
+   *
+   * @return state after changing WIP or current state if update failed
+   */
   static long wipRemoveMissing(UnboundedProcessor instance, long previousState) {
-    long missed = previousState & MAX_VALUE;
+    long missed = previousState & MAX_WIP_VALUE;
     boolean outputFused = instance.outputFused;
     for (; ; ) {
       long state = instance.state;
@@ -542,7 +662,9 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return STATE_TERMINATED;
       }
 
-      if (!outputFused && (state & FLAG_CANCELLED) == FLAG_CANCELLED) {
+      if (!outputFused
+          && ((state & FLAG_CANCELLED) == FLAG_CANCELLED
+              || (state & FLAG_DISPOSED) == FLAG_DISPOSED)) {
         return state;
       }
 
@@ -553,11 +675,20 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     }
   }
 
+  /**
+   * Set state {@link #STATE_TERMINATED} and {@link #release(ByteBuf)} all the elements from {@link
+   * #queue} and {@link #priorityQueue}.
+   *
+   * <p>This method may be called concurrently only if the given {@link UnboundedProcessor} has no
+   * output fusion ({@link #outputFused} {@code == true}). Otherwise this method MUST be called once
+   * and only by the downstream calling method {@link #clear()}
+   */
   static void clearAndTerminate(UnboundedProcessor instance) {
+    final boolean outputFused = instance.outputFused;
     for (; ; ) {
       long state = instance.state;
 
-      if (instance.outputFused) {
+      if (outputFused) {
         instance.clearSafely();
       } else {
         instance.clearUnsafely();
@@ -577,8 +708,12 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     return (state & FLAG_CANCELLED) == FLAG_CANCELLED;
   }
 
+  static boolean isDisposed(long state) {
+    return (state & FLAG_DISPOSED) == FLAG_DISPOSED;
+  }
+
   static boolean isWorkInProgress(long state) {
-    return (state & MAX_VALUE) != 0;
+    return (state & MAX_WIP_VALUE) != 0;
   }
 
   static boolean isTerminated(long state) {
