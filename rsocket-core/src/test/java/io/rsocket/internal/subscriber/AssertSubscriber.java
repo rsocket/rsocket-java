@@ -943,6 +943,7 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
       t = qs.poll();
       if (t == null) {
         if (done) {
+          qs.clear(); // clear upstream to terminated it due to the contract
           cdl.countDown();
           return;
         }
