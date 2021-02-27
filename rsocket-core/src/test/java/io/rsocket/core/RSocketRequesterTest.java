@@ -1201,7 +1201,6 @@ public class RSocketRequesterTest {
   }
 
   @Test
-  @Disabled("Reactor 3.4.0 should fix that. No need to do anything on our side")
   // see https://github.com/rsocket/rsocket-java/issues/858
   public void testWorkaround858() {
     ByteBuf buffer = rule.alloc().buffer();

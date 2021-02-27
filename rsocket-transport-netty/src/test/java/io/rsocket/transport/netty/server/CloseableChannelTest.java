@@ -19,7 +19,6 @@ package io.rsocket.transport.netty.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -57,9 +56,6 @@ final class CloseableChannelTest {
         .withMessage("channel must not be null");
   }
 
-  @Disabled(
-      "NettyContext isDisposed() is not accurate\n"
-          + "https://github.com/reactor/reactor-netty/issues/360")
   @DisplayName("disposes context")
   @Test
   void dispose() {

@@ -167,9 +167,9 @@ public class RSocketResponderTest {
 
   @Test
   @Timeout(2_000)
-  @Disabled
   public void testHandlerEmitsError() throws Exception {
     final int streamId = 4;
+    rule.prefetch = 1;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
     assertThat(
         "Unexpected frame sent.", frameType(rule.connection.awaitFrame()), is(FrameType.ERROR));
@@ -839,7 +839,6 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Disabled("Reactor 3.4.0 should fix that. No need to do anything on our side")
   // see https://github.com/rsocket/rsocket-java/issues/858
   public void testWorkaround858() {
     ByteBuf buffer = rule.alloc().buffer();
