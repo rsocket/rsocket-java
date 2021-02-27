@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,44 +16,45 @@
 
 package io.rsocket.internal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
-import java.util.concurrent.CountDownLatch;
-import org.junit.Assert;
-import org.junit.Test;
+import io.netty.util.ReferenceCountUtil;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
+import io.rsocket.internal.subscriber.AssertSubscriber;
+import java.time.Duration;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import reactor.core.Fuseable;
+import reactor.core.publisher.Hooks;
+import reactor.core.publisher.Operators;
+import reactor.core.scheduler.Schedulers;
+import reactor.test.StepVerifier;
+import reactor.test.util.RaceTestUtils;
 
 public class UnboundedProcessorTest {
-  @Test
-  public void testOnNextBeforeSubscribe_10() {
-    testOnNextBeforeSubscribeN(10);
+
+  @BeforeAll
+  public static void setup() {
+    Hooks.onErrorDropped(__ -> {});
   }
 
-  @Test
-  public void testOnNextBeforeSubscribe_100() {
-    testOnNextBeforeSubscribeN(100);
+  @AfterAll
+  public static void teardown() {
+    Hooks.resetOnErrorDropped();
   }
 
-  @Test
-  public void testOnNextBeforeSubscribe_10_000() {
-    testOnNextBeforeSubscribeN(10_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_100_000() {
-    testOnNextBeforeSubscribeN(100_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_1_000_000() {
-    testOnNextBeforeSubscribeN(1_000_000);
-  }
-
-  @Test
-  public void testOnNextBeforeSubscribe_10_000_000() {
-    testOnNextBeforeSubscribeN(10_000_000);
-  }
-
+  @ParameterizedTest(
+      name =
+          "Test that emitting {0} onNext before subscribe and requestN should deliver all the signals once the subscriber is available")
+  @ValueSource(ints = {10, 100, 10_000, 100_000, 1_000_000, 10_000_000})
   public void testOnNextBeforeSubscribeN(int n) {
     UnboundedProcessor processor = new UnboundedProcessor();
 
@@ -63,68 +64,127 @@ public class UnboundedProcessorTest {
 
     processor.onComplete();
 
-    long count = processor.count().block();
-
-    Assert.assertEquals(n, count);
+    StepVerifier.create(processor.count()).expectNext(Long.valueOf(n)).verifyComplete();
   }
 
-  @Test
-  public void testOnNextAfterSubscribe_10() throws Exception {
-    testOnNextAfterSubscribeN(10);
-  }
-
-  @Test
-  public void testOnNextAfterSubscribe_100() throws Exception {
-    testOnNextAfterSubscribeN(100);
-  }
-
-  @Test
-  public void testOnNextAfterSubscribe_1000() throws Exception {
-    testOnNextAfterSubscribeN(1000);
-  }
-
-  @Test
-  public void testPrioritizedSending() {
+  @ParameterizedTest(
+      name =
+          "Test that emitting {0} onNext after subscribe and requestN should deliver all the signals")
+  @ValueSource(ints = {10, 100, 10_000})
+  public void testOnNextAfterSubscribeN(int n) {
     UnboundedProcessor processor = new UnboundedProcessor();
+    AssertSubscriber<ByteBuf> assertSubscriber = AssertSubscriber.create();
 
-    for (int i = 0; i < 1000; i++) {
-      processor.onNext(Unpooled.EMPTY_BUFFER);
-    }
-
-    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
-
-    ByteBuf byteBuf = processor.next().block();
-
-    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
-  }
-
-  @Test
-  public void testPrioritizedFused() {
-    UnboundedProcessor processor = new UnboundedProcessor();
-
-    for (int i = 0; i < 1000; i++) {
-      processor.onNext(Unpooled.EMPTY_BUFFER);
-    }
-
-    processor.onNextPrioritized(Unpooled.wrappedBuffer("test".getBytes(CharsetUtil.UTF_8)));
-
-    ByteBuf byteBuf = processor.poll();
-
-    Assert.assertEquals(byteBuf.toString(CharsetUtil.UTF_8), "test");
-  }
-
-  public void testOnNextAfterSubscribeN(int n) throws Exception {
-    CountDownLatch latch = new CountDownLatch(n);
-    UnboundedProcessor processor = new UnboundedProcessor();
-    processor.log().doOnNext(integer -> latch.countDown()).subscribe();
+    processor.subscribe(assertSubscriber);
 
     for (int i = 0; i < n; i++) {
-      System.out.println("onNexting -> " + i);
       processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
-    processor.drain();
+    assertSubscriber.awaitAndAssertNextValueCount(n);
+  }
 
-    latch.await();
+  @ParameterizedTest(
+      name =
+          "Test that prioritized value sending deliver prioritized signals before the others mode[fusionEnabled={0}]")
+  @ValueSource(booleans = {true, false})
+  public void testPrioritizedSending(boolean fusedCase) {
+    UnboundedProcessor processor = new UnboundedProcessor();
+
+    for (int i = 0; i < 1000; i++) {
+      processor.onNext(Unpooled.EMPTY_BUFFER);
+    }
+
+    processor.onNextPrioritized(Unpooled.copiedBuffer("test", CharsetUtil.UTF_8));
+
+    assertThat(fusedCase ? processor.poll() : processor.next().block())
+        .isNotNull()
+        .extracting(bb -> bb.toString(CharsetUtil.UTF_8))
+        .isEqualTo("test");
+  }
+
+  @ParameterizedTest(
+      name =
+          "Ensures that racing between onNext | dispose | cancel | request(n) will not cause any issues and leaks; mode[fusionEnabled={0}]")
+  @ValueSource(booleans = {true, false})
+  public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
+    final LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    for (int i = 0; i < 100000; i++) {
+      final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
+
+      final ByteBuf buffer1 = allocator.buffer(1);
+      final ByteBuf buffer2 = allocator.buffer(2);
+
+      final AssertSubscriber<ByteBuf> assertSubscriber =
+          new AssertSubscriber<ByteBuf>(0)
+              .requestedFusionMode(withFusionEnabled ? Fuseable.ANY : Fuseable.NONE);
+
+      unboundedProcessor.subscribe(assertSubscriber);
+
+      RaceTestUtils.race(
+          () ->
+              RaceTestUtils.race(
+                  () ->
+                      RaceTestUtils.race(
+                          () -> {
+                            unboundedProcessor.onNext(buffer1);
+                            unboundedProcessor.onNext(buffer2);
+                          },
+                          unboundedProcessor::dispose,
+                          Schedulers.elastic()),
+                  assertSubscriber::cancel,
+                  Schedulers.elastic()),
+          () -> {
+            assertSubscriber.request(1);
+            assertSubscriber.request(1);
+          },
+          Schedulers.elastic());
+
+      assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
+
+      allocator.assertHasNoLeaks();
+    }
+  }
+
+  @RepeatedTest(
+      name =
+          "Ensures that racing between onNext + dispose | downstream async drain should not cause any issues and leaks",
+      value = 100000)
+  @Timeout(60)
+  public void ensuresAsyncFusionAndDisposureHasNoDeadlock() {
+    // TODO: enable leaks tracking
+    //    final LeaksTrackingByteBufAllocator allocator =
+    //        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
+
+    //    final ByteBuf buffer1 = allocator.buffer(1);
+    //    final ByteBuf buffer2 = allocator.buffer(2);
+
+    final AssertSubscriber<ByteBuf> assertSubscriber =
+        new AssertSubscriber<>(Operators.enableOnDiscard(null, ReferenceCountUtil::safeRelease));
+
+    unboundedProcessor.publishOn(Schedulers.parallel()).subscribe(assertSubscriber);
+
+    RaceTestUtils.race(
+        () -> {
+          //          unboundedProcessor.onNext(buffer1);
+          //          unboundedProcessor.onNext(buffer2);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.onNext(Unpooled.EMPTY_BUFFER);
+          unboundedProcessor.dispose();
+        },
+        unboundedProcessor::dispose);
+
+    assertSubscriber
+        .await(Duration.ofSeconds(50))
+        .values()
+        .forEach(ReferenceCountUtil::safeRelease);
+
+    //    allocator.assertHasNoLeaks();
   }
 }

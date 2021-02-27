@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BooleanSupplier;
@@ -87,6 +88,10 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
       AtomicLongFieldUpdater.newUpdater(AssertSubscriber.class, "requested");
 
   @SuppressWarnings("rawtypes")
+  private static final AtomicIntegerFieldUpdater<AssertSubscriber> WIP =
+      AtomicIntegerFieldUpdater.newUpdater(AssertSubscriber.class, "wip");
+
+  @SuppressWarnings("rawtypes")
   private static final AtomicReferenceFieldUpdater<AssertSubscriber, List> NEXT_VALUES =
       AtomicReferenceFieldUpdater.newUpdater(AssertSubscriber.class, List.class, "values");
 
@@ -100,9 +105,13 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
 
   private final CountDownLatch cdl = new CountDownLatch(1);
 
+  volatile boolean done;
+
   volatile Subscription s;
 
   volatile long requested;
+
+  volatile int wip;
 
   volatile List<T> values = new LinkedList<>();
 
@@ -854,6 +863,10 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
       a = S.getAndSet(this, Operators.cancelledSubscription());
       if (a != null && a != Operators.cancelledSubscription()) {
         a.cancel();
+
+        if (establishedFusionMode == Fuseable.ASYNC && WIP.getAndIncrement(this) == 0) {
+          qs.clear();
+        }
       }
     }
   }
@@ -868,37 +881,77 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
 
   @Override
   public void onComplete() {
+    done = true;
     completionCount++;
+
+    if (establishedFusionMode == Fuseable.ASYNC) {
+      drain();
+      return;
+    }
+
     cdl.countDown();
   }
 
   @Override
   public void onError(Throwable t) {
+    done = true;
     errors.add(t);
+
+    if (establishedFusionMode == Fuseable.ASYNC) {
+      drain();
+      return;
+    }
+
     cdl.countDown();
   }
 
   @Override
   public void onNext(T t) {
     if (establishedFusionMode == Fuseable.ASYNC) {
-      for (; ; ) {
-        t = qs.poll();
-        if (t == null) {
-          break;
-        }
-        valueCount++;
-        if (valuesStorage) {
-          List<T> nextValuesSnapshot;
-          for (; ; ) {
-            nextValuesSnapshot = values;
-            nextValuesSnapshot.add(t);
-            if (NEXT_VALUES.compareAndSet(this, nextValuesSnapshot, nextValuesSnapshot)) {
-              break;
-            }
+      drain();
+    } else {
+      valueCount++;
+      if (valuesStorage) {
+        List<T> nextValuesSnapshot;
+        for (; ; ) {
+          nextValuesSnapshot = values;
+          nextValuesSnapshot.add(t);
+          if (NEXT_VALUES.compareAndSet(this, nextValuesSnapshot, nextValuesSnapshot)) {
+            break;
           }
         }
       }
-    } else {
+    }
+  }
+
+  void drain() {
+    if (this.wip != 0 || WIP.getAndIncrement(this) != 0) {
+      if (isCancelled()) {
+        qs.clear();
+      }
+      return;
+    }
+
+    T t;
+    int m = 1;
+    for (; ; ) {
+      if (isCancelled()) {
+        qs.clear();
+        break;
+      }
+      boolean done = this.done;
+      t = qs.poll();
+      if (t == null) {
+        if (done) {
+          cdl.countDown();
+          return;
+        }
+        m = WIP.addAndGet(this, -m);
+        if (m == 0) {
+          break;
+        }
+        continue;
+      }
       valueCount++;
       if (valuesStorage) {
         List<T> nextValuesSnapshot;

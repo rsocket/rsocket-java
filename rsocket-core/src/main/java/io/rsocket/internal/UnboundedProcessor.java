@@ -227,6 +227,9 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         }
 
         if (checkTerminated(empty, a)) {
+          if (!empty) {
+            release(t);
+          }
           return;
         }
 
