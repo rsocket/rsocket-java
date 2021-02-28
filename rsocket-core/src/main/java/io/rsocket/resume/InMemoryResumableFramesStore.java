@@ -100,13 +100,14 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public void releaseFrames(long remoteImpliedPos) {
-    long pos = position;
-    logger.debug(
-        "{} Removing frames for local: {}, remote implied: {}", tag, pos, remoteImpliedPos);
-    long toRemoveBytes = Math.max(0, remoteImpliedPos - pos);
     int removedBytes = 0;
-    final ArrayList<ByteBuf> frames = cachedFrames;
+    long toRemoveBytes;
     synchronized (this) {
+      long pos = position;
+      logger.debug(
+          "{} Removing frames for local: {}, remote implied: {}", tag, pos, remoteImpliedPos);
+      toRemoveBytes = Math.max(0, remoteImpliedPos - pos);
+      final ArrayList<ByteBuf> frames = cachedFrames;
       while (toRemoveBytes > removedBytes && frames.size() > 0) {
         ByteBuf cachedFrame = frames.remove(0);
         int frameSize = cachedFrame.readableBytes();
@@ -235,39 +236,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     final int state;
     final boolean isResumable = isResumableFrame(frame);
     if (isResumable) {
-      final ArrayList<ByteBuf> frames = cachedFrames;
-      int incomingFrameSize = frame.readableBytes();
-      final int cacheLimit = this.cacheLimit;
-      if (cacheLimit != Integer.MAX_VALUE) {
-        long availableSize = cacheLimit - cacheSize;
-        if (availableSize < incomingFrameSize) {
-          int removedBytes = 0;
-          synchronized (this) {
-            while (availableSize < incomingFrameSize) {
-              if (frames.size() == 0) {
-                break;
-              }
-              ByteBuf cachedFrame;
-              cachedFrame = frames.remove(0);
-              final int frameSize = cachedFrame.readableBytes();
-              availableSize += frameSize;
-              removedBytes += frameSize;
-              cachedFrame.release();
-            }
-          }
-          CACHE_SIZE.addAndGet(this, -removedBytes);
-          POSITION.addAndGet(this, removedBytes);
-        }
-      }
-      synchronized (this) {
-        state = this.state;
-        if (state != 2) {
-          frames.add(frame);
-        }
-      }
-      if (cacheLimit != Integer.MAX_VALUE) {
-        CACHE_SIZE.addAndGet(this, incomingFrameSize);
-      }
+      state = saveFrame(frame);
     } else {
       state = this.state;
     }
@@ -278,6 +247,44 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     } else if (!isResumable || state == 2) {
       frame.release();
     }
+  }
+
+  int saveFrame(ByteBuf frame) {
+    final int state;
+    final ArrayList<ByteBuf> frames = cachedFrames;
+    int incomingFrameSize = frame.readableBytes();
+    final int cacheLimit = this.cacheLimit;
+    if (cacheLimit != Integer.MAX_VALUE) {
+      long availableSize = cacheLimit - cacheSize;
+      if (availableSize < incomingFrameSize) {
+        int removedBytes = 0;
+        synchronized (this) {
+          while (availableSize < incomingFrameSize) {
+            if (frames.size() == 0) {
+              break;
+            }
+            ByteBuf cachedFrame;
+            cachedFrame = frames.remove(0);
+            final int frameSize = cachedFrame.readableBytes();
+            availableSize += frameSize;
+            removedBytes += frameSize;
+            cachedFrame.release();
+          }
+        }
+        CACHE_SIZE.addAndGet(this, -removedBytes);
+        POSITION.addAndGet(this, removedBytes);
+      }
+    }
+    synchronized (this) {
+      state = this.state;
+      if (state != 2) {
+        frames.add(frame.slice());
+      }
+    }
+    if (cacheLimit != Integer.MAX_VALUE && state != 2) {
+      CACHE_SIZE.addAndGet(this, incomingFrameSize);
+    }
+    return state;
   }
 
   @Override
@@ -302,7 +309,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       actual.onSubscribe(this);
       synchronized (this) {
         for (final ByteBuf frame : cachedFrames) {
-          actual.onNext(frame.retain());
+          actual.onNext(frame.retainedSlice());
         }
       }
 

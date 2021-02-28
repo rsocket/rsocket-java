@@ -19,9 +19,8 @@ package io.rsocket.transport.local;
 import io.rsocket.test.TransportTest;
 import java.time.Duration;
 import java.util.UUID;
-import org.junit.jupiter.api.Disabled;
 
-@Disabled("leaking somewhere for no clear reason")
+// @Disabled("leaking somewhere for no clear reason")
 final class LocalResumableTransportTest implements TransportTest {
 
   private final TransportPair transportPair =
