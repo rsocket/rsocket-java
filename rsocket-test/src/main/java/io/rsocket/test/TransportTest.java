@@ -18,6 +18,7 @@ package io.rsocket.test;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.ResourceLeakDetector;
@@ -463,10 +464,10 @@ public interface TransportTest {
 
     private final LeaksTrackingByteBufAllocator byteBufAllocator1 =
         LeaksTrackingByteBufAllocator.instrument(
-            ByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Client");
+            UnpooledByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Client");
     private final LeaksTrackingByteBufAllocator byteBufAllocator2 =
         LeaksTrackingByteBufAllocator.instrument(
-            ByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Server");
+            UnpooledByteBufAllocator.DEFAULT, Duration.ofMinutes(1), "Server");
 
     private final TestRSocket responder;
 
@@ -515,13 +516,13 @@ public interface TransportTest {
         allocatorToSupply1 = byteBufAllocator1;
         allocatorToSupply2 = byteBufAllocator2;
       } else {
-        allocatorToSupply1 = ByteBufAllocator.DEFAULT;
-        allocatorToSupply2 = ByteBufAllocator.DEFAULT;
+        allocatorToSupply1 = UnpooledByteBufAllocator.DEFAULT;
+        allocatorToSupply2 = UnpooledByteBufAllocator.DEFAULT;
       }
       responder = new TestRSocket(TransportPair.data, metadata);
       final RSocketServer rSocketServer =
           RSocketServer.create((setup, sendingSocket) -> Mono.just(responder))
-              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .payloadDecoder(PayloadDecoder.DEFAULT)
               .interceptors(
                   registry -> {
                     if (runServerWithAsyncInterceptors && !withResumability) {
@@ -567,7 +568,7 @@ public interface TransportTest {
 
       final RSocketConnector rSocketConnector =
           RSocketConnector.create()
-              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .payloadDecoder(PayloadDecoder.DEFAULT)
               .keepAlive(Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE))
               .interceptors(
                   registry -> {
