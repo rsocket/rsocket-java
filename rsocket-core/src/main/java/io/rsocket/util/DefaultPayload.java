@@ -100,7 +100,7 @@ public final class DefaultPayload implements Payload {
 
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
     try {
-      return create(data.nioBuffer(), metadata == null ? null : metadata.nioBuffer());
+      return create(toBytes(data), metadata != null ? toBytes(metadata) : null);
     } finally {
       data.release();
       if (metadata != null) {
@@ -110,7 +110,16 @@ public final class DefaultPayload implements Payload {
   }
 
   public static Payload create(Payload payload) {
-    return create(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
+    return create(
+        toBytes(payload.data()), payload.hasMetadata() ? toBytes(payload.metadata()) : null);
+  }
+
+  private static byte[] toBytes(ByteBuf byteBuf) {
+    byte[] bytes = new byte[byteBuf.readableBytes()];
+    byteBuf.markReaderIndex();
+    byteBuf.readBytes(bytes);
+    byteBuf.resetReaderIndex();
+    return bytes;
   }
 
   @Override
