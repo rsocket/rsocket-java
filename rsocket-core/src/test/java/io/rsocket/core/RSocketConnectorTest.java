@@ -73,8 +73,13 @@ public class RSocketConnectorTest {
   @Test
   public void ensuresThatMonoFromRSocketConnectorCanBeUsedForMultipleSubscriptions() {
     Payload setupPayload = ByteBufPayload.create("TestData", "TestMetadata");
-
     Assertions.assertThat(setupPayload.refCnt()).isOne();
+
+    // Keep the data and metadata around so we can try changing them independently
+    ByteBuf dataBuf = setupPayload.data();
+    ByteBuf metadataBuf = setupPayload.metadata();
+    dataBuf.retain();
+    metadataBuf.retain();
 
     TestClientTransport testClientTransport = new TestClientTransport();
     Mono<RSocket> connectionMono =
@@ -92,6 +97,15 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
+    // Changing the original data and metadata should not impact the SetupPayload
+    dataBuf.writerIndex(dataBuf.readerIndex());
+    dataBuf.writeChar('d');
+    dataBuf.release();
+
+    metadataBuf.writerIndex(metadataBuf.readerIndex());
+    metadataBuf.writeChar('m');
+    metadataBuf.release();
+
     Assertions.assertThat(testClientTransport.testConnection().getSent())
         .hasSize(2)
         .allMatch(
@@ -100,7 +114,11 @@ public class RSocketConnectorTest {
               return payload.getDataUtf8().equals("TestData")
                   && payload.getMetadataUtf8().equals("TestMetadata");
             })
-        .allMatch(ReferenceCounted::release);
+        .allMatch(
+            byteBuf -> {
+              System.out.println("calling release " + byteBuf.refCnt());
+              return byteBuf.release();
+            });
     Assertions.assertThat(setupPayload.refCnt()).isZero();
   }
 
