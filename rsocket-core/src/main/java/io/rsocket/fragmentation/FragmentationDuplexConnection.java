@@ -84,7 +84,18 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
+    return delegate.send(
+        Flux.from(frames)
+            .concatMap(
+                frame -> {
+                  FrameType frameType = FrameHeaderCodec.frameType(frame);
+                  int readableBytes = frame.readableBytes();
+                  if (!shouldFragment(frameType, readableBytes)) {
+                    return Flux.just(frame);
+                  }
+
+                  return logFragments(Flux.from(fragmentFrame(alloc(), mtu, frame, frameType)));
+                }));
   }
 
   @Override
@@ -95,6 +106,11 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
       return delegate.sendOne(frame);
     }
     Flux<ByteBuf> fragments = Flux.from(fragmentFrame(alloc(), mtu, frame, frameType));
+    fragments = logFragments(fragments);
+    return delegate.send(fragments);
+  }
+
+  protected Flux<ByteBuf> logFragments(Flux<ByteBuf> fragments) {
     if (logger.isDebugEnabled()) {
       fragments =
           fragments.doOnNext(
@@ -107,6 +123,6 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
                     ByteBufUtil.prettyHexDump(byteBuf));
               });
     }
-    return delegate.send(fragments);
+    return fragments;
   }
 }
