@@ -93,7 +93,7 @@ public class LeaseExample {
 
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease((config) -> config.deferOnNoLease(1))
+            .lease((config) -> config.maxPendingRequests(1))
             .connect(TcpClientTransport.create(server.address()))
             .block();
 

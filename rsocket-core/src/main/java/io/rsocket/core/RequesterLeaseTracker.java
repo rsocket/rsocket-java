@@ -91,7 +91,7 @@ final class RequesterLeaseTracker implements Availability {
           Lease.create(Duration.ofMillis(timeToLiveMillis), numberOfRequests, metadata);
       final Queue<LeaseHandler> queue = this.deferredCallsQueue;
 
-      int availableRequests = lease.allowedRequests();
+      int availableRequests = lease.numberOfRequests();
 
       this.currentLease = lease;
       if (queue.size() > 0) {
@@ -122,10 +122,10 @@ final class RequesterLeaseTracker implements Availability {
   @Override
   public synchronized double availability() {
     final Lease lease = this.currentLease;
-    return lease != null ? this.availableRequests / (double) lease.allowedRequests() : 0.0d;
+    return lease != null ? this.availableRequests / (double) lease.numberOfRequests() : 0.0d;
   }
 
   static boolean isExpired(Lease currentLease) {
-    return System.currentTimeMillis() >= currentLease.expireAt();
+    return System.currentTimeMillis() >= currentLease.expirationTime();
   }
 }

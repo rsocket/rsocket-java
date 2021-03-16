@@ -17,7 +17,6 @@
 package io.rsocket.examples.transport.tcp.lease.advanced.invertmulticlient;
 
 import io.rsocket.RSocket;
-import io.rsocket.core.LeaseConfig;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -45,7 +44,7 @@ public class RequestingServer {
                   return Mono.<RSocket>just(new RSocket() {})
                       .doAfterTerminate(() -> rSockets.put(sendingSocket));
                 })
-            .lease(LeaseConfig::deferOnNoLease)
+            .lease(spec -> spec.maxPendingRequests(Integer.MAX_VALUE))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     logger.info("Server started on port {}", server.address().getPort());

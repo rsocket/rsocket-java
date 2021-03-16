@@ -72,9 +72,9 @@ final class ResponderLeaseTracker extends BaseSubscriber<Lease>
 
   @Override
   protected void hookOnNext(Lease lease) {
-    final int allowedRequests = lease.allowedRequests();
+    final int allowedRequests = lease.numberOfRequests();
     final int ttl = lease.timeToLiveInMillis();
-    final long expireAt = lease.expireAt();
+    final long expireAt = lease.expirationTime();
 
     this.currentLease = new MutableLease(allowedRequests, expireAt);
     this.connection.sendFrame(

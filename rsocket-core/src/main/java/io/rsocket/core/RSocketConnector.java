@@ -29,6 +29,7 @@ import io.rsocket.SocketAcceptor;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.keepalive.KeepAliveHandler;
+import io.rsocket.lease.TrackingLeaseSender;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
@@ -92,7 +93,7 @@ public class RSocketConnector {
   private Retry retrySpec;
   private Resume resume;
 
-  @Nullable private Consumer<LeaseConfig> leaseConfigurer;
+  @Nullable private Consumer<LeaseSpec> leaseConfigurer;
 
   private int mtu = 0;
   private int maxInboundPayloadSize = Integer.MAX_VALUE;
@@ -425,18 +426,18 @@ public class RSocketConnector {
    * <pre>{@code
    * Mono<RSocket> rocketMono =
    *         RSocketConnector.create()
-   *                         .lease(config -> config.deferOnNoLease())
+   *                         .lease(spec -> spec.maxPendingRequests(128))
    *                         .connect(transport);
    * }</pre>
    *
    * <p>By default this is not enabled.
    *
-   * @param leaseConfigurer consumer which accepts {@link LeaseConfig} and use it for configuring
+   * @param leaseConfigurer consumer which accepts {@link LeaseSpec} and use it for configuring
    * @return the same instance for method chaining
    * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#lease-semantics">Lease
    *     Semantics</a>
    */
-  public RSocketConnector lease(Consumer<LeaseConfig> leaseConfigurer) {
+  public RSocketConnector lease(Consumer<LeaseSpec> leaseConfigurer) {
     this.leaseConfigurer = leaseConfigurer;
     return this;
   }
@@ -640,10 +641,10 @@ public class RSocketConnector {
                                       new ClientServerInputMultiplexer(
                                           wrappedConnection, interceptors, true);
 
-                                  final LeaseConfig leases;
+                                  final LeaseSpec leases;
                                   final RequesterLeaseTracker requesterLeaseTracker;
                                   if (leaseEnabled) {
-                                    leases = new LeaseConfig();
+                                    leases = new LeaseSpec();
                                     leaseConfigurer.accept(leases);
                                     requesterLeaseTracker =
                                         new RequesterLeaseTracker(
@@ -703,20 +704,15 @@ public class RSocketConnector {
                                                     mtu,
                                                     maxFrameLength,
                                                     maxInboundPayloadSize,
-                                                    leaseEnabled && leases.statsCollector != null
-                                                        ? rSocket -> {
-                                                          final RequestInterceptor interceptor =
-                                                              interceptors
-                                                                  .initResponderRequestInterceptor(
-                                                                      rSocket);
-                                                          if (interceptor != null) {
-                                                            return RequestInterceptor.compose(
-                                                                interceptor, leases.statsCollector);
-                                                          }
-
-                                                          return RequestInterceptor.compose(
-                                                              leases.statsCollector);
-                                                        }
+                                                    leaseEnabled
+                                                            && leases.sender
+                                                                instanceof TrackingLeaseSender
+                                                        ? rSocket ->
+                                                            interceptors
+                                                                .initResponderRequestInterceptor(
+                                                                    rSocket,
+                                                                    (RequestInterceptor)
+                                                                        leases.sender)
                                                         : interceptors
                                                             ::initResponderRequestInterceptor);
 

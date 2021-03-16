@@ -17,39 +17,28 @@
 package io.rsocket.core;
 
 import io.rsocket.lease.LeaseSender;
-import io.rsocket.plugins.RequestInterceptor;
 import reactor.core.publisher.Flux;
-import reactor.util.concurrent.Queues;
 
-public final class LeaseConfig {
+public final class LeaseSpec {
 
   LeaseSender sender = Flux::never;
-  RequestInterceptor statsCollector = null;
-  int maxPendingRequests = 0;
+  int maxPendingRequests = 256;
 
-  LeaseConfig() {}
+  LeaseSpec() {}
 
-  public LeaseConfig sender(LeaseSender sender) {
+  public LeaseSpec sender(LeaseSender sender) {
     this.sender = sender;
     return this;
   }
 
-  public LeaseConfig statsCollector(RequestInterceptor requestInterceptor) {
-    this.statsCollector = requestInterceptor;
-    return this;
-  }
-
-  public LeaseConfig failOnNoLease() {
+  /**
+   * Setup the maximum queued requests waiting for lease to be available. The default value is 256
+   *
+   * @param maxPendingRequests if set to 0 the requester will terminate the request immediately if
+   *     no leases is available
+   */
+  public LeaseSpec maxPendingRequests(int maxPendingRequests) {
     this.maxPendingRequests = 0;
-    return this;
-  }
-
-  public LeaseConfig deferOnNoLease() {
-    return deferOnNoLease(Queues.SMALL_BUFFER_SIZE);
-  }
-
-  public LeaseConfig deferOnNoLease(int maxPendingRequests) {
-    this.maxPendingRequests = maxPendingRequests;
     return this;
   }
 }

@@ -1,7 +1,6 @@
 package io.rsocket.examples.transport.tcp.lease.advanced.multiclient;
 
 import io.rsocket.RSocket;
-import io.rsocket.core.LeaseConfig;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.util.ByteBufPayload;
@@ -17,7 +16,7 @@ public class RequestingClient {
 
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease(LeaseConfig::deferOnNoLease)
+            .lease()
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 

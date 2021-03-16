@@ -46,15 +46,16 @@ public final class Lease {
   }
 
   final int timeToLiveMillis;
-  final int allowedRequests;
+  final int numberOfRequests;
   final ByteBuf metadata;
-  final long expireAt;
+  final long expirationTime;
 
-  Lease(Duration timeToLive, int allowedRequests, @Nullable ByteBuf metadata) {
-    this.allowedRequests = allowedRequests;
+  Lease(Duration timeToLive, int numberOfRequests, @Nullable ByteBuf metadata) {
+    this.numberOfRequests = numberOfRequests;
     this.timeToLiveMillis = (int) Math.min(timeToLive.toMillis(), Integer.MAX_VALUE);
     this.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
-    this.expireAt = timeToLive.isZero() ? 0 : System.currentTimeMillis() + timeToLive.toMillis();
+    this.expirationTime =
+        timeToLive.isZero() ? 0 : System.currentTimeMillis() + timeToLive.toMillis();
   }
 
   /**
@@ -62,8 +63,8 @@ public final class Lease {
    *
    * @return The number of requests allowed by this lease.
    */
-  public int allowedRequests() {
-    return allowedRequests;
+  public int numberOfRequests() {
+    return numberOfRequests;
   }
 
   /**
@@ -80,8 +81,8 @@ public final class Lease {
    *
    * @return Absolute time since epoch at which this lease will expire.
    */
-  public long expireAt() {
-    return expireAt;
+  public long expirationTime() {
+    return expirationTime;
   }
 
   /**
@@ -99,10 +100,10 @@ public final class Lease {
     return "Lease{"
         + "timeToLiveMillis="
         + timeToLiveMillis
-        + ", allowedRequests="
-        + allowedRequests
-        + ", expiredAt="
-        + expireAt
+        + ", numberOfRequests="
+        + numberOfRequests
+        + ", expirationTime="
+        + expirationTime
         + '}';
   }
 }

@@ -2,7 +2,7 @@ package io.rsocket.examples.transport.tcp.lease.advanced.common;
 
 import com.netflix.concurrency.limits.Limit;
 import io.rsocket.lease.Lease;
-import io.rsocket.lease.LeaseSender;
+import io.rsocket.lease.TrackingLeaseSender;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import reactor.util.concurrent.Queues;
 
-public class LimitBasedLeaseSender extends LimitBasedStatsCollector implements LeaseSender {
+public class LimitBasedLeaseSender extends LimitBasedStatsCollector implements TrackingLeaseSender {
 
   static final Logger logger = LoggerFactory.getLogger(LimitBasedLeaseSender.class);
 

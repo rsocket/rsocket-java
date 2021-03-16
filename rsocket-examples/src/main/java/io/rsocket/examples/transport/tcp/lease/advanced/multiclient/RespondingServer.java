@@ -62,17 +62,15 @@ public class RespondingServer {
                 SocketAcceptor.with(
                     new TasksHandlingRSocket(disposable, workScheduler, TASK_PROCESSING_TIME)))
             .lease(
-                (config) -> {
-                  final LimitBasedLeaseSender senderAndStatsCollector =
-                      new LimitBasedLeaseSender(
-                          UUID.randomUUID().toString(),
-                          leaseManager,
-                          VegasLimit.newBuilder()
-                              .initialLimit(CONCURRENT_WORKERS_COUNT)
-                              .maxConcurrency(QUEUE_CAPACITY)
-                              .build());
-                  config.sender(senderAndStatsCollector).statsCollector(senderAndStatsCollector);
-                })
+                (config) ->
+                    config.sender(
+                        new LimitBasedLeaseSender(
+                            UUID.randomUUID().toString(),
+                            leaseManager,
+                            VegasLimit.newBuilder()
+                                .initialLimit(CONCURRENT_WORKERS_COUNT)
+                                .maxConcurrency(QUEUE_CAPACITY)
+                                .build())))
             .bindNow(TcpServerTransport.create("localhost", 7000));
 
     disposable.add(server);
