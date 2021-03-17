@@ -17,39 +17,40 @@ package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import java.util.List;
 import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 
 public class MimeMetadataCodecTest {
 
-    @Test
-    public void customMime() {
-        String customMime = "aaa/bb";
-        ByteBuf byteBuf = MimeMetadataCodec.encodeCustomMime(ByteBufAllocator.DEFAULT, customMime);
-        List<String> mimes = MimeMetadataCodec.decode(byteBuf);
-        Assert.assertTrue(mimes.size() == 1);
-        Assert.assertEquals(customMime, mimes.get(0));
-    }
+  @Test
+  public void customMime() {
+    String customMime = "aaa/bb";
+    ByteBuf byteBuf = MimeMetadataCodec.encodeCustomMime(ByteBufAllocator.DEFAULT, customMime);
+    List<String> mimes = MimeMetadataCodec.decode(byteBuf);
+    Assert.assertTrue(mimes.size() == 1);
+    Assert.assertEquals(customMime, mimes.get(0));
+  }
 
-    @Test
-    public void wellKnowMime() {
-        WellKnownMimeType wellKnownMimeType = WellKnownMimeType.APPLICATION_HESSIAN;
-        ByteBuf byteBuf = MimeMetadataCodec.encodeWellKnowMime(ByteBufAllocator.DEFAULT, wellKnownMimeType);
-        List<String> mimes = MimeMetadataCodec.decode(byteBuf);
-        Assert.assertTrue(mimes.size() == 1);
-        Assert.assertEquals(wellKnownMimeType, WellKnownMimeType.fromString(mimes.get(0)));
-    }
+  @Test
+  public void wellKnowMime() {
+    WellKnownMimeType wellKnownMimeType = WellKnownMimeType.APPLICATION_HESSIAN;
+    ByteBuf byteBuf =
+        MimeMetadataCodec.encodeWellKnowMime(ByteBufAllocator.DEFAULT, wellKnownMimeType);
+    List<String> mimes = MimeMetadataCodec.decode(byteBuf);
+    Assert.assertTrue(mimes.size() == 1);
+    Assert.assertEquals(wellKnownMimeType, WellKnownMimeType.fromString(mimes.get(0)));
+  }
 
-    @Test
-    public void multipleAndMixTypeMime() {
-        List<String> mimes = Lists.newArrayList("aaa/bbb", WellKnownMimeType.APPLICATION_HESSIAN.getString());
-        ByteBuf byteBuf = MimeMetadataCodec.encode(ByteBufAllocator.DEFAULT, mimes);
-        List<String> decodedMimes = MimeMetadataCodec.decode(byteBuf);
-        Assert.assertTrue(mimes.size() == 2);
-        Assert.assertTrue(mimes.containsAll(decodedMimes));
-        Assert.assertTrue(decodedMimes.containsAll(mimes));
-    }
-
+  @Test
+  public void multipleAndMixTypeMime() {
+    List<String> mimes =
+        Lists.newArrayList("aaa/bbb", WellKnownMimeType.APPLICATION_HESSIAN.getString());
+    ByteBuf byteBuf = MimeMetadataCodec.encode(ByteBufAllocator.DEFAULT, mimes);
+    List<String> decodedMimes = MimeMetadataCodec.decode(byteBuf);
+    Assert.assertTrue(mimes.size() == 2);
+    Assert.assertTrue(mimes.containsAll(decodedMimes));
+    Assert.assertTrue(decodedMimes.containsAll(mimes));
+  }
 }
