@@ -18,11 +18,11 @@ package io.rsocket.core;
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.core.PayloadValidationUtils.isValid;
 import static io.rsocket.core.SendUtils.sendReleasingPayload;
-import static io.rsocket.core.StateUtils.isPrepared;
+import static io.rsocket.core.StateUtils.isReadyToSendFirstFrame;
 import static io.rsocket.core.StateUtils.isSubscribedOrTerminated;
 import static io.rsocket.core.StateUtils.isTerminated;
 import static io.rsocket.core.StateUtils.lazyTerminate;
-import static io.rsocket.core.StateUtils.markPrepared;
+import static io.rsocket.core.StateUtils.markReadyToSendFirstFrame;
 import static io.rsocket.core.StateUtils.markSubscribed;
 import static io.rsocket.core.StateUtils.markTerminated;
 
@@ -137,7 +137,7 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
 
   @Override
   public void handleLease() {
-    final long previousState = markPrepared(STATE, this);
+    final long previousState = markReadyToSendFirstFrame(STATE, this);
 
     if (isTerminated(previousState)) {
       return;
@@ -217,7 +217,7 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
       return;
     }
 
-    if (!isPrepared(previousState)) {
+    if (!isReadyToSendFirstFrame(previousState)) {
       this.payload.release();
     }
   }

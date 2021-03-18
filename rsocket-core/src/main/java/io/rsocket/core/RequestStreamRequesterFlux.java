@@ -161,7 +161,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
   @Override
   public void handleLease() {
-    final long previousState = markPrepared(STATE, this);
+    final long previousState = markReadyToSendFirstFrame(STATE, this);
 
     if (isTerminated(previousState)) {
       return;
@@ -281,7 +281,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       if (requestInterceptor != null) {
         requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
       }
-    } else if (!isPrepared(previousState)) {
+    } else if (!isReadyToSendFirstFrame(previousState)) {
       // no need to send anything, since the first request has not happened
       this.payload.release();
     }
@@ -336,7 +336,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    if (isPrepared(previousState)) {
+    if (isReadyToSendFirstFrame(previousState)) {
       final int streamId = this.streamId;
       this.requesterResponderSupport.remove(streamId, this);
 

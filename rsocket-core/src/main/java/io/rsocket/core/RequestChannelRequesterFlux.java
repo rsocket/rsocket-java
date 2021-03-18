@@ -194,7 +194,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
   @Override
   public void handleLease() {
-    final long previousState = markPrepared(STATE, this);
+    final long previousState = markReadyToSendFirstFrame(STATE, this);
     if (isTerminated(previousState)) {
       return;
     }
@@ -435,7 +435,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     this.outboundSubscription.cancel();
 
     if (!isFirstFrameSent(previousState)) {
-      if (!isPrepared(previousState) && isFirstPayloadReceived(previousState)) {
+      if (!isReadyToSendFirstFrame(previousState) && isFirstPayloadReceived(previousState)) {
         final Payload firstPayload = this.firstPayload;
         this.firstPayload = null;
         firstPayload.release();
@@ -583,7 +583,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
     this.outboundSubscription.cancel();
 
-    if (isPrepared(previousState)) {
+    if (isReadyToSendFirstFrame(previousState)) {
       ReassemblyUtils.release(this, previousState);
 
       final int streamId = this.streamId;

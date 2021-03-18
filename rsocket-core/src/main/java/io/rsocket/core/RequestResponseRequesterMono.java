@@ -154,7 +154,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
   @Override
   public void handleLease() {
-    final long previousState = markPrepared(STATE, this);
+    final long previousState = markReadyToSendFirstFrame(STATE, this);
 
     if (isTerminated(previousState)) {
       return;
@@ -249,7 +249,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       if (requestInterceptor != null) {
         requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
       }
-    } else if (!isPrepared(previousState)) {
+    } else if (!isReadyToSendFirstFrame(previousState)) {
       this.payload.release();
     }
   }
@@ -321,7 +321,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       return;
     }
 
-    if (isPrepared(previousState)) {
+    if (isReadyToSendFirstFrame(previousState)) {
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       final int streamId = this.streamId;

@@ -17,10 +17,10 @@ final class StateUtils {
   static final long FIRST_PAYLOAD_RECEIVED_FLAG =
       0b000000000000000000000000000000010_0000000000000000000000000000000L;
   /**
-   * Bit Flag that indicates that the logical stream is prepared for the first initial frame sending
+   * Bit Flag that indicates that the logical stream is ready to send the first initial frame
    * (applicable for requester only)
    */
-  static final long PREPARED_FLAG =
+  static final long READY_TO_SEND_FIRST_FRAME_FLAG =
       0b000000000000000000000000000000100_0000000000000000000000000000000L;
   /**
    * Bit Flag that indicates that sent first initial frame was sent (in case of requester) or
@@ -93,7 +93,9 @@ final class StateUtils {
       }
 
       if (updater.compareAndSet(
-          instance, state, state | SUBSCRIBED_FLAG | (markPrepared ? PREPARED_FLAG : 0))) {
+          instance,
+          state,
+          state | SUBSCRIBED_FLAG | (markPrepared ? READY_TO_SEND_FIRST_FRAME_FLAG : 0))) {
         return state;
       }
     }
@@ -150,8 +152,8 @@ final class StateUtils {
   }
 
   /**
-   * Adds (if possible) to the given state the {@link #PREPARED_FLAG} flag which indicates that the
-   * logical stream is ready for initial frame sending.
+   * Adds (if possible) to the given state the {@link #READY_TO_SEND_FIRST_FRAME_FLAG} flag which
+   * indicates that the logical stream is ready for initial frame sending.
    *
    * <p>Note, the flag will not be added if the stream has already been terminated or if the stream
    * has already been marked as prepared
@@ -161,7 +163,7 @@ final class StateUtils {
    * @param <T> generic type of the instance
    * @return return previous state before setting the new one
    */
-  static <T> long markPrepared(AtomicLongFieldUpdater<T> updater, T instance) {
+  static <T> long markReadyToSendFirstFrame(AtomicLongFieldUpdater<T> updater, T instance) {
     for (; ; ) {
       long state = updater.get(instance);
 
@@ -169,11 +171,11 @@ final class StateUtils {
         return TERMINATED_STATE;
       }
 
-      if ((state & PREPARED_FLAG) == PREPARED_FLAG) {
+      if ((state & READY_TO_SEND_FIRST_FRAME_FLAG) == READY_TO_SEND_FIRST_FRAME_FLAG) {
         return state;
       }
 
-      if (updater.compareAndSet(instance, state, state | PREPARED_FLAG)) {
+      if (updater.compareAndSet(instance, state, state | READY_TO_SEND_FIRST_FRAME_FLAG)) {
         return state;
       }
     }
@@ -183,10 +185,10 @@ final class StateUtils {
    * Indicates that the logical stream is ready for initial frame sending
    *
    * @param state to check whether stream is prepared for initial frame sending
-   * @return true if the {@link #FIRST_PAYLOAD_RECEIVED_FLAG} flag is set
+   * @return true if the {@link #READY_TO_SEND_FIRST_FRAME_FLAG} flag is set
    */
-  static boolean isPrepared(long state) {
-    return (state & PREPARED_FLAG) == PREPARED_FLAG;
+  static boolean isReadyToSendFirstFrame(long state) {
+    return (state & READY_TO_SEND_FIRST_FRAME_FLAG) == READY_TO_SEND_FIRST_FRAME_FLAG;
   }
 
   /**
@@ -454,7 +456,7 @@ final class StateUtils {
         return currentState;
       }
 
-      flags = (currentState & FLAGS_MASK) | (markPrepared ? PREPARED_FLAG : 0);
+      flags = (currentState & FLAGS_MASK) | (markPrepared ? READY_TO_SEND_FIRST_FRAME_FLAG : 0);
       nextRequestN = addRequestN(requestN, toAdd);
 
       if (updater.compareAndSet(instance, currentState, nextRequestN | flags)) {
