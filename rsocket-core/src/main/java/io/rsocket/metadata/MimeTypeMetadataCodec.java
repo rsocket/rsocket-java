@@ -60,7 +60,7 @@ public class MimeTypeMetadataCodec {
     }
     WellKnownMimeType wkn = WellKnownMimeType.fromString(mimeType);
     if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
-      return encodeCustomMime(allocator, mimeType);
+      return encodeCustomMimeType(allocator, mimeType);
     } else {
       return encode(allocator, wkn);
     }
@@ -92,18 +92,18 @@ public class MimeTypeMetadataCodec {
    * then the representation itself.
    *
    * @param allocator the {@link ByteBufAllocator} to use to create the buffer
-   * @param customMime a custom mime type to encode
-   * @return the encoded mime
+   * @param customMimeType a custom mime type to encode
+   * @return the encoded mime type
    */
-  private static ByteBuf encodeCustomMime(ByteBufAllocator allocator, String customMime) {
-    ByteBuf mime = allocator.buffer(1 + customMime.length());
+  private static ByteBuf encodeCustomMimeType(ByteBufAllocator allocator, String customMimeType) {
+    ByteBuf mime = allocator.buffer(1 + customMimeType.length());
     // reserve 1 byte for the customMime length
     // /!\ careful not to read that first byte, which is random at this point
     mime.writerIndex(1);
 
     // write the custom mime in UTF8 but validate it is all ASCII-compatible
     // (which produces the right result since ASCII chars are still encoded on 1 byte in UTF8)
-    int customMimeLength = ByteBufUtil.writeUtf8(mime, customMime);
+    int customMimeLength = ByteBufUtil.writeUtf8(mime, customMimeType);
     if (!ByteBufUtil.isText(mime, mime.readerIndex() + 1, customMimeLength, CharsetUtil.US_ASCII)) {
       mime.release();
       throw new IllegalArgumentException("custom mime type must be US_ASCII characters only");
