@@ -32,7 +32,6 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -544,7 +543,7 @@ public class DefaultRSocketClientTests {
           Integer.MAX_VALUE,
           null,
           __ -> null,
-          RequesterLeaseHandler.None);
+          null);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

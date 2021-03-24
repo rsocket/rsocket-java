@@ -23,6 +23,9 @@ dependencies {
     implementation project(':rsocket-load-balancer')
     implementation project(':rsocket-transport-local')
     implementation project(':rsocket-transport-netty')
+
+    implementation 'com.netflix.concurrency-limits:concurrency-limits-core'
+
     runtimeOnly 'ch.qos.logback:logback-classic'
 
     testImplementation project(':rsocket-test')

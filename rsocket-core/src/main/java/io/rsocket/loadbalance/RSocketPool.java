@@ -387,8 +387,13 @@ class RSocketPool extends ResolvingOperator<Object>
     @Override
     public RSocket get(int index) {
       final PooledRSocket socket = activeSockets[index];
-      final RSocket realValue = socket.valueIfResolved();
 
+      RSocket realValue = socket.value;
+      if (realValue != null) {
+        return realValue;
+      }
+
+      realValue = socket.valueIfResolved();
       if (realValue != null) {
         return realValue;
       }

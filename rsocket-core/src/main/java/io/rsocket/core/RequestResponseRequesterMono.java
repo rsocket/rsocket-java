@@ -42,7 +42,7 @@ import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
 final class RequestResponseRequesterMono extends Mono<Payload>
-    implements RequesterFrameHandler, Subscription, Scannable {
+    implements RequesterFrameHandler, LeasePermitHandler, Subscription, Scannable {
 
   final ByteBufAllocator allocator;
   final Payload payload;
@@ -53,6 +53,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
   final DuplexConnection connection;
   final PayloadDecoder payloadDecoder;
 
+  @Nullable final RequesterLeaseTracker requesterLeaseTracker;
   @Nullable final RequestInterceptor requestInterceptor;
 
   volatile long state;
@@ -75,6 +76,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
     this.payloadDecoder = requesterResponderSupport.getPayloadDecoder();
+    this.requesterLeaseTracker = requesterResponderSupport.getRequesterLeaseTracker();
     this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
   }
 
@@ -134,15 +136,35 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       return;
     }
 
-    long previousState = addRequestN(STATE, this, n);
+    final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
+    final boolean leaseEnabled = requesterLeaseTracker != null;
+    final long previousState = addRequestN(STATE, this, n, !leaseEnabled);
+
     if (isTerminated(previousState) || hasRequested(previousState)) {
       return;
     }
 
-    sendFirstPayload(this.payload, n);
+    if (leaseEnabled) {
+      requesterLeaseTracker.issue(this);
+      return;
+    }
+
+    sendFirstPayload(this.payload);
   }
 
-  void sendFirstPayload(Payload payload, long initialRequestN) {
+  @Override
+  public boolean handlePermit() {
+    final long previousState = markReadyToSendFirstFrame(STATE, this);
+
+    if (isTerminated(previousState)) {
+      return false;
+    }
+
+    sendFirstPayload(this.payload);
+    return true;
+  }
+
+  void sendFirstPayload(Payload payload) {
 
     final RequesterResponderSupport sm = this.requesterResponderSupport;
     final DuplexConnection connection = this.connection;
@@ -228,7 +250,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       if (requestInterceptor != null) {
         requestInterceptor.onCancel(streamId, FrameType.REQUEST_RESPONSE);
       }
-    } else if (!hasRequested(previousState)) {
+    } else if (!isReadyToSendFirstFrame(previousState)) {
       this.payload.release();
     }
   }
@@ -283,6 +305,26 @@ final class RequestResponseRequesterMono extends Mono<Payload>
     }
 
     this.actual.onComplete();
+  }
+
+  @Override
+  public final void handlePermitError(Throwable cause) {
+    this.done = true;
+
+    long previousState = markTerminated(STATE, this);
+    if (isTerminated(previousState)) {
+      Operators.onErrorDropped(cause, this.actual.currentContext());
+      return;
+    }
+
+    final Payload p = this.payload;
+    final RequestInterceptor requestInterceptor = this.requestInterceptor;
+    if (requestInterceptor != null) {
+      requestInterceptor.onReject(cause, FrameType.REQUEST_RESPONSE, p.metadata());
+    }
+    p.release();
+
+    this.actual.onError(cause);
   }
 
   @Override

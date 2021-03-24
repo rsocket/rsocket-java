@@ -18,6 +18,8 @@ package io.rsocket.plugins;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -29,13 +31,22 @@ public class InitializingInterceptorRegistry extends InterceptorRegistry {
   @Nullable
   public RequestInterceptor initRequesterRequestInterceptor(RSocket rSocketRequester) {
     return CompositeRequestInterceptor.create(
-        rSocketRequester, getRequestInterceptorsForRequester());
+        getRequestInterceptorsForRequester()
+            .stream()
+            .map(factory -> factory.apply(rSocketRequester))
+            .collect(Collectors.toList()));
   }
 
   @Nullable
-  public RequestInterceptor initResponderRequestInterceptor(RSocket rSocketResponder) {
+  public RequestInterceptor initResponderRequestInterceptor(
+      RSocket rSocketResponder, RequestInterceptor... perConnectionInterceptors) {
     return CompositeRequestInterceptor.create(
-        rSocketResponder, getRequestInterceptorsForResponder());
+        Stream.concat(
+                Stream.of(perConnectionInterceptors),
+                getRequestInterceptorsForResponder()
+                    .stream()
+                    .map(inteptorFactory -> inteptorFactory.apply(rSocketResponder)))
+            .collect(Collectors.toList()));
   }
 
   public DuplexConnection initConnection(

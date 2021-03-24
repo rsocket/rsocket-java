@@ -14,7 +14,6 @@ import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.SetupFrameCodec;
-import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
@@ -62,7 +61,7 @@ public class SetupRejectionTest {
             0,
             null,
             __ -> null,
-            RequesterLeaseHandler.None);
+            null);
 
     String errorMsg = "error";
 
@@ -100,7 +99,7 @@ public class SetupRejectionTest {
             0,
             null,
             __ -> null,
-            RequesterLeaseHandler.None);
+            null);
 
     conn.addToReceivedBuffer(
         ErrorFrameCodec.encode(ByteBufAllocator.DEFAULT, 0, new RejectedSetupException("error")));

@@ -1,10 +1,8 @@
 package io.rsocket.plugins;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.RSocket;
 import io.rsocket.frame.FrameType;
 import java.util.List;
-import java.util.function.Function;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
@@ -13,7 +11,7 @@ class CompositeRequestInterceptor implements RequestInterceptor {
 
   final RequestInterceptor[] requestInterceptors;
 
-  public CompositeRequestInterceptor(RequestInterceptor[] requestInterceptors) {
+  CompositeRequestInterceptor(RequestInterceptor[] requestInterceptors) {
     this.requestInterceptors = requestInterceptors;
   }
 
@@ -80,16 +78,14 @@ class CompositeRequestInterceptor implements RequestInterceptor {
   }
 
   @Nullable
-  static RequestInterceptor create(
-      RSocket rSocket, List<Function<RSocket, ? extends RequestInterceptor>> interceptors) {
+  static RequestInterceptor create(List<RequestInterceptor> interceptors) {
     switch (interceptors.size()) {
       case 0:
         return null;
       case 1:
-        return new SafeRequestInterceptor(interceptors.get(0).apply(rSocket));
+        return new SafeRequestInterceptor(interceptors.get(0));
       default:
-        return new CompositeRequestInterceptor(
-            interceptors.stream().map(f -> f.apply(rSocket)).toArray(RequestInterceptor[]::new));
+        return new CompositeRequestInterceptor(interceptors.toArray(new RequestInterceptor[0]));
     }
   }
 

@@ -49,7 +49,7 @@ public interface DuplexConnection extends Availability, Closeable {
    * <p><strong>Completion</strong>
    *
    * <p>Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link
-   * Subscriber#onComplete()}.
+   * Subscriber#onComplete()}).
    *
    * <p><strong>Error</strong>
    *

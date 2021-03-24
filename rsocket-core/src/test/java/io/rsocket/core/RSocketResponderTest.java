@@ -62,7 +62,6 @@ import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.plugins.TestRequestInterceptor;
 import io.rsocket.test.util.TestDuplexConnection;
@@ -1254,7 +1253,7 @@ public class RSocketResponderTest {
           connection,
           acceptingSocket,
           PayloadDecoder.ZERO_COPY,
-          ResponderLeaseHandler.None,
+          null,
           0,
           maxFrameLength,
           maxInboundPayloadSize,

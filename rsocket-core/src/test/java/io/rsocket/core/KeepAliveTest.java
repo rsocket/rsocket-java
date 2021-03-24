@@ -29,7 +29,7 @@
 // import io.rsocket.frame.FrameHeaderCodec;
 // import io.rsocket.frame.FrameType;
 // import io.rsocket.frame.KeepAliveFrameCodec;
-// import io.rsocket.lease.RequesterLeaseHandler;
+// import io.rsocket.core.RequesterLeaseHandler;
 // import io.rsocket.resume.InMemoryResumableFramesStore;
 //// import io.rsocket.resume.ResumableDuplexConnection;
 // import io.rsocket.test.util.TestDuplexConnection;

@@ -28,7 +28,6 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import java.util.Arrays;
@@ -78,7 +77,7 @@ class RSocketRequesterSubscribersTest {
             0,
             null,
             __ -> null,
-            RequesterLeaseHandler.None);
+            null);
   }
 
   @ParameterizedTest
