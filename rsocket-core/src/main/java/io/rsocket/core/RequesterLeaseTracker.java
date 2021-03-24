@@ -28,8 +28,8 @@ import java.util.Queue;
 final class RequesterLeaseTracker implements Availability {
 
   final String tag;
-  final int allowedDeferredCallsNumber;
-  final Queue<LeaseHandler> deferredCallsQueue;
+  final int maximumAllowedAwaitingPermitHandlersNumber;
+  final Queue<LeasePermitHandler> awaitingPermitHandlersQueue;
 
   Lease currentLease = null;
   int availableRequests;
@@ -37,15 +37,15 @@ final class RequesterLeaseTracker implements Availability {
   boolean isDisposed;
   Throwable t;
 
-  RequesterLeaseTracker(String tag, int allowedDeferredCallsNumber) {
+  RequesterLeaseTracker(String tag, int maximumAllowedAwaitingPermitHandlersNumber) {
     this.tag = tag;
-    this.allowedDeferredCallsNumber = allowedDeferredCallsNumber;
-    this.deferredCallsQueue = new ArrayDeque<>();
+    this.maximumAllowedAwaitingPermitHandlersNumber = maximumAllowedAwaitingPermitHandlersNumber;
+    this.awaitingPermitHandlersQueue = new ArrayDeque<>();
   }
 
-  synchronized void issue(LeaseHandler frameHandler) {
+  synchronized void issue(LeasePermitHandler leasePermitHandler) {
     if (this.isDisposed) {
-      frameHandler.handleError(this.t);
+      leasePermitHandler.handlePermitError(this.t);
       return;
     }
 
@@ -55,12 +55,12 @@ final class RequesterLeaseTracker implements Availability {
     final boolean isExpired = leaseReceived && isExpired(l);
 
     if (leaseReceived && availableRequests > 0 && !isExpired) {
+      leasePermitHandler.handlePermit();
       this.availableRequests = availableRequests - 1;
-      frameHandler.handleLease();
     } else {
-      final Queue<LeaseHandler> queue = this.deferredCallsQueue;
-      if (this.allowedDeferredCallsNumber > queue.size()) {
-        queue.offer(frameHandler);
+      final Queue<LeasePermitHandler> queue = this.awaitingPermitHandlersQueue;
+      if (this.maximumAllowedAwaitingPermitHandlersNumber > queue.size()) {
+        queue.offer(leasePermitHandler);
       } else {
         final String tag = this.tag;
         final String message;
@@ -76,7 +76,7 @@ final class RequesterLeaseTracker implements Availability {
         }
 
         final Throwable t = new MissingLeaseException(message);
-        frameHandler.handleError(t);
+        leasePermitHandler.handlePermitError(t);
       }
     }
   }
@@ -89,16 +89,18 @@ final class RequesterLeaseTracker implements Availability {
     synchronized (this) {
       final Lease lease =
           Lease.create(Duration.ofMillis(timeToLiveMillis), numberOfRequests, metadata);
-      final Queue<LeaseHandler> queue = this.deferredCallsQueue;
+      final Queue<LeasePermitHandler> queue = this.awaitingPermitHandlersQueue;
 
       int availableRequests = lease.numberOfRequests();
 
       this.currentLease = lease;
       if (queue.size() > 0) {
         do {
-          final LeaseHandler handler = queue.poll();
-          handler.handleLease();
-        } while (--availableRequests > 0 && queue.size() > 0);
+          final LeasePermitHandler handler = queue.poll();
+          if (handler.handlePermit()) {
+            availableRequests--;
+          }
+        } while (availableRequests > 0 && queue.size() > 0);
       }
 
       this.availableRequests = availableRequests;
@@ -109,13 +111,14 @@ final class RequesterLeaseTracker implements Availability {
     this.isDisposed = true;
     this.t = t;
 
-    final Queue<LeaseHandler> queue = this.deferredCallsQueue;
+    final Queue<LeasePermitHandler> queue = this.awaitingPermitHandlersQueue;
     final int size = queue.size();
 
     for (int i = 0; i < size; i++) {
-      final LeaseHandler leaseHandler = queue.poll();
+      final LeasePermitHandler leasePermitHandler = queue.poll();
 
-      leaseHandler.handleError(t);
+      //noinspection ConstantConditions
+      leasePermitHandler.handlePermitError(t);
     }
   }
 

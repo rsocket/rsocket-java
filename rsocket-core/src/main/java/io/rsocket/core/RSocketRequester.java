@@ -62,7 +62,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
 
-  @Nullable private final RequesterLeaseTracker leaseHandler;
+  @Nullable private final RequesterLeaseTracker requesterLeaseTracker;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private final MonoProcessor<Void> onClose;
 
@@ -77,7 +77,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       Function<RSocket, RequestInterceptor> requestInterceptorFunction,
-      @Nullable RequesterLeaseTracker leaseHandler) {
+      @Nullable RequesterLeaseTracker requesterLeaseTracker) {
     super(
         mtu,
         maxFrameLength,
@@ -87,7 +87,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         streamIdSupplier,
         requestInterceptorFunction);
 
-    this.leaseHandler = leaseHandler;
+    this.requesterLeaseTracker = requesterLeaseTracker;
     this.onClose = MonoProcessor.create();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
@@ -110,7 +110,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    if (this.leaseHandler == null) {
+    if (this.requesterLeaseTracker == null) {
       return new FireAndForgetRequesterMono(payload, this);
     } else {
       return new SlowFireAndForgetRequesterMono(payload, this);
@@ -145,7 +145,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public RequesterLeaseTracker getRequesterLeaseTracker() {
-    return this.leaseHandler;
+    return this.requesterLeaseTracker;
   }
 
   @Override
@@ -175,9 +175,9 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public double availability() {
-    final RequesterLeaseTracker leaseHandler = this.leaseHandler;
-    if (leaseHandler != null) {
-      return Math.min(getDuplexConnection().availability(), leaseHandler.availability());
+    final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
+    if (requesterLeaseTracker != null) {
+      return Math.min(getDuplexConnection().availability(), requesterLeaseTracker.availability());
     } else {
       return getDuplexConnection().availability();
     }
@@ -221,7 +221,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         tryTerminateOnZeroError(frame);
         break;
       case LEASE:
-        leaseHandler.handleLeaseFrame(frame);
+        requesterLeaseTracker.handleLeaseFrame(frame);
         break;
       case KEEPALIVE:
         if (keepAliveFramesAcceptor != null) {
@@ -337,7 +337,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       requestInterceptor.dispose();
     }
 
-    final RequesterLeaseTracker requesterLeaseTracker = leaseHandler;
+    final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
     if (requesterLeaseTracker != null) {
       requesterLeaseTracker.dispose(e);
     }

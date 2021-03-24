@@ -85,7 +85,7 @@ class RSocketLeaseTest {
   private RSocket mockRSocketHandler;
 
   private EmitterProcessor<Lease> leaseSender = EmitterProcessor.create();
-  private RequesterLeaseTracker leaseTracker;
+  private RequesterLeaseTracker requesterLeaseTracker;
 
   @BeforeEach
   void setUp() {
@@ -93,7 +93,7 @@ class RSocketLeaseTest {
     byteBufAllocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
     connection = new TestDuplexConnection(byteBufAllocator);
-    leaseTracker = new RequesterLeaseTracker(TAG, 0);
+    requesterLeaseTracker = new RequesterLeaseTracker(TAG, 0);
     responderLeaseTracker = new ResponderLeaseTracker(TAG, connection, () -> leaseSender);
 
     ClientServerInputMultiplexer multiplexer =
@@ -110,7 +110,7 @@ class RSocketLeaseTest {
             0,
             null,
             __ -> null,
-            leaseTracker);
+            requesterLeaseTracker);
 
     mockRSocketHandler = mock(RSocket.class);
     when(mockRSocketHandler.metadataPush(any()))
@@ -239,7 +239,7 @@ class RSocketLeaseTest {
   void requesterPresentLeaseRequestsAreAccepted(
       BiFunction<RSocket, Payload, Publisher<?>> interaction, FrameType frameType) {
     ByteBuf frame = leaseFrame(5_000, 2, Unpooled.EMPTY_BUFFER);
-    leaseTracker.handleLeaseFrame(frame);
+    requesterLeaseTracker.handleLeaseFrame(frame);
 
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(1.0, offset(1e-2));
     ByteBuf buffer = byteBufAllocator.buffer();
@@ -291,13 +291,13 @@ class RSocketLeaseTest {
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
     Payload payload1 = ByteBufPayload.create(buffer);
     ByteBuf leaseFrame = leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER);
-    leaseTracker.handleLeaseFrame(leaseFrame);
+    requesterLeaseTracker.handleLeaseFrame(leaseFrame);
 
-    double initialAvailability = leaseTracker.availability();
+    double initialAvailability = requesterLeaseTracker.availability();
     Publisher<?> request = interaction.apply(rSocketRequester, payload1);
 
     // ensures that lease is not used until the frame is sent
-    Assertions.assertThat(initialAvailability).isEqualTo(leaseTracker.availability());
+    Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseTracker.availability());
     Assertions.assertThat(connection.getSent()).hasSize(0);
 
     AssertSubscriber assertSubscriber = AssertSubscriber.create(0);
@@ -306,7 +306,7 @@ class RSocketLeaseTest {
     // if request is FNF, then request frame is sent on subscribe
     // otherwise we need to make request(1)
     if (interactionType != REQUEST_FNF) {
-      Assertions.assertThat(initialAvailability).isEqualTo(leaseTracker.availability());
+      Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseTracker.availability());
       Assertions.assertThat(connection.getSent()).hasSize(0);
 
       assertSubscriber.request(1);
@@ -351,7 +351,7 @@ class RSocketLeaseTest {
   void requesterExpiredLeaseRequestsAreRejected(
       BiFunction<RSocket, Payload, Publisher<?>> interaction) {
     ByteBuf frame = leaseFrame(50, 1, Unpooled.EMPTY_BUFFER);
-    leaseTracker.handleLeaseFrame(frame);
+    requesterLeaseTracker.handleLeaseFrame(frame);
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
@@ -370,7 +370,7 @@ class RSocketLeaseTest {
 
   @Test
   void requesterAvailabilityRespectsTransport() {
-    leaseTracker.handleLeaseFrame(leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER));
+    requesterLeaseTracker.handleLeaseFrame(leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER));
     double unavailable = 0.0;
     connection.setAvailability(unavailable);
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(unavailable, offset(1e-2));

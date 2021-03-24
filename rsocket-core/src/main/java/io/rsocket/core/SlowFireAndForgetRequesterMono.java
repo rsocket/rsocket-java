@@ -43,7 +43,7 @@ import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
 final class SlowFireAndForgetRequesterMono extends Mono<Void>
-    implements LeaseHandler, Subscription, Scannable {
+    implements LeasePermitHandler, Subscription, Scannable {
 
   volatile long state;
 
@@ -58,7 +58,7 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
   final RequesterResponderSupport requesterResponderSupport;
   final DuplexConnection connection;
 
-  @Nullable final RequesterLeaseTracker leaseTracker;
+  @Nullable final RequesterLeaseTracker requesterLeaseTracker;
   @Nullable final RequestInterceptor requestInterceptor;
 
   CoreSubscriber<? super Void> actual;
@@ -72,13 +72,13 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
     this.requesterResponderSupport = requesterResponderSupport;
     this.connection = requesterResponderSupport.getDuplexConnection();
     this.requestInterceptor = requesterResponderSupport.getRequestInterceptor();
-    this.leaseTracker = requesterResponderSupport.getRequesterLeaseTracker();
+    this.requesterLeaseTracker = requesterResponderSupport.getRequesterLeaseTracker();
   }
 
   @Override
   public void subscribe(CoreSubscriber<? super Void> actual) {
-    final RequesterLeaseTracker leaseHandler = this.leaseTracker;
-    final boolean leaseEnabled = leaseHandler != null;
+    final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
+    final boolean leaseEnabled = requesterLeaseTracker != null;
     long previousState = markSubscribed(STATE, this, !leaseEnabled);
     if (isSubscribedOrTerminated(previousState)) {
       final IllegalStateException e =
@@ -128,7 +128,7 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
     actual.onSubscribe(this);
 
     if (leaseEnabled) {
-      leaseHandler.issue(this);
+      requesterLeaseTracker.issue(this);
       return;
     }
 
@@ -136,14 +136,15 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
   }
 
   @Override
-  public void handleLease() {
+  public boolean handlePermit() {
     final long previousState = markReadyToSendFirstFrame(STATE, this);
 
     if (isTerminated(previousState)) {
-      return;
+      return false;
     }
 
     sendFirstFrame(this.payload);
+    return true;
   }
 
   void sendFirstFrame(Payload p) {
@@ -223,7 +224,7 @@ final class SlowFireAndForgetRequesterMono extends Mono<Void>
   }
 
   @Override
-  public final void handleError(Throwable cause) {
+  public final void handlePermitError(Throwable cause) {
     long previousState = markTerminated(STATE, this);
     if (isTerminated(previousState)) {
       Operators.onErrorDropped(cause, this.actual.currentContext());
