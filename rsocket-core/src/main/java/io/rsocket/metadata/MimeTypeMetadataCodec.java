@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Provides support for encoding and/or decoding the per-stream MIME type to use for payload data.
+ * Provides support for encoding and decoding the per-stream MIME type to use for payload data.
  *
  * <p>For more on the format of the metadata, see the <a
  * href="https://github.com/rsocket/rsocket/blob/master/Extensions/PerStreamDataMimeTypesDefinition.md">
@@ -33,30 +33,34 @@ import java.util.List;
  * @since 1.1.1
  */
 public class MimeTypeMetadataCodec {
+
   private static final int STREAM_METADATA_KNOWN_MASK = 0x80; // 1000 0000
+
   private static final byte STREAM_METADATA_LENGTH_MASK = 0x7F; // 0111 1111
 
   private MimeTypeMetadataCodec() {}
 
   /**
-   * Encode a {@link WellKnownMimeType} into a newly allocated {@link ByteBuf} and this can then be
-   * decoded using {@link #decode(ByteBuf)}.
+   * Encode a {@link WellKnownMimeType} into a newly allocated single byte {@link ByteBuf}.
+   *
+   * @param allocator the allocator to create the buffer with
+   * @param mimeType well-known MIME type to encode
+   * @return the resulting buffer
    */
   public static ByteBuf encode(ByteBufAllocator allocator, WellKnownMimeType mimeType) {
     return allocator.buffer(1, 1).writeByte(mimeType.getIdentifier() | STREAM_METADATA_KNOWN_MASK);
   }
 
   /**
-   * Encode either a {@link WellKnownMimeType} or a custom mime type into a newly allocated {@link
-   * ByteBuf}.
+   * Encode the given MIME type into a newly allocated {@link ByteBuf}.
    *
-   * @param allocator the {@link ByteBufAllocator} to use to create the buffer
-   * @param mimeType mime type
-   * @return the encoded mime type
+   * @param allocator the allocator to create the buffer with
+   * @param mimeType MIME type to encode
+   * @return the resulting buffer
    */
   public static ByteBuf encode(ByteBufAllocator allocator, String mimeType) {
     if (mimeType == null || mimeType.length() == 0) {
-      throw new IllegalArgumentException("Mime type null or length is zero");
+      throw new IllegalArgumentException("MIME type is required");
     }
     WellKnownMimeType wkn = WellKnownMimeType.fromString(mimeType);
     if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
@@ -67,79 +71,65 @@ public class MimeTypeMetadataCodec {
   }
 
   /**
-   * Encode multiple {@link WellKnownMimeType} or custom mime type into a newly allocated {@link
-   * ByteBuf}.
+   * Encode multiple MIME types into a newly allocated {@link ByteBuf}.
    *
-   * @param allocator the {@link ByteBufAllocator} to use to create the buffer
-   * @param mimeTypes mime types
-   * @return the encoded mime types
+   * @param allocator the allocator to create the buffer with
+   * @param mimeTypes MIME types to encode
+   * @return the resulting buffer
    */
   public static ByteBuf encode(ByteBufAllocator allocator, List<String> mimeTypes) {
     if (mimeTypes == null || mimeTypes.size() == 0) {
-      throw new IllegalArgumentException("Mime types empty");
+      throw new IllegalArgumentException("No MIME types provided");
     }
-    CompositeByteBuf compositeMimeByteBuf = allocator.compositeBuffer();
+    CompositeByteBuf compositeByteBuf = allocator.compositeBuffer();
     for (String mimeType : mimeTypes) {
-      compositeMimeByteBuf.addComponents(true, encode(allocator, mimeType));
+      ByteBuf byteBuf = encode(allocator, mimeType);
+      compositeByteBuf.addComponents(true, byteBuf);
     }
-    return compositeMimeByteBuf;
+    return compositeByteBuf;
   }
 
-  /**
-   * Encode a custom mime type into a newly allocated {@link ByteBuf}.
-   *
-   * <p>This larger representation encodes the mime type representation's length on a single byte,
-   * then the representation itself.
-   *
-   * @param allocator the {@link ByteBufAllocator} to use to create the buffer
-   * @param customMimeType a custom mime type to encode
-   * @return the encoded mime type
-   */
   private static ByteBuf encodeCustomMimeType(ByteBufAllocator allocator, String customMimeType) {
-    ByteBuf mime = allocator.buffer(1 + customMimeType.length());
-    // reserve 1 byte for the customMime length
-    // /!\ careful not to read that first byte, which is random at this point
-    mime.writerIndex(1);
+    ByteBuf byteBuf = allocator.buffer(1 + customMimeType.length());
 
-    // write the custom mime in UTF8 but validate it is all ASCII-compatible
-    // (which produces the right result since ASCII chars are still encoded on 1 byte in UTF8)
-    int customMimeLength = ByteBufUtil.writeUtf8(mime, customMimeType);
-    if (!ByteBufUtil.isText(mime, mime.readerIndex() + 1, customMimeLength, CharsetUtil.US_ASCII)) {
-      mime.release();
-      throw new IllegalArgumentException("custom mime type must be US_ASCII characters only");
+    byteBuf.writerIndex(1);
+    int length = ByteBufUtil.writeUtf8(byteBuf, customMimeType);
+
+    if (!ByteBufUtil.isText(byteBuf, 1, length, CharsetUtil.US_ASCII)) {
+      byteBuf.release();
+      throw new IllegalArgumentException("MIME type must be ASCII characters only");
     }
-    if (customMimeLength < 1 || customMimeLength > 128) {
-      mime.release();
+
+    if (length < 1 || length > 128) {
+      byteBuf.release();
       throw new IllegalArgumentException(
-          "custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
+          "MIME type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
     }
-    mime.markWriterIndex();
-    // go back to beginning and write the length
-    // encoded length is one less than actual length, since 0 is never a valid length, which gives
-    // wider representation range
-    mime.writerIndex(0);
-    mime.writeByte(customMimeLength - 1);
 
-    // go back to post-mime type
-    mime.resetWriterIndex();
-    return mime;
+    byteBuf.markWriterIndex();
+    byteBuf.writerIndex(0);
+    byteBuf.writeByte(length - 1);
+    byteBuf.resetWriterIndex();
+
+    return byteBuf;
   }
 
   /**
-   * Decode mime types from a {@link ByteBuf} that contains at least enough bytes for one mime type.
+   * Decode the per-stream MIME type metadata encoded in the given {@link ByteBuf}.
    *
-   * @return decoded mime types
+   * @return the decoded MIME types
    */
-  public static List<String> decode(ByteBuf buf) {
+  public static List<String> decode(ByteBuf byteBuf) {
     List<String> mimeTypes = new ArrayList<>();
-    while (buf.isReadable()) {
-      byte mimeIdOrLength = buf.readByte();
-      if ((mimeIdOrLength & STREAM_METADATA_KNOWN_MASK) == STREAM_METADATA_KNOWN_MASK) {
-        byte mimeIdentifier = (byte) (mimeIdOrLength & STREAM_METADATA_LENGTH_MASK);
-        mimeTypes.add(WellKnownMimeType.fromIdentifier(mimeIdentifier).toString());
+    while (byteBuf.isReadable()) {
+      byte idOrLength = byteBuf.readByte();
+      if ((idOrLength & STREAM_METADATA_KNOWN_MASK) == STREAM_METADATA_KNOWN_MASK) {
+        byte id = (byte) (idOrLength & STREAM_METADATA_LENGTH_MASK);
+        WellKnownMimeType wellKnownMimeType = WellKnownMimeType.fromIdentifier(id);
+        mimeTypes.add(wellKnownMimeType.toString());
       } else {
-        int mimeLen = Byte.toUnsignedInt(mimeIdOrLength) + 1;
-        mimeTypes.add(buf.readCharSequence(mimeLen, CharsetUtil.US_ASCII).toString());
+        int length = Byte.toUnsignedInt(idOrLength) + 1;
+        mimeTypes.add(byteBuf.readCharSequence(length, CharsetUtil.US_ASCII).toString());
       }
     }
     return mimeTypes;
