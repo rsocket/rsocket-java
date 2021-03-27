@@ -918,10 +918,14 @@ public class ReconnectMonoTests {
     for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value");
+      cold.complete();
       final int timeout = 10;
 
       final ReconnectMono<String> reconnectMono =
-          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
+          cold.flux()
+              .takeLast(1)
+              .next()
+              .as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
       StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
@@ -937,16 +941,18 @@ public class ReconnectMonoTests {
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
 
+      cold.next("value2");
+
       StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
-          .expectNext("value")
+          .expectNext("value2")
           .expectComplete()
           .verify(Duration.ofSeconds(timeout));
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
       Assertions.assertThat(received)
           .hasSize(2)
-          .containsOnly(Tuples.of("value", reconnectMono), Tuples.of("value", reconnectMono));
+          .containsOnly(Tuples.of("value", reconnectMono), Tuples.of("value2", reconnectMono));
 
       Assertions.assertThat(cold.subscribeCount()).isEqualTo(2);
 

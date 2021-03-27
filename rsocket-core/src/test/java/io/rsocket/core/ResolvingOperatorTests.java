@@ -36,30 +36,31 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Hooks;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
-import reactor.util.retry.Retry;
 
 public class ResolvingOperatorTests {
-
-  private Queue<Retry.RetrySignal> retries = new ConcurrentLinkedQueue<>();
 
   @Test
   public void shouldExpireValueOnRacingDisposeAndComplete() {
     for (int i = 0; i < 10000; i++) {
       final int index = i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -75,13 +76,15 @@ public class ResolvingOperatorTests {
           .ifResolvedAssertEqual("value" + index)
           .assertIsDisposed();
 
-      if (processor.isError()) {
-        Assertions.assertThat(processor.getError())
+      subscriber.assertTerminated();
+
+      if (!subscriber.errors().isEmpty()) {
+        Assertions.assertThat(subscriber.errors().get(0))
             .isInstanceOf(CancellationException.class)
             .hasMessage("Disposed");
 
       } else {
-        Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+        Assertions.assertThat(subscriber.values()).containsExactly("value" + i);
       }
     }
   }
@@ -91,26 +94,30 @@ public class ResolvingOperatorTests {
     for (int i = 0; i < 10000; i++) {
       final String valueToSend = "value" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -122,10 +129,7 @@ public class ResolvingOperatorTests {
               self -> {
                 RaceTestUtils.race(() -> self.complete(valueToSend), () -> self.observe(consumer));
 
-                StepVerifier.create(processor)
-                    .expectNext(valueToSend)
-                    .expectComplete()
-                    .verify(Duration.ofMillis(10));
+                subscriber.await(Duration.ofMillis(10)).assertValues(valueToSend).assertComplete();
               })
           .assertDisposeCalled(0)
           .assertReceivedExactly(valueToSend)
@@ -133,10 +137,7 @@ public class ResolvingOperatorTests {
           .thenAddObserver(consumer2)
           .assertPendingSubscribers(0);
 
-      StepVerifier.create(processor2)
-          .expectNext(valueToSend)
-          .expectComplete()
-          .verify(Duration.ofMillis(10));
+      subscriber2.await(Duration.ofMillis(10)).assertValues(valueToSend).assertComplete();
     }
   }
 
@@ -146,26 +147,30 @@ public class ResolvingOperatorTests {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value2" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -178,10 +183,7 @@ public class ResolvingOperatorTests {
               self -> {
                 self.complete(valueToSend);
 
-                StepVerifier.create(processor)
-                    .expectNext(valueToSend)
-                    .expectComplete()
-                    .verify(Duration.ofMillis(10));
+                subscriber.await(Duration.ofMillis(10)).assertValues(valueToSend).assertComplete();
               })
           .assertReceivedExactly(valueToSend)
           .then(
@@ -190,7 +192,7 @@ public class ResolvingOperatorTests {
                       self::invalidate,
                       () -> {
                         self.observe(consumer2);
-                        if (!processor2.isTerminated()) {
+                        if (!subscriber2.isTerminated()) {
                           self.complete(valueToSend2);
                         }
                       }))
@@ -207,17 +209,18 @@ public class ResolvingOperatorTests {
           .assertDisposeCalled(0)
           .then(
               self ->
-                  StepVerifier.create(processor2)
-                      .expectNextMatches(
-                          (v) -> {
+                  subscriber2
+                      .await(Duration.ofMillis(100))
+                      .assertValueCount(1)
+                      .assertValuesWith(
+                          v -> {
                             if (self.subscribers == ResolvingOperator.READY) {
-                              return v.equals(valueToSend2);
+                              Assertions.assertThat(v).isEqualTo(valueToSend2);
                             } else {
-                              return v.equals(valueToSend);
+                              Assertions.assertThat(v).isEqualTo(valueToSend);
                             }
                           })
-                      .expectComplete()
-                      .verify(Duration.ofMillis(100)));
+                      .assertComplete());
     }
   }
 
@@ -227,26 +230,30 @@ public class ResolvingOperatorTests {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value_to_possibly_expire" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -259,10 +266,7 @@ public class ResolvingOperatorTests {
               self -> {
                 self.complete(valueToSend);
 
-                StepVerifier.create(processor)
-                    .expectNext(valueToSend)
-                    .expectComplete()
-                    .verify(Duration.ofMillis(10));
+                subscriber.await(Duration.ofMillis(100)).assertValues(valueToSend).assertComplete();
               })
           .assertReceivedExactly(valueToSend)
           .then(
@@ -272,7 +276,7 @@ public class ResolvingOperatorTests {
                       self::invalidate,
                       () -> {
                         self.observe(consumer2);
-                        if (!processor2.isTerminated()) {
+                        if (!subscriber2.isTerminated()) {
                           self.complete(valueToSend2);
                         }
                       }))
@@ -292,7 +296,7 @@ public class ResolvingOperatorTests {
                     .haveAtMost(
                         2,
                         new Condition<>(
-                            new Predicate() {
+                            new Predicate<Object>() {
                               int time = 0;
 
                               @Override
@@ -309,22 +313,19 @@ public class ResolvingOperatorTests {
           .assertPendingSubscribers(0)
           .assertDisposeCalled(0)
           .then(
-              new Consumer<ResolvingTest<String>>() {
-                @Override
-                public void accept(ResolvingTest<String> self) {
-                  StepVerifier.create(processor2)
-                      .expectNextMatches(
-                          (v) -> {
+              self ->
+                  subscriber2
+                      .await(Duration.ofMillis(100))
+                      .assertValueCount(1)
+                      .assertValuesWith(
+                          v -> {
                             if (self.subscribers == ResolvingOperator.READY) {
-                              return v.equals(valueToSend2);
+                              Assertions.assertThat(v).isEqualTo(valueToSend2);
                             } else {
-                              return v.equals(valueToSend) || v.equals(valueToSend2);
+                              Assertions.assertThat(v).isIn(valueToSend, valueToSend2);
                             }
                           })
-                      .expectComplete()
-                      .verify(Duration.ofMillis(100));
-                }
-              });
+                      .assertComplete());
     }
   }
 
@@ -334,15 +335,17 @@ public class ResolvingOperatorTests {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value2" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -355,10 +358,7 @@ public class ResolvingOperatorTests {
               self -> {
                 self.complete(valueToSend);
 
-                StepVerifier.create(processor)
-                    .expectNext(valueToSend)
-                    .expectComplete()
-                    .verify(Duration.ofMillis(10));
+                subscriber.await(Duration.ofMillis(10)).assertValues(valueToSend).assertComplete();
               })
           .assertReceivedExactly(valueToSend)
           .then(
@@ -395,26 +395,30 @@ public class ResolvingOperatorTests {
     for (int i = 0; i < 10000; i++) {
       final String valueToSend = "value" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
 
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -434,11 +438,11 @@ public class ResolvingOperatorTests {
           .assertDisposeCalled(0)
           .then(
               self -> {
-                Assertions.assertThat(processor.isTerminated()).isTrue();
-                Assertions.assertThat(processor2.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber2.isTerminated()).isTrue();
 
-                Assertions.assertThat(processor.peek()).isEqualTo(valueToSend);
-                Assertions.assertThat(processor2.peek()).isEqualTo(valueToSend);
+                Assertions.assertThat(subscriber.values()).containsExactly(valueToSend);
+                Assertions.assertThat(subscriber2.values()).containsExactly(valueToSend);
 
                 Assertions.assertThat(self.subscribers).isEqualTo(ResolvingOperator.READY);
 
@@ -452,17 +456,20 @@ public class ResolvingOperatorTests {
     for (int i = 0; i < 10000; i++) {
       final String valueToSend = "value" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
 
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -474,7 +481,11 @@ public class ResolvingOperatorTests {
           .then(
               self ->
                   RaceTestUtils.race(
-                      () -> processor.onNext(self.block(null)), () -> self.observe(consumer2)))
+                      () -> {
+                        subscriber.onNext(self.block(null));
+                        subscriber.onComplete();
+                      },
+                      () -> self.observe(consumer2)))
           .assertSubscribeCalled(1)
           .assertPendingSubscribers(0)
           .assertReceivedExactly(valueToSend)
@@ -482,11 +493,11 @@ public class ResolvingOperatorTests {
           .assertDisposeCalled(0)
           .then(
               self -> {
-                Assertions.assertThat(processor.isTerminated()).isTrue();
-                Assertions.assertThat(processor2.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber2.isTerminated()).isTrue();
 
-                Assertions.assertThat(processor.peek()).isEqualTo(valueToSend);
-                Assertions.assertThat(processor2.peek()).isEqualTo(valueToSend);
+                Assertions.assertThat(subscriber.values()).containsExactly(valueToSend);
+                Assertions.assertThat(subscriber2.values()).containsExactly(valueToSend);
 
                 Assertions.assertThat(self.subscribers).isEqualTo(ResolvingOperator.READY);
 
@@ -501,8 +512,11 @@ public class ResolvingOperatorTests {
     for (int i = 0; i < 10000; i++) {
       final String valueToSend = "value" + i;
 
-      MonoProcessor<String> processor = MonoProcessor.create();
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
+
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
 
       ResolvingTest.<String>create()
           .assertNothingExpired()
@@ -513,8 +527,14 @@ public class ResolvingOperatorTests {
           .then(
               self ->
                   RaceTestUtils.race(
-                      () -> processor.onNext(self.block(timeout)),
-                      () -> processor2.onNext(self.block(timeout))))
+                      () -> {
+                        subscriber.onNext(self.block(timeout));
+                        subscriber.onComplete();
+                      },
+                      () -> {
+                        subscriber2.onNext(self.block(timeout));
+                        subscriber2.onComplete();
+                      }))
           .assertSubscribeCalled(1)
           .assertPendingSubscribers(0)
           .assertReceivedExactly(valueToSend)
@@ -522,11 +542,11 @@ public class ResolvingOperatorTests {
           .assertDisposeCalled(0)
           .then(
               self -> {
-                Assertions.assertThat(processor.isTerminated()).isTrue();
-                Assertions.assertThat(processor2.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber.isTerminated()).isTrue();
+                Assertions.assertThat(subscriber2.isTerminated()).isTrue();
 
-                Assertions.assertThat(processor.peek()).isEqualTo(valueToSend);
-                Assertions.assertThat(processor2.peek()).isEqualTo(valueToSend);
+                Assertions.assertThat(subscriber.values()).containsExactly(valueToSend);
+                Assertions.assertThat(subscriber2.values()).containsExactly(valueToSend);
 
                 Assertions.assertThat(self.subscribers).isEqualTo(ResolvingOperator.READY);
 
@@ -541,25 +561,30 @@ public class ResolvingOperatorTests {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
     for (int i = 0; i < 10000; i++) {
-      MonoProcessor<String> processor = MonoProcessor.create();
+      AssertSubscriber<String> subscriber = AssertSubscriber.create();
+      subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
           (v, t) -> {
             if (t != null) {
-              processor.onError(t);
+              subscriber.onError(t);
               return;
             }
 
-            processor.onNext(v);
+            subscriber.onNext(v);
+            subscriber.onComplete();
           };
-      MonoProcessor<String> processor2 = MonoProcessor.create();
+
+      AssertSubscriber<String> subscriber2 = AssertSubscriber.create();
+      subscriber2.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer2 =
           (v, t) -> {
             if (t != null) {
-              processor2.onError(t);
+              subscriber2.onError(t);
               return;
             }
 
-            processor2.onNext(v);
+            subscriber2.onNext(v);
+            subscriber2.onComplete();
           };
 
       ResolvingTest.<String>create()
@@ -583,8 +608,9 @@ public class ResolvingOperatorTests {
               })
           .thenAddObserver(consumer2);
 
-      StepVerifier.create(processor)
-          .expectErrorSatisfies(
+      subscriber
+          .await(Duration.ofMillis(10))
+          .assertErrorWith(
               t -> {
                 if (t instanceof CancellationException) {
                   Assertions.assertThat(t)
@@ -593,11 +619,11 @@ public class ResolvingOperatorTests {
                 } else {
                   Assertions.assertThat(t).isInstanceOf(RuntimeException.class).hasMessage("test");
                 }
-              })
-          .verify(Duration.ofMillis(10));
+              });
 
-      StepVerifier.create(processor2)
-          .expectErrorSatisfies(
+      subscriber2
+          .await(Duration.ofMillis(10))
+          .assertErrorWith(
               t -> {
                 if (t instanceof CancellationException) {
                   Assertions.assertThat(t)
@@ -606,8 +632,7 @@ public class ResolvingOperatorTests {
                 } else {
                   Assertions.assertThat(t).isInstanceOf(RuntimeException.class).hasMessage("test");
                 }
-              })
-          .verify(Duration.ofMillis(10));
+              });
 
       // no way to guarantee equality because of racing
       //      Assertions.assertThat(processor.getError())
@@ -656,9 +681,10 @@ public class ResolvingOperatorTests {
   static Stream<Function<ResolvingTest<String>, Publisher<String>>> innerCases() {
     return Stream.of(
         (self) -> {
-          final MonoProcessor<String> processor = MonoProcessor.create();
+          final Sinks.One<String> processor = Sinks.unsafe().one();
           final ResolvingOperator.DeferredResolution<String, String> operator =
-              new ResolvingOperator.DeferredResolution<String, String>(self, processor) {
+              new ResolvingOperator.DeferredResolution<String, String>(
+                  self, new SinkOneSubscriber(processor)) {
                 @Override
                 public void accept(String v, Throwable t) {
                   if (t != null) {
@@ -669,14 +695,21 @@ public class ResolvingOperatorTests {
                   onNext(v);
                 }
               };
-          return processor.doOnSubscribe(s -> self.observe(operator)).doOnCancel(operator::cancel);
+          return processor
+              .asMono()
+              .doOnSubscribe(s -> self.observe(operator))
+              .doOnCancel(operator::cancel);
         },
         (self) -> {
-          final MonoProcessor<String> processor = MonoProcessor.create();
+          final Sinks.One<String> processor = Sinks.unsafe().one();
+          final SinkOneSubscriber subscriber = new SinkOneSubscriber(processor);
           final ResolvingOperator.MonoDeferredResolutionOperator<String> operator =
-              new ResolvingOperator.MonoDeferredResolutionOperator<>(self, processor);
-          processor.onSubscribe(operator);
-          return processor.doOnSubscribe(s -> self.observe(operator)).doOnCancel(operator::cancel);
+              new ResolvingOperator.MonoDeferredResolutionOperator<>(self, subscriber);
+          subscriber.onSubscribe(operator);
+          return processor
+              .asMono()
+              .doOnSubscribe(s -> self.observe(operator))
+              .doOnCancel(operator::cancel);
         });
   }
 
@@ -729,12 +762,12 @@ public class ResolvingOperatorTests {
   public void shouldNotifyAllTheSubscribers(
       Function<ResolvingTest<String>, Publisher<String>> caseProducer) {
 
-    final MonoProcessor<String> sub1 = MonoProcessor.create();
-    final MonoProcessor<String> sub2 = MonoProcessor.create();
-    final MonoProcessor<String> sub3 = MonoProcessor.create();
-    final MonoProcessor<String> sub4 = MonoProcessor.create();
+    AssertSubscriber<String> sub1 = AssertSubscriber.create();
+    AssertSubscriber<String> sub2 = AssertSubscriber.create();
+    AssertSubscriber<String> sub3 = AssertSubscriber.create();
+    AssertSubscriber<String> sub4 = AssertSubscriber.create();
 
-    final ArrayList<MonoProcessor<String>> processors = new ArrayList<>(200);
+    final ArrayList<AssertSubscriber<String>> processors = new ArrayList<>(200);
 
     ResolvingTest.<String>create()
         .assertDisposeCalled(0)
@@ -754,8 +787,8 @@ public class ResolvingOperatorTests {
         .then(
             self -> {
               for (int i = 0; i < 100; i++) {
-                final MonoProcessor<String> subA = MonoProcessor.create();
-                final MonoProcessor<String> subB = MonoProcessor.create();
+                AssertSubscriber<String> subA = AssertSubscriber.create();
+                AssertSubscriber<String> subB = AssertSubscriber.create();
                 processors.add(subA);
                 processors.add(subB);
                 RaceTestUtils.race(
@@ -765,20 +798,20 @@ public class ResolvingOperatorTests {
             })
         .assertSubscribeCalled(1)
         .assertPendingSubscribers(204)
-        .then(self -> sub1.dispose())
+        .then(self -> sub1.cancel())
         .assertPendingSubscribers(203)
         .then(
             self -> {
               String valueToSend = "value";
               self.complete(valueToSend);
 
-              Assertions.assertThatThrownBy(sub1::peek).isInstanceOf(CancellationException.class);
-              Assertions.assertThat(sub2.peek()).isEqualTo(valueToSend);
-              Assertions.assertThat(sub3.peek()).isEqualTo(valueToSend);
-              Assertions.assertThat(sub4.peek()).isEqualTo(valueToSend);
+              Assertions.assertThat(sub1.isTerminated()).isFalse();
+              Assertions.assertThat(sub2.values()).containsExactly(valueToSend);
+              Assertions.assertThat(sub3.values()).containsExactly(valueToSend);
+              Assertions.assertThat(sub4.values()).containsExactly(valueToSend);
 
-              for (MonoProcessor<String> sub : processors) {
-                Assertions.assertThat(sub.peek()).isEqualTo(valueToSend);
+              for (AssertSubscriber<String> sub : processors) {
+                Assertions.assertThat(sub.values()).containsExactly(valueToSend);
                 Assertions.assertThat(sub.isTerminated()).isTrue();
               }
             })
@@ -957,6 +990,39 @@ public class ResolvingOperatorTests {
     @Override
     protected void doOnDispose() {
       onDisposeCalls.incrementAndGet();
+    }
+  }
+
+  private static class SinkOneSubscriber implements CoreSubscriber<String> {
+
+    private final Sinks.One<String> processor;
+    private boolean valueReceived;
+
+    public SinkOneSubscriber(Sinks.One<String> processor) {
+      this.processor = processor;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      s.request(Long.MAX_VALUE);
+    }
+
+    @Override
+    public void onNext(String s) {
+      valueReceived = true;
+      processor.tryEmitValue(s);
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      processor.tryEmitError(t);
+    }
+
+    @Override
+    public void onComplete() {
+      if (!valueReceived) {
+        processor.tryEmitEmpty();
+      }
     }
   }
 }
