@@ -21,6 +21,7 @@ plugins {
     id 'com.jfrog.bintray'
     id 'io.morethan.jmhreport'
     id 'me.champeau.gradle.jmh'
+    id 'io.github.reyerizo.gradle.jcstress'
 }
 
 dependencies {
@@ -43,6 +44,13 @@ dependencies {
     testCompileOnly 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+
+    jcstressImplementation "ch.qos.logback:logback-classic"
+}
+
+jcstress {
+    mode = 'default' //quick, default, tough
+    jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.7"
 }
 
 jar {
