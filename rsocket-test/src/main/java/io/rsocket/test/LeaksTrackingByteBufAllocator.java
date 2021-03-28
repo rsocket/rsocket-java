@@ -18,7 +18,7 @@ import org.assertj.core.api.Assertions;
  * Additional Utils which allows to decorate a ByteBufAllocator and track/assertOnLeaks all created
  * ByteBuffs
  */
-class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
+public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
   /**
    * Allows to instrument any given the instance of ByteBufAllocator

@@ -39,7 +39,7 @@ public class StressSubscription<T> implements Subscription {
 
   public volatile int requestsCount;
 
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings("rawtype  s")
   static final AtomicIntegerFieldUpdater<StressSubscription> REQUESTS_COUNT =
       AtomicIntegerFieldUpdater.newUpdater(StressSubscription.class, "requestsCount");
 
