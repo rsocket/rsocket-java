@@ -55,8 +55,9 @@ final class RequesterLeaseTracker implements Availability {
     final boolean isExpired = leaseReceived && isExpired(l);
 
     if (leaseReceived && availableRequests > 0 && !isExpired) {
-      leasePermitHandler.handlePermit();
-      this.availableRequests = availableRequests - 1;
+      if (leasePermitHandler.handlePermit()) {
+        this.availableRequests = availableRequests - 1;
+      }
     } else {
       final Queue<LeasePermitHandler> queue = this.awaitingPermitHandlersQueue;
       if (this.maximumAllowedAwaitingPermitHandlersNumber > queue.size()) {

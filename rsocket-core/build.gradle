@@ -42,6 +42,7 @@ dependencies {
 
     testImplementation 'org.hamcrest:hamcrest-library'
 
+    jcstressImplementation(project(":rsocket-test"))
     jcstressImplementation "ch.qos.logback:logback-classic"
 }
 
