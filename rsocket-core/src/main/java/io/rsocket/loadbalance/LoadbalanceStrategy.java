@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,21 @@ package io.rsocket.loadbalance;
 import io.rsocket.RSocket;
 import java.util.List;
 
+/**
+ * Strategy to select an {@link RSocket} given a list of instances for load-balancing purposes. A
+ * simple implementation might go in round-robin fashion while a more sophisticated strategy might
+ * check availability, track usage stats, and so on.
+ *
+ * @since 1.1
+ */
 @FunctionalInterface
 public interface LoadbalanceStrategy {
 
-  RSocket select(List<RSocket> availableRSockets);
+  /**
+   * Select an {@link RSocket} from the given non-empty list.
+   *
+   * @param sockets the list to choose from
+   * @return the selected instance
+   */
+  RSocket select(List<RSocket> sockets);
 }
