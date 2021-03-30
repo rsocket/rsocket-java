@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import reactor.core.Scannable;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
+
+// This class is a copy of the same class in io.rsocket.core
 
 class ResolvingOperator<T> implements Disposable {
 
@@ -72,7 +74,7 @@ class ResolvingOperator<T> implements Disposable {
   }
 
   @Override
-  public void dispose() {
+  public final void dispose() {
     this.terminate(ON_DISPOSE);
   }
 
@@ -557,57 +559,6 @@ class ResolvingOperator<T> implements Disposable {
       } else {
         this.parent.remove(this);
       }
-    }
-  }
-
-  static class MonoDeferredResolutionOperator<T> extends Operators.MonoSubscriber<T, T>
-      implements BiConsumer<T, Throwable> {
-
-    final ResolvingOperator<T> parent;
-
-    MonoDeferredResolutionOperator(ResolvingOperator<T> parent, CoreSubscriber<? super T> actual) {
-      super(actual);
-      this.parent = parent;
-    }
-
-    @Override
-    public void accept(T t, Throwable throwable) {
-      if (throwable != null) {
-        onError(throwable);
-        return;
-      }
-
-      complete(t);
-    }
-
-    @Override
-    public void cancel() {
-      if (!isCancelled()) {
-        super.cancel();
-        this.parent.remove(this);
-      }
-    }
-
-    @Override
-    public void onComplete() {
-      if (!isCancelled()) {
-        this.actual.onComplete();
-      }
-    }
-
-    @Override
-    public void onError(Throwable t) {
-      if (isCancelled()) {
-        Operators.onErrorDropped(t, currentContext());
-      } else {
-        this.actual.onError(t);
-      }
-    }
-
-    @Override
-    public Object scanUnsafe(Attr key) {
-      if (key == Attr.PARENT) return this.parent;
-      return super.scanUnsafe(key);
     }
   }
 }

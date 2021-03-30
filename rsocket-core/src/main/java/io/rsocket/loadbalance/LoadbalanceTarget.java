@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,18 @@
  */
 package io.rsocket.loadbalance;
 
+import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.ClientTransport;
+import org.reactivestreams.Publisher;
 
 /**
- * Simple container for a key and a {@link ClientTransport}, representing a specific target for
- * loadbalancing purposes. The key is used to compare previous and new targets when refreshing the
- * list of target to use. The transport is used to connect to the target.
+ * Representation for a load-balance target used as input to {@link LoadbalanceRSocketClient} that
+ * in turn maintains and peridodically updates a list of current load-balance targets. The {@link
+ * #getKey()} is used to identify a target uniquely while the {@link #getTransport() transport} is
+ * used to connect to the target server.
  *
  * @since 1.1
+ * @see LoadbalanceRSocketClient#create(RSocketConnector, Publisher)
  */
 public class LoadbalanceTarget {
 
@@ -34,23 +38,22 @@ public class LoadbalanceTarget {
     this.transport = transport;
   }
 
-  /** Return the key for this target. */
+  /** Return the key that identifies this target uniquely. */
   public String getKey() {
     return key;
   }
 
-  /** Return the transport to use to connect to the target. */
+  /** Return the transport to use to connect to the target server. */
   public ClientTransport getTransport() {
     return transport;
   }
 
   /**
-   * Create a an instance of {@link LoadbalanceTarget} with the given key and {@link
-   * ClientTransport}. The key can be anything that can be used to identify identical targets, e.g.
-   * a SocketAddress, URL, etc.
+   * Create a new {@link LoadbalanceTarget} with the given key and {@link ClientTransport}. The key
+   * can be anything that identifies the target uniquely, e.g. SocketAddress, URL, and so on.
    *
-   * @param key the key to use to identify identical targets
-   * @param transport the transport to use for connecting to the target
+   * @param key identifies the load-balance target uniquely
+   * @param transport for connecting to the target
    * @return the created instance
    */
   public static LoadbalanceTarget from(String key, ClientTransport transport) {

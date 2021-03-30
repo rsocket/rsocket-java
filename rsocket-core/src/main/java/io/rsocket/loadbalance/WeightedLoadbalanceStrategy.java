@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,16 @@ import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
 /**
- * {@link LoadbalanceStrategy} that assigns a weight to each {@code RSocket} based on usage
- * statistics, and uses this weight to select the {@code RSocket} to use.
+ * {@link LoadbalanceStrategy} that assigns a weight to each {@code RSocket} based on {@link
+ * RSocket#availability() availability} and usage statistics. The weight is used to decide which
+ * {@code RSocket} to select.
+ *
+ * <p>Use {@link #create()} or a {@link #builder() Builder} to create an instance.
  *
  * @since 1.1
+ * @see <a href="https://www.youtube.com/watch?v=6NdxUY1La2I">Predictive Load-Balancing: Unfair but
+ *     Faster & more Robust</a>
+ * @see WeightedStatsRequestInterceptor
  */
 public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
 
@@ -55,7 +61,6 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
 
   @Override
   public RSocket select(List<RSocket> sockets) {
-    final int numberOfAttepmts = this.maxPairSelectionAttempts;
     final int size = sockets.size();
 
     RSocket weightedRSocket;
@@ -83,7 +88,7 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
           RSocket rsc1 = null;
           RSocket rsc2 = null;
 
-          for (int i = 0; i < numberOfAttepmts; i++) {
+          for (int i = 0; i < this.maxPairSelectionAttempts; i++) {
             int i1 = ThreadLocalRandom.current().nextInt(size);
             int i2 = ThreadLocalRandom.current().nextInt(size - 1);
 
@@ -148,7 +153,10 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
     return Math.pow(1 + alpha, EXP_FACTOR);
   }
 
-  /** Create an instance of {@link WeightedLoadbalanceStrategy} with default settings. */
+  /**
+   * Create an instance of {@link WeightedLoadbalanceStrategy} with default settings, which include
+   * round-robin load-balancing and 5 {@link #maxPairSelectionAttempts}.
+   */
   public static WeightedLoadbalanceStrategy create() {
     return new Builder().build();
   }
@@ -185,17 +193,22 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
      * Configure how the created {@link WeightedLoadbalanceStrategy} should find the stats for a
      * given RSocket.
      *
-     * <p>By default {@code WeightedLoadbalanceStrategy} installs a {@code RequestInterceptor} when
-     * {@link ClientLoadbalanceStrategy#initialize(RSocketConnector)} is called in order to keep
-     * track of stats.
+     * <p>By default this resolver is not set.
      *
-     * @param resolver the function to find the stats for an RSocket
+     * <p>When {@code WeightedLoadbalanceStrategy} is used through the {@link
+     * LoadbalanceRSocketClient}, the resolver does not need to be set because a {@link
+     * WeightedStatsRequestInterceptor} is automatically installed through the {@link
+     * ClientLoadbalanceStrategy} callback. If this strategy is used in any other context however, a
+     * resolver here must be provided.
+     *
+     * @param resolver to find the stats for an RSocket with
      */
     public Builder weightedStatsResolver(Function<RSocket, WeightedStats> resolver) {
       this.weightedStatsResolver = resolver;
       return this;
     }
 
+    /** Build the {@code WeightedLoadbalanceStrategy} instance. */
     public WeightedLoadbalanceStrategy build() {
       return new WeightedLoadbalanceStrategy(
           this.maxPairSelectionAttempts, this.weightedStatsResolver);

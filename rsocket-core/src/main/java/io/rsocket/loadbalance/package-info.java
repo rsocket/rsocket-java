@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+/** Support client load-balancing in RSocket Java. */
 @NonNullApi
 package io.rsocket.loadbalance;
 
