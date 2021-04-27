@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.rsocket.core;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -343,15 +344,15 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     }
 
     synchronized (this) {
-      activeStreams
-          .values()
-          .forEach(
-              receiver -> {
-                try {
-                  receiver.handleError(e);
-                } catch (Throwable ignored) {
-                }
-              });
+      for (IntObjectMap.PrimitiveEntry<FrameHandler> entry : activeStreams.entries()) {
+        FrameHandler handler = entry.value();
+        if (handler != null) {
+          try {
+            handler.handleError(e);
+          } catch (Throwable ignored) {
+          }
+        }
+      }
     }
 
     if (e == CLOSED_CHANNEL_EXCEPTION) {
