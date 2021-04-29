@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 
 /**
  * writes - n (where n is frequent, primary operation) reads - m (where m == KeepAliveFrequency)
@@ -40,7 +40,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
 
-  final MonoProcessor<Void> disposed = MonoProcessor.create();
+  final Sinks.Empty<Void> disposed = Sinks.empty();
   final ArrayList<ByteBuf> cachedFrames;
   final String tag;
   final int cacheLimit;
@@ -189,7 +189,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
   @Override
   public Mono<Void> onClose() {
-    return disposed;
+    return disposed.asMono();
   }
 
   @Override
@@ -205,7 +205,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         }
         cachedFrames.clear();
       }
-      disposed.onComplete();
+      disposed.tryEmitEmpty();
     }
   }
 

@@ -1,3 +1,18 @@
+/*
+ * Copyright 2015-2021 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.rsocket.transport.netty;
 
 import io.netty.buffer.Unpooled;
@@ -25,8 +40,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
@@ -100,13 +116,13 @@ public class WebsocketPingPongIntegrationTest {
   }
 
   private static class PingSender extends ChannelInboundHandlerAdapter {
-    private final MonoProcessor<Channel> channel = MonoProcessor.create();
-    private final MonoProcessor<String> pong = MonoProcessor.create();
+    private final Sinks.One<Channel> channel = Sinks.one();
+    private final Sinks.One<String> pong = Sinks.one();
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
       if (msg instanceof PongWebSocketFrame) {
-        pong.onNext(((PongWebSocketFrame) msg).content().toString(StandardCharsets.UTF_8));
+        pong.tryEmitValue(((PongWebSocketFrame) msg).content().toString(StandardCharsets.UTF_8));
         ReferenceCountUtil.safeRelease(msg);
         ctx.read();
       } else {
@@ -117,8 +133,8 @@ public class WebsocketPingPongIntegrationTest {
     @Override
     public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
       Channel ch = ctx.channel();
-      if (!channel.isTerminated() && ch.isWritable()) {
-        channel.onNext(ctx.channel());
+      if (!(channel.scan(Scannable.Attr.TERMINATED)) && ch.isWritable()) {
+        channel.tryEmitValue(ctx.channel());
       }
       super.channelWritabilityChanged(ctx);
     }
@@ -127,7 +143,7 @@ public class WebsocketPingPongIntegrationTest {
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
       Channel ch = ctx.channel();
       if (ch.isWritable()) {
-        channel.onNext(ch);
+        channel.tryEmitValue(ch);
       }
       super.handlerAdded(ctx);
     }
@@ -142,11 +158,11 @@ public class WebsocketPingPongIntegrationTest {
     }
 
     public Mono<String> receivePong() {
-      return pong;
+      return pong.asMono();
     }
 
     private Mono<Void> send(WebSocketFrame webSocketFrame) {
-      return channel.doOnNext(ch -> ch.writeAndFlush(webSocketFrame)).then();
+      return channel.asMono().doOnNext(ch -> ch.writeAndFlush(webSocketFrame)).then();
     }
   }
 }

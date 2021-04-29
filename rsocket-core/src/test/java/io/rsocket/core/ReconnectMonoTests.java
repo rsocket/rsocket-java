@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.rsocket.core;
 
 import static org.junit.Assert.assertEquals;
 
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -39,7 +40,6 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
@@ -76,7 +76,8 @@ public class ReconnectMonoTests {
               .doOnDiscard(Object.class, System.out::println)
               .as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -85,17 +86,17 @@ public class ReconnectMonoTests {
 
       monoSubscribers[0].onComplete();
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
       Mockito.verify(mockSubscription).cancel();
 
-      if (processor.isError()) {
-        Assertions.assertThat(processor.getError())
-            .isInstanceOf(CancellationException.class)
-            .hasMessage("ReconnectMono has already been disposed");
+      if (!subscriber.errors().isEmpty()) {
+        subscriber
+            .assertError(CancellationException.class)
+            .assertErrorMessage("ReconnectMono has already been disposed");
 
         Assertions.assertThat(expired).containsOnly("value" + i);
       } else {
-        Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+        subscriber.assertValues("value" + i);
       }
 
       expired.clear();
@@ -113,20 +114,20 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
-      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
+      final AssertSubscriber<String> raceSubscriber = new AssertSubscriber<>();
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
 
       cold.next("value" + i);
 
-      RaceTestUtils.race(cold::complete, () -> reconnectMono.subscribe(racerProcessor));
+      RaceTestUtils.race(cold::complete, () -> reconnectMono.subscribe(raceSubscriber));
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
-
-      Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
-      Assertions.assertThat(racerProcessor.peek()).isEqualTo("value" + i);
+      subscriber.assertTerminated();
+      subscriber.assertValues("value" + i);
+      raceSubscriber.assertValues("value" + i);
 
       Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
           .isEqualTo(ResolvingOperator.READY);
@@ -134,7 +135,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(
               reconnectMono.resolvingInner.add(
                   new ResolvingOperator.MonoDeferredResolutionOperator<>(
-                      reconnectMono.resolvingInner, processor)))
+                      reconnectMono.resolvingInner, subscriber)))
           .isEqualTo(ResolvingOperator.READY_STATE);
 
       Assertions.assertThat(expired).isEmpty();
@@ -157,8 +158,9 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
-      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
+      final AssertSubscriber<String> raceSubscriber = new AssertSubscriber<>();
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -169,28 +171,24 @@ public class ReconnectMonoTests {
       RaceTestUtils.race(
           reconnectMono::invalidate,
           () -> {
-            reconnectMono.subscribe(racerProcessor);
-            if (!racerProcessor.isTerminated()) {
+            reconnectMono.subscribe(raceSubscriber);
+            if (!raceSubscriber.isTerminated()) {
               reconnectMono.resolvingInner.mainSubscriber.onNext("value_to_not_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
             }
           },
           Schedulers.parallel());
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
+      subscriber.assertValues("value_to_expire" + i);
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
-      StepVerifier.create(racerProcessor)
-          .expectNextMatches(
-              (v) -> {
-                if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {
-                  return v.equals("value_to_not_expire" + index);
-                } else {
-                  return v.equals("value_to_expire" + index);
-                }
-              })
-          .expectComplete()
-          .verify(Duration.ofMillis(100));
+      raceSubscriber.assertComplete();
+      String v = raceSubscriber.values().get(0);
+      if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {
+        Assertions.assertThat(v).isEqualTo("value_to_not_expire" + index);
+      } else {
+        Assertions.assertThat(v).isEqualTo("value_to_expire" + index);
+      }
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
       if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {
@@ -221,8 +219,9 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
-      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
+      final AssertSubscriber<String> raceSubscriber = new AssertSubscriber<>();
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -235,8 +234,8 @@ public class ReconnectMonoTests {
               RaceTestUtils.race(
                   reconnectMono::invalidate, reconnectMono::invalidate, Schedulers.parallel()),
           () -> {
-            reconnectMono.subscribe(racerProcessor);
-            if (!racerProcessor.isTerminated()) {
+            reconnectMono.subscribe(raceSubscriber);
+            if (!raceSubscriber.isTerminated()) {
               reconnectMono.resolvingInner.mainSubscriber.onNext(
                   "value_to_possibly_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
@@ -244,16 +243,12 @@ public class ReconnectMonoTests {
           },
           Schedulers.parallel());
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
+      subscriber.assertValues("value_to_expire" + i);
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
-      StepVerifier.create(racerProcessor)
-          .expectNextMatches(
-              (v) ->
-                  v.equals("value_to_possibly_expire" + index)
-                      || v.equals("value_to_expire" + index))
-          .expectComplete()
-          .verify(Duration.ofMillis(100));
+      raceSubscriber.assertComplete();
+      Assertions.assertThat(raceSubscriber.values().get(0))
+          .isIn("value_to_possibly_expire" + index, "value_to_expire" + index);
 
       if (expired.size() == 2) {
         Assertions.assertThat(expired)
@@ -290,7 +285,8 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -321,9 +317,9 @@ public class ReconnectMonoTests {
                   Schedulers.parallel()),
           Schedulers.parallel());
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
+      subscriber.assertValues("value_to_expire" + i);
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
       if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {
@@ -352,8 +348,8 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = MonoProcessor.create();
-      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+      final AssertSubscriber<String> subscriber = new AssertSubscriber<>();
+      final AssertSubscriber<String> raceSubscriber = new AssertSubscriber<>();
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -361,13 +357,13 @@ public class ReconnectMonoTests {
       Assertions.assertThat(cold.subscribeCount()).isZero();
 
       RaceTestUtils.race(
-          () -> reconnectMono.subscribe(processor), () -> reconnectMono.subscribe(racerProcessor));
+          () -> reconnectMono.subscribe(subscriber), () -> reconnectMono.subscribe(raceSubscriber));
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
-      Assertions.assertThat(racerProcessor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
+      Assertions.assertThat(raceSubscriber.isTerminated()).isTrue();
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
-      Assertions.assertThat(racerProcessor.peek()).isEqualTo("value" + i);
+      subscriber.assertValues("value" + i);
+      raceSubscriber.assertValues("value" + i);
 
       Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
           .isEqualTo(ResolvingOperator.READY);
@@ -377,7 +373,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(
               reconnectMono.resolvingInner.add(
                   new ResolvingOperator.MonoDeferredResolutionOperator<>(
-                      reconnectMono.resolvingInner, processor)))
+                      reconnectMono.resolvingInner, subscriber)))
           .isEqualTo(ResolvingOperator.READY_STATE);
 
       Assertions.assertThat(expired).isEmpty();
@@ -399,7 +395,7 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = MonoProcessor.create();
+      final AssertSubscriber<String> subscriber = new AssertSubscriber<>();
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -409,11 +405,12 @@ public class ReconnectMonoTests {
       String[] values = new String[1];
 
       RaceTestUtils.race(
-          () -> values[0] = reconnectMono.block(timeout), () -> reconnectMono.subscribe(processor));
+          () -> values[0] = reconnectMono.block(timeout),
+          () -> reconnectMono.subscribe(subscriber));
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+      subscriber.assertValues("value" + i);
       Assertions.assertThat(values).containsExactly("value" + i);
 
       Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
@@ -424,7 +421,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(
               reconnectMono.resolvingInner.add(
                   new ResolvingOperator.MonoDeferredResolutionOperator<>(
-                      reconnectMono.resolvingInner, processor)))
+                      reconnectMono.resolvingInner, subscriber)))
           .isEqualTo(ResolvingOperator.READY_STATE);
 
       Assertions.assertThat(expired).isEmpty();
@@ -469,7 +466,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(
               reconnectMono.resolvingInner.add(
                   new ResolvingOperator.MonoDeferredResolutionOperator<>(
-                      reconnectMono.resolvingInner, MonoProcessor.create())))
+                      reconnectMono.resolvingInner, new AssertSubscriber<>())))
           .isEqualTo(ResolvingOperator.READY_STATE);
 
       Assertions.assertThat(expired).isEmpty();
@@ -491,16 +488,17 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
 
       RaceTestUtils.race(cold::complete, reconnectMono::dispose);
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      Throwable error = processor.getError();
+      Throwable error = subscriber.errors().get(0);
 
       if (error instanceof CancellationException) {
         Assertions.assertThat(error)
@@ -529,7 +527,8 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -538,17 +537,17 @@ public class ReconnectMonoTests {
 
       RaceTestUtils.race(cold::complete, reconnectMono::dispose);
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      if (processor.isError()) {
-        Assertions.assertThat(processor.getError())
+      if (!subscriber.errors().isEmpty()) {
+        Assertions.assertThat(subscriber.errors().get(0))
             .isInstanceOf(CancellationException.class)
             .hasMessage("ReconnectMono has already been disposed");
       } else {
         Assertions.assertThat(received)
             .hasSize(1)
             .containsOnly(Tuples.of("value" + i, reconnectMono));
-        Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+        subscriber.assertValues("value" + i);
       }
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value" + i);
@@ -569,7 +568,8 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -578,23 +578,22 @@ public class ReconnectMonoTests {
 
       RaceTestUtils.race(() -> cold.error(runtimeException), reconnectMono::dispose);
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      if (processor.isError()) {
-        if (processor.getError() instanceof CancellationException) {
-          Assertions.assertThat(processor.getError())
+      if (!subscriber.errors().isEmpty()) {
+        Throwable error = subscriber.errors().get(0);
+        if (error instanceof CancellationException) {
+          Assertions.assertThat(error)
               .isInstanceOf(CancellationException.class)
               .hasMessage("ReconnectMono has already been disposed");
         } else {
-          Assertions.assertThat(processor.getError())
-              .isInstanceOf(RuntimeException.class)
-              .hasMessage("test");
+          Assertions.assertThat(error).isInstanceOf(RuntimeException.class).hasMessage("test");
         }
       } else {
         Assertions.assertThat(received)
             .hasSize(1)
             .containsOnly(Tuples.of("value" + i, reconnectMono));
-        Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+        subscriber.assertValues("value" + i);
       }
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value" + i);
@@ -617,7 +616,8 @@ public class ReconnectMonoTests {
               .retryWhen(Retry.max(1).filter(t -> t instanceof Exception))
               .as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
@@ -626,17 +626,17 @@ public class ReconnectMonoTests {
 
       RaceTestUtils.race(() -> cold.error(runtimeException), reconnectMono::dispose);
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      subscriber.assertTerminated();
 
-      if (processor.isError()) {
-
-        if (processor.getError() instanceof CancellationException) {
-          Assertions.assertThat(processor.getError())
+      if (!subscriber.errors().isEmpty()) {
+        Throwable error = subscriber.errors().get(0);
+        if (error instanceof CancellationException) {
+          Assertions.assertThat(error)
               .isInstanceOf(CancellationException.class)
               .hasMessage("ReconnectMono has already been disposed");
         } else {
-          Assertions.assertThat(processor.getError())
-              .matches(t -> Exceptions.isRetryExhausted(t))
+          Assertions.assertThat(error)
+              .matches(Exceptions::isRetryExhausted)
               .hasCause(runtimeException);
         }
 
@@ -645,7 +645,7 @@ public class ReconnectMonoTests {
         Assertions.assertThat(received)
             .hasSize(1)
             .containsOnly(Tuples.of("value" + i, reconnectMono));
-        Assertions.assertThat(processor.peek()).isEqualTo("value" + i);
+        subscriber.assertValues("value" + i);
       }
 
       expired.clear();
@@ -702,9 +702,10 @@ public class ReconnectMonoTests {
         .isEqualTo(false);
     Assertions.assertThat(scannableOfReconnect.scanUnsafe(Scannable.Attr.ERROR)).isNull();
 
-    final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+    final AssertSubscriber<String> subscriber =
+        reconnectMono.subscribeWith(new AssertSubscriber<>());
 
-    final Scannable scannableOfMonoProcessor = Scannable.from(processor);
+    final Scannable scannableOfMonoProcessor = Scannable.from(subscriber);
 
     Assertions.assertThat(
             (List)
@@ -735,25 +736,25 @@ public class ReconnectMonoTests {
     final ReconnectMono<String> reconnectMono =
         publisher.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-    MonoProcessor<String> processor = MonoProcessor.create();
+    AssertSubscriber<String> subscriber = new AssertSubscriber<>();
 
-    reconnectMono.subscribe(processor);
+    reconnectMono.subscribe(subscriber);
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
     publisher.next("test");
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
     reconnectMono.invalidate();
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
     publisher.assertSubscribers(1);
     Assertions.assertThat(publisher.subscribeCount()).isEqualTo(1);
 
@@ -761,7 +762,7 @@ public class ReconnectMonoTests {
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).hasSize(1);
-    Assertions.assertThat(processor.isTerminated()).isTrue();
+    subscriber.assertTerminated();
 
     publisher.assertSubscribers(0);
     Assertions.assertThat(publisher.subscribeCount()).isEqualTo(1);
@@ -775,26 +776,26 @@ public class ReconnectMonoTests {
     final ReconnectMono<String> reconnectMono =
         publisher.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-    MonoProcessor<String> processor = MonoProcessor.create();
+    AssertSubscriber<String> subscriber = new AssertSubscriber<>();
 
-    reconnectMono.subscribe(processor);
+    reconnectMono.subscribe(subscriber);
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
     publisher.next("test");
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
     publisher.complete();
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).hasSize(1);
-    Assertions.assertThat(processor.isTerminated()).isTrue();
-    Assertions.assertThat(processor.peek()).isEqualTo("test");
+    subscriber.assertTerminated();
+    subscriber.assertValues("test");
   }
 
   @Test
@@ -805,21 +806,21 @@ public class ReconnectMonoTests {
     final ReconnectMono<String> reconnectMono =
         publisher.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-    MonoProcessor<String> processor = MonoProcessor.create();
+    AssertSubscriber<String> subscriber = new AssertSubscriber<>();
 
-    reconnectMono.subscribe(processor);
+    reconnectMono.subscribe(subscriber);
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
     publisher.next("test");
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
-    Assertions.assertThat(processor.isTerminated()).isFalse();
+    Assertions.assertThat(subscriber.isTerminated()).isFalse();
 
-    processor.cancel();
+    subscriber.cancel();
 
     Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
         .isEqualTo(ResolvingOperator.EMPTY_SUBSCRIBED);
@@ -828,8 +829,7 @@ public class ReconnectMonoTests {
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).hasSize(1);
-    Assertions.assertThat(processor.isTerminated()).isFalse();
-    Assertions.assertThat(processor.peek()).isNull();
+    Assertions.assertThat(subscriber.values()).isEmpty();
   }
 
   @Test
@@ -870,10 +870,10 @@ public class ReconnectMonoTests {
     final ReconnectMono<String> reconnectMono =
         publisher.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-    final MonoProcessor<String> sub1 = MonoProcessor.create();
-    final MonoProcessor<String> sub2 = MonoProcessor.create();
-    final MonoProcessor<String> sub3 = MonoProcessor.create();
-    final MonoProcessor<String> sub4 = MonoProcessor.create();
+    final AssertSubscriber<String> sub1 = new AssertSubscriber<>();
+    final AssertSubscriber<String> sub2 = new AssertSubscriber<>();
+    final AssertSubscriber<String> sub3 = new AssertSubscriber<>();
+    final AssertSubscriber<String> sub4 = new AssertSubscriber<>();
 
     reconnectMono.subscribe(sub1);
     reconnectMono.subscribe(sub2);
@@ -882,31 +882,31 @@ public class ReconnectMonoTests {
 
     Assertions.assertThat(reconnectMono.resolvingInner.subscribers).hasSize(4);
 
-    final ArrayList<MonoProcessor<String>> processors = new ArrayList<>(200);
+    final ArrayList<AssertSubscriber<String>> subscribers = new ArrayList<>(200);
 
     for (int i = 0; i < 100; i++) {
-      final MonoProcessor<String> subA = MonoProcessor.create();
-      final MonoProcessor<String> subB = MonoProcessor.create();
-      processors.add(subA);
-      processors.add(subB);
+      final AssertSubscriber<String> subA = new AssertSubscriber<>();
+      final AssertSubscriber<String> subB = new AssertSubscriber<>();
+      subscribers.add(subA);
+      subscribers.add(subB);
       RaceTestUtils.race(() -> reconnectMono.subscribe(subA), () -> reconnectMono.subscribe(subB));
     }
 
     Assertions.assertThat(reconnectMono.resolvingInner.subscribers).hasSize(204);
 
-    sub1.dispose();
+    sub1.cancel();
 
     Assertions.assertThat(reconnectMono.resolvingInner.subscribers).hasSize(203);
 
     publisher.next("value");
 
-    Assertions.assertThatThrownBy(sub1::peek).isInstanceOf(CancellationException.class);
-    Assertions.assertThat(sub2.peek()).isEqualTo("value");
-    Assertions.assertThat(sub3.peek()).isEqualTo("value");
-    Assertions.assertThat(sub4.peek()).isEqualTo("value");
+    Assertions.assertThat(sub1.scan(Scannable.Attr.CANCELLED)).isTrue();
+    Assertions.assertThat(sub2.values().get(0)).isEqualTo("value");
+    Assertions.assertThat(sub3.values().get(0)).isEqualTo("value");
+    Assertions.assertThat(sub4.values().get(0)).isEqualTo("value");
 
-    for (MonoProcessor<String> sub : processors) {
-      Assertions.assertThat(sub.peek()).isEqualTo("value");
+    for (AssertSubscriber<String> sub : subscribers) {
+      Assertions.assertThat(sub.values().get(0)).isEqualTo("value");
       Assertions.assertThat(sub.isTerminated()).isTrue();
     }
 

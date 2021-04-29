@@ -1,6 +1,6 @@
 package io.rsocket.core;
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,8 +57,8 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.SignalType;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
@@ -516,16 +516,17 @@ public class DefaultRSocketClientTests {
 
     protected RSocketClient client;
     protected Runnable delayer;
-    protected MonoProcessor<RSocket> producer;
+    protected Sinks.One<RSocket> producer;
 
     @Override
     protected void init() {
       super.init();
-      delayer = () -> producer.onNext(socket);
-      producer = MonoProcessor.create();
+      delayer = () -> producer.tryEmitValue(socket);
+      producer = Sinks.one();
       client =
           new DefaultRSocketClient(
               producer
+                  .asMono()
                   .doOnCancel(() -> socket.dispose())
                   .doOnDiscard(Disposable.class, Disposable::dispose));
     }

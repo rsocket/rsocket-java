@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,13 @@ import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.Scannable;
 import reactor.core.publisher.*;
 
 public class TestingRSocket implements RSocket {
 
   private final AtomicInteger count;
-  private final MonoProcessor<Void> onClose = MonoProcessor.create();
+  private final Sinks.Empty<Void> onClose = Sinks.empty();
   private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
   public TestingRSocket(Function<Payload, Payload> responder) {
@@ -128,16 +129,17 @@ public class TestingRSocket implements RSocket {
 
   @Override
   public void dispose() {
-    onClose.onComplete();
+    onClose.tryEmitEmpty();
   }
 
   @Override
+  @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return onClose.asMono();
   }
 }

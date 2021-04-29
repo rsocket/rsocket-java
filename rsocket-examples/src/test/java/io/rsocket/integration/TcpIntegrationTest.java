@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 public class TcpIntegrationTest {
@@ -147,17 +147,17 @@ public class TcpIntegrationTest {
 
   @Test(timeout = 15_000L)
   public void testTwoConcurrentStreams() throws InterruptedException {
-    ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
-    UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
+    ConcurrentHashMap<String, Sinks.Many<Payload>> map = new ConcurrentHashMap<>();
+    Sinks.Many<Payload> processor1 = Sinks.many().unicast().onBackpressureBuffer();
     map.put("REQUEST1", processor1);
-    UnicastProcessor<Payload> processor2 = UnicastProcessor.create();
+    Sinks.Many<Payload> processor2 = Sinks.many().unicast().onBackpressureBuffer();
     map.put("REQUEST2", processor2);
 
     handler =
         new RSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
-            return map.get(payload.getDataUtf8());
+            return map.get(payload.getDataUtf8()).asFlux();
           }
         };
 
@@ -177,13 +177,13 @@ public class TcpIntegrationTest {
         .subscribeOn(Schedulers.newSingle("2"))
         .subscribe(c -> nextCountdown.countDown(), t -> {}, completeCountdown::countDown);
 
-    processor1.onNext(DefaultPayload.create("RESPONSE1A"));
-    processor2.onNext(DefaultPayload.create("RESPONSE2A"));
+    processor1.tryEmitNext(DefaultPayload.create("RESPONSE1A"));
+    processor2.tryEmitNext(DefaultPayload.create("RESPONSE2A"));
 
     nextCountdown.await();
 
-    processor1.onComplete();
-    processor2.onComplete();
+    processor1.tryEmitComplete();
+    processor2.tryEmitComplete();
 
     completeCountdown.await();
   }

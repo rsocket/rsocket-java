@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,13 @@ import static io.rsocket.core.TestRequesterResponderSupport.randomMetadataOnlyPa
 import static io.rsocket.core.TestRequesterResponderSupport.randomPayload;
 import static io.rsocket.frame.FrameHeaderCodec.frameType;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-import static io.rsocket.frame.FrameType.*;
+import static io.rsocket.frame.FrameType.CANCEL;
+import static io.rsocket.frame.FrameType.COMPLETE;
+import static io.rsocket.frame.FrameType.METADATA_PUSH;
+import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
+import static io.rsocket.frame.FrameType.REQUEST_FNF;
+import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
+import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -93,12 +99,12 @@ import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.Scannable;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
@@ -260,11 +266,11 @@ public class RSocketRequesterTest {
   @Test
   @Timeout(2_000)
   public void testChannelRequestCancellation() {
-    MonoProcessor<Void> cancelled = MonoProcessor.create();
-    Flux<Payload> request = Flux.<Payload>never().doOnCancel(cancelled::onComplete);
+    Sinks.Empty<Void> cancelled = Sinks.empty();
+    Flux<Payload> request = Flux.<Payload>never().doOnCancel(cancelled::tryEmitEmpty);
     rule.socket.requestChannel(request).subscribe().dispose();
-    Flux.first(
-            cancelled,
+    Flux.firstWithSignal(
+            cancelled.asMono(),
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
@@ -274,12 +280,12 @@ public class RSocketRequesterTest {
   @Test
   @Timeout(2_000)
   public void testChannelRequestCancellation2() {
-    MonoProcessor<Void> cancelled = MonoProcessor.create();
+    Sinks.Empty<Void> cancelled = Sinks.empty();
     Flux<Payload> request =
-        Flux.<Payload>just(EmptyPayload.INSTANCE).repeat(259).doOnCancel(cancelled::onComplete);
+        Flux.<Payload>just(EmptyPayload.INSTANCE).repeat(259).doOnCancel(cancelled::tryEmitEmpty);
     rule.socket.requestChannel(request).subscribe().dispose();
-    Flux.first(
-            cancelled,
+    Flux.firstWithSignal(
+            cancelled.asMono(),
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
@@ -289,20 +295,24 @@ public class RSocketRequesterTest {
 
   @Test
   public void testChannelRequestServerSideCancellation() {
-    MonoProcessor<Payload> cancelled = MonoProcessor.create();
-    UnicastProcessor<Payload> request = UnicastProcessor.create();
-    request.onNext(EmptyPayload.INSTANCE);
-    rule.socket.requestChannel(request).subscribe(cancelled);
+    Sinks.One<Payload> cancelled = Sinks.one();
+    Sinks.Many<Payload> request = Sinks.many().unicast().onBackpressureBuffer();
+    request.tryEmitNext(EmptyPayload.INSTANCE);
+    rule.socket
+        .requestChannel(request.asFlux())
+        .subscribe(cancelled::tryEmitValue, cancelled::tryEmitError, cancelled::tryEmitEmpty);
     int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
     rule.connection.addToReceivedBuffer(CancelFrameCodec.encode(rule.alloc(), streamId));
     rule.connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(rule.alloc(), streamId));
-    Flux.first(
-            cancelled,
+    Flux.firstWithSignal(
+            cancelled.asMono(),
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
 
-    Assertions.assertThat(request.isDisposed()).isTrue();
+    Assertions.assertThat(
+            request.scan(Scannable.Attr.TERMINATED) || request.scan(Scannable.Attr.CANCELLED))
+        .isTrue();
     Assertions.assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
@@ -313,7 +323,7 @@ public class RSocketRequesterTest {
 
   @Test
   public void testCorrectFrameOrder() {
-    MonoProcessor<Object> delayer = MonoProcessor.create();
+    Sinks.One<Object> delayer = Sinks.one();
     BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
           @Override
@@ -321,13 +331,13 @@ public class RSocketRequesterTest {
         };
     rule.socket
         .requestChannel(
-            Flux.concat(Flux.just(0).delayUntil(i -> delayer), Flux.range(1, 999))
+            Flux.concat(Flux.just(0).delayUntil(i -> delayer.asMono()), Flux.range(1, 999))
                 .map(i -> DefaultPayload.create(i + "")))
         .subscribe(subscriber);
 
     subscriber.request(1);
     subscriber.request(Long.MAX_VALUE);
-    delayer.onComplete();
+    delayer.tryEmitEmpty();
 
     Iterator<ByteBuf> iterator = rule.connection.getSent().iterator();
 

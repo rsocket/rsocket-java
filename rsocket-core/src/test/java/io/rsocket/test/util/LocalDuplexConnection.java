@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,48 +24,49 @@ import io.rsocket.frame.ErrorFrameCodec;
 import java.net.SocketAddress;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
-import reactor.core.publisher.DirectProcessor;
+import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 
 public class LocalDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
-  private final DirectProcessor<ByteBuf> send;
-  private final DirectProcessor<ByteBuf> receive;
-  private final MonoProcessor<Void> onClose;
+  private final Sinks.Many<ByteBuf> send;
+  private final Sinks.Many<ByteBuf> receive;
+  private final Sinks.Empty<Void> onClose;
   private final String name;
 
   public LocalDuplexConnection(
       String name,
       ByteBufAllocator allocator,
-      DirectProcessor<ByteBuf> send,
-      DirectProcessor<ByteBuf> receive) {
+      Sinks.Many<ByteBuf> send,
+      Sinks.Many<ByteBuf> receive) {
     this.name = name;
     this.allocator = allocator;
     this.send = send;
     this.receive = receive;
-    this.onClose = MonoProcessor.create();
+    this.onClose = Sinks.empty();
   }
 
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     System.out.println(name + " - " + frame.toString());
-    send.onNext(frame);
+    send.tryEmitNext(frame);
   }
 
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, 0, e);
     System.out.println(name + " - " + errorFrame.toString());
-    send.onNext(errorFrame);
-    onClose.onComplete();
+    send.tryEmitNext(errorFrame);
+    onClose.tryEmitEmpty();
   }
 
   @Override
   public Flux<ByteBuf> receive() {
     return receive
+        .asFlux()
         .doOnNext(f -> System.out.println(name + " - " + f.toString()))
         .transform(
             Operators.<ByteBuf, ByteBuf>lift(
@@ -107,16 +108,17 @@ public class LocalDuplexConnection implements DuplexConnection {
 
   @Override
   public void dispose() {
-    onClose.onComplete();
+    onClose.tryEmitEmpty();
   }
 
   @Override
+  @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return onClose.asMono();
   }
 }

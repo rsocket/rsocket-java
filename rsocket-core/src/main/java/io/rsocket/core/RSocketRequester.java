@@ -43,7 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -65,7 +65,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Nullable private final RequesterLeaseTracker requesterLeaseTracker;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
-  private final MonoProcessor<Void> onClose;
+  private final Sinks.Empty<Void> onClose;
 
   RSocketRequester(
       DuplexConnection connection,
@@ -89,7 +89,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         requestInterceptorFunction);
 
     this.requesterLeaseTracker = requesterLeaseTracker;
-    this.onClose = MonoProcessor.create();
+    this.onClose = Sinks.empty();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
@@ -196,7 +196,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return onClose.asMono();
   }
 
   private void handleIncomingFrames(ByteBuf frame) {
@@ -356,9 +356,9 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     }
 
     if (e == CLOSED_CHANNEL_EXCEPTION) {
-      onClose.onComplete();
+      onClose.tryEmitEmpty();
     } else {
-      onClose.onError(e);
+      onClose.tryEmitError(e);
     }
   }
 }

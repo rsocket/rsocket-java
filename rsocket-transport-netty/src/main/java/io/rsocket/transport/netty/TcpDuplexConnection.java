@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,13 +77,13 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
         .then()
         .subscribe(
             null,
-            t -> onClose.onError(t),
+            t -> onClose.tryEmitError(t),
             () -> {
               final Throwable cause = e.getCause();
               if (cause == null) {
-                onClose.onComplete();
+                onClose.tryEmitEmpty();
               } else {
-                onClose.onError(cause);
+                onClose.tryEmitError(cause);
               }
             });
   }

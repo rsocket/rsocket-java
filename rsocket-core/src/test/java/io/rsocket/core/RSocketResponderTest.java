@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,8 +96,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.publisher.TestPublisher;
@@ -274,14 +274,14 @@ public class RSocketResponderTest {
     rule.setRequestInterceptor(testRequestInterceptor);
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
-      final MonoProcessor<Payload> monoProcessor = MonoProcessor.create();
+      final Sinks.One<Payload> sink = Sinks.one();
 
       rule.setAcceptingSocket(
           new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               payloads.subscribe(assertSubscriber);
-              return monoProcessor.flux();
+              return sink.asMono().flux();
             }
           },
           Integer.MAX_VALUE);
@@ -315,7 +315,7 @@ public class RSocketResponderTest {
           },
           () -> {
             assertSubscriber.cancel();
-            monoProcessor.onComplete();
+            sink.tryEmitEmpty();
           });
 
       Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
@@ -1097,32 +1097,32 @@ public class RSocketResponderTest {
   void receivingRequestOnStreamIdThaIsAlreadyInUseMUSTBeIgnored_ReassemblyCase(
       FrameType requestType) {
     AtomicReference<Payload> receivedPayload = new AtomicReference<>();
-    final MonoProcessor<Void> delayer = MonoProcessor.create();
+    final Sinks.Empty<Void> delayer = Sinks.empty();
     rule.setAcceptingSocket(
         new RSocket() {
 
           @Override
           public Mono<Void> fireAndForget(Payload payload) {
             receivedPayload.set(payload);
-            return delayer;
+            return delayer.asMono();
           }
 
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             receivedPayload.set(payload);
-            return Mono.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Mono.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
 
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             receivedPayload.set(payload);
-            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
 
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
-            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
         });
     final Payload randomPayload1 = fixedSizePayload(rule.allocator, 128);
@@ -1138,9 +1138,9 @@ public class RSocketResponderTest {
     rule.connection.addToReceivedBuffer(fragments1.toArray(new ByteBuf[0]));
     if (requestType != REQUEST_CHANNEL) {
       rule.connection.addToReceivedBuffer(fragments2.toArray(new ByteBuf[0]));
-      delayer.onComplete();
+      delayer.tryEmitEmpty();
     } else {
-      delayer.onComplete();
+      delayer.tryEmitEmpty();
       rule.connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(rule.allocator, 1));
       rule.connection.addToReceivedBuffer(fragments2.toArray(new ByteBuf[0]));
     }
@@ -1166,25 +1166,25 @@ public class RSocketResponderTest {
   void receivingRequestOnStreamIdThaIsAlreadyInUseMUSTBeIgnored(FrameType requestType) {
     Assumptions.assumeThat(requestType).isNotEqualTo(REQUEST_FNF);
     AtomicReference<Payload> receivedPayload = new AtomicReference<>();
-    final MonoProcessor<Object> delayer = MonoProcessor.create();
+    final Sinks.One<Object> delayer = Sinks.one();
     rule.setAcceptingSocket(
         new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             receivedPayload.set(payload);
-            return Mono.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Mono.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
 
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             receivedPayload.set(payload);
-            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
 
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
-            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer);
+            return Flux.just(genericPayload(rule.allocator)).delaySubscription(delayer.asMono());
           }
         });
     final Payload randomPayload1 = fixedSizePayload(rule.allocator, 64);
@@ -1192,7 +1192,7 @@ public class RSocketResponderTest {
     rule.sendRequest(1, requestType, randomPayload1.retain());
     rule.sendRequest(1, requestType, randomPayload2);
 
-    delayer.onComplete();
+    delayer.tryEmitEmpty();
 
     PayloadAssert.assertThat(receivedPayload.get()).isEqualTo(randomPayload1).hasNoLeaks();
     randomPayload1.release();

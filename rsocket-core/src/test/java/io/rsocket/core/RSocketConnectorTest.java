@@ -1,6 +1,22 @@
+/*
+ * Copyright 2015-2021 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.rsocket.core;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -20,12 +36,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.assertj.core.api.Assertions;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.test.StepVerifier;
 import reactor.util.retry.Retry;
 
@@ -89,7 +104,7 @@ public class RSocketConnectorTest {
 
   @Test
   public void ensuresThatSetupPayloadCanBeRetained() {
-    MonoProcessor<ConnectionSetupPayload> retainedSetupPayload = MonoProcessor.create();
+    AtomicReference<ConnectionSetupPayload> retainedSetupPayload = new AtomicReference<>();
     TestClientTransport transport = new TestClientTransport();
 
     ByteBuf data = transport.alloc().buffer();
@@ -100,13 +115,13 @@ public class RSocketConnectorTest {
         .setupPayload(ByteBufPayload.create(data))
         .acceptor(
             (setup, sendingSocket) -> {
-              retainedSetupPayload.onNext(setup.retain());
+              retainedSetupPayload.set(setup.retain());
               return Mono.just(new RSocket() {});
             })
         .connect(transport)
         .block();
 
-    Assertions.assertThat(transport.testConnection().getSent())
+    assertThat(transport.testConnection().getSent())
         .hasSize(1)
         .first()
         .matches(
@@ -121,17 +136,10 @@ public class RSocketConnectorTest {
               return buf.refCnt() == 1;
             });
 
-    retainedSetupPayload
-        .as(StepVerifier::create)
-        .expectNextMatches(
-            setup -> {
-              String dataUtf8 = setup.getDataUtf8();
-              return "data".equals(dataUtf8) && setup.release();
-            })
-        .expectComplete()
-        .verify(Duration.ofSeconds(5));
-
-    Assertions.assertThat(retainedSetupPayload.peek().refCnt()).isZero();
+    ConnectionSetupPayload setup = retainedSetupPayload.get();
+    String dataUtf8 = setup.getDataUtf8();
+    assertThat("data".equals(dataUtf8) && setup.release()).isTrue();
+    assertThat(setup.refCnt()).isZero();
 
     transport.alloc().assertHasNoLeaks();
   }
@@ -139,7 +147,7 @@ public class RSocketConnectorTest {
   @Test
   public void ensuresThatMonoFromRSocketConnectorCanBeUsedForMultipleSubscriptions() {
     Payload setupPayload = ByteBufPayload.create("TestData", "TestMetadata");
-    Assertions.assertThat(setupPayload.refCnt()).isOne();
+    assertThat(setupPayload.refCnt()).isOne();
 
     // Keep the data and metadata around so we can try changing them independently
     ByteBuf dataBuf = setupPayload.data();
@@ -157,7 +165,7 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
-    Assertions.assertThat(testClientTransport.testConnection().getSent())
+    assertThat(testClientTransport.testConnection().getSent())
         .hasSize(1)
         .allMatch(
             bb -> {
@@ -182,7 +190,7 @@ public class RSocketConnectorTest {
     metadataBuf.writeChar('m');
     metadataBuf.release();
 
-    Assertions.assertThat(testClientTransport.testConnection().getSent())
+    assertThat(testClientTransport.testConnection().getSent())
         .hasSize(1)
         .allMatch(
             bb -> {
@@ -195,7 +203,7 @@ public class RSocketConnectorTest {
               System.out.println("calling release " + byteBuf.refCnt());
               return byteBuf.release();
             });
-    Assertions.assertThat(setupPayload.refCnt()).isZero();
+    assertThat(setupPayload.refCnt()).isZero();
   }
 
   @Test
@@ -222,7 +230,7 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
-    Assertions.assertThat(testClientTransport.testConnection().getSent())
+    assertThat(testClientTransport.testConnection().getSent())
         .hasSize(1)
         .allMatch(
             bb -> {
@@ -238,7 +246,7 @@ public class RSocketConnectorTest {
         .expectComplete()
         .verify(Duration.ofMillis(100));
 
-    Assertions.assertThat(testClientTransport.testConnection().getSent())
+    assertThat(testClientTransport.testConnection().getSent())
         .hasSize(1)
         .allMatch(
             bb -> {
@@ -248,7 +256,7 @@ public class RSocketConnectorTest {
             })
         .allMatch(ReferenceCounted::release);
 
-    Assertions.assertThat(saved)
+    assertThat(saved)
         .as("Metadata and data were consumed and released as slices")
         .allMatch(
             payload ->
