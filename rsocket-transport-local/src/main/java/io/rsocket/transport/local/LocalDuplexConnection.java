@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,11 @@ import java.util.Objects;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
+import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
@@ -39,7 +40,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
   private final Flux<ByteBuf> in;
 
-  private final MonoProcessor<Void> onClose;
+  private final Sinks.Empty<Void> onClose;
 
   private final UnboundedProcessor out;
 
@@ -57,7 +58,7 @@ final class LocalDuplexConnection implements DuplexConnection {
       ByteBufAllocator allocator,
       Flux<ByteBuf> in,
       UnboundedProcessor out,
-      MonoProcessor<Void> onClose) {
+      Sinks.Empty<Void> onClose) {
     this.address = new LocalSocketAddress(name);
     this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");
     this.in = Objects.requireNonNull(in, "in must not be null");
@@ -68,17 +69,18 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public void dispose() {
     out.onComplete();
-    onClose.onComplete();
+    onClose.tryEmitEmpty();
   }
 
   @Override
+  @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return onClose.asMono();
   }
 
   @Override

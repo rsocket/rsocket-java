@@ -1,3 +1,18 @@
+/*
+ * Copyright 2015-2021 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.rsocket.core;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
@@ -6,7 +21,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.*;
+import io.rsocket.Closeable;
+import io.rsocket.ConnectionSetupPayload;
+import io.rsocket.DuplexConnection;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -20,7 +40,7 @@ import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 
 public class SetupRejectionTest {
@@ -115,7 +135,8 @@ public class SetupRejectionTest {
 
   private static class RejectingAcceptor implements SocketAcceptor {
     private final String errorMessage;
-    private final UnicastProcessor<RSocket> senderRSockets = UnicastProcessor.create();
+    private final Sinks.Many<RSocket> senderRSockets =
+        Sinks.many().unicast().onBackpressureBuffer();
 
     public RejectingAcceptor(String errorMessage) {
       this.errorMessage = errorMessage;
@@ -123,12 +144,12 @@ public class SetupRejectionTest {
 
     @Override
     public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
-      senderRSockets.onNext(sendingSocket);
+      senderRSockets.tryEmitNext(sendingSocket);
       return Mono.error(new RuntimeException(errorMessage));
     }
 
     public Mono<RSocket> senderRSocket() {
-      return senderRSockets.next();
+      return senderRSockets.asFlux().next();
     }
   }
 

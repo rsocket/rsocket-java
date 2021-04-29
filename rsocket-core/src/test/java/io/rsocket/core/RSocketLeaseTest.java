@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,12 @@
 package io.rsocket.core;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-import static io.rsocket.frame.FrameType.*;
+import static io.rsocket.frame.FrameType.COMPLETE;
+import static io.rsocket.frame.FrameType.ERROR;
+import static io.rsocket.frame.FrameType.LEASE;
+import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
+import static io.rsocket.frame.FrameType.REQUEST_FNF;
+import static io.rsocket.frame.FrameType.SETUP;
 import static org.assertj.core.data.Offset.offset;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -68,10 +73,10 @@ import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
-import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 
 class RSocketLeaseTest {
@@ -84,7 +89,7 @@ class RSocketLeaseTest {
   private RSocketResponder rSocketResponder;
   private RSocket mockRSocketHandler;
 
-  private EmitterProcessor<Lease> leaseSender = EmitterProcessor.create();
+  private Sinks.Many<Lease> leaseSender = Sinks.many().multicast().onBackpressureBuffer();
   private RequesterLeaseTracker requesterLeaseTracker;
 
   @BeforeEach
@@ -94,7 +99,7 @@ class RSocketLeaseTest {
 
     connection = new TestDuplexConnection(byteBufAllocator);
     requesterLeaseTracker = new RequesterLeaseTracker(TAG, 0);
-    responderLeaseTracker = new ResponderLeaseTracker(TAG, connection, () -> leaseSender);
+    responderLeaseTracker = new ResponderLeaseTracker(TAG, connection, () -> leaseSender.asFlux());
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
@@ -425,7 +430,7 @@ class RSocketLeaseTest {
   @ParameterizedTest
   @MethodSource("responderInteractions")
   void responderPresentLeaseRequestsAreAccepted(FrameType frameType) {
-    leaseSender.onNext(Lease.create(Duration.ofMillis(5_000), 2));
+    leaseSender.tryEmitNext(Lease.create(Duration.ofMillis(5_000), 2));
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
@@ -492,7 +497,7 @@ class RSocketLeaseTest {
   @ParameterizedTest
   @MethodSource("responderInteractions")
   void responderDepletedAllowedLeaseRequestsAreRejected(FrameType frameType) {
-    leaseSender.onNext(Lease.create(Duration.ofMillis(5_000), 1));
+    leaseSender.tryEmitNext(Lease.create(Duration.ofMillis(5_000), 1));
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
@@ -586,7 +591,7 @@ class RSocketLeaseTest {
   @ParameterizedTest
   @MethodSource("interactions")
   void expiredLeaseRequestsAreRejected(BiFunction<RSocket, Payload, Publisher<?>> interaction) {
-    leaseSender.onNext(Lease.create(Duration.ofMillis(50), 1));
+    leaseSender.tryEmitNext(Lease.create(Duration.ofMillis(50), 1));
 
     ByteBuf buffer = byteBufAllocator.buffer();
     buffer.writeCharSequence("test", CharsetUtil.UTF_8);
@@ -615,7 +620,7 @@ class RSocketLeaseTest {
     metadata.writeCharSequence(metadataContent, utf8);
     int ttl = 5_000;
     int numberOfRequests = 2;
-    leaseSender.onNext(Lease.create(Duration.ofMillis(5_000), 2, metadata));
+    leaseSender.tryEmitNext(Lease.create(Duration.ofMillis(5_000), 2, metadata));
 
     ByteBuf leaseFrame =
         connection

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
+import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.Sinks;
 
@@ -46,7 +46,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
   final UnboundedProcessor savableFramesSender;
   final Disposable framesSaverDisposable;
-  final MonoProcessor<Void> onClose;
+  final Sinks.Empty<Void> onClose;
   final SocketAddress remoteAddress;
   final Sinks.Many<Integer> onConnectionClosedSink;
 
@@ -72,7 +72,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     this.resumableFramesStore = resumableFramesStore;
     this.savableFramesSender = new UnboundedProcessor();
     this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
-    this.onClose = MonoProcessor.create();
+    this.onClose = Sinks.empty();
     this.remoteAddress = initialConnection.remoteAddress();
 
     ACTIVE_CONNECTION.lazySet(this, initialConnection);
@@ -164,7 +164,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
               framesSaverDisposable.dispose();
               savableFramesSender.dispose();
               onConnectionClosedSink.tryEmitComplete();
-              onClose.onError(t);
+              onClose.tryEmitError(t);
             },
             () -> {
               framesSaverDisposable.dispose();
@@ -172,9 +172,9 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
               onConnectionClosedSink.tryEmitComplete();
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
-                onClose.onComplete();
+                onClose.tryEmitEmpty();
               } else {
-                onClose.onError(cause);
+                onClose.tryEmitError(cause);
               }
             });
   }
@@ -191,7 +191,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return onClose.asMono();
   }
 
   @Override
@@ -210,12 +210,13 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     activeReceivingSubscriber.dispose();
     savableFramesSender.dispose();
     onConnectionClosedSink.tryEmitComplete();
-    onClose.onComplete();
+    onClose.tryEmitEmpty();
   }
 
   @Override
+  @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
   }
 
   @Override

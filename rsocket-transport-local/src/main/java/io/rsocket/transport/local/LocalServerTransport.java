@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Sinks;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -120,7 +121,7 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
 
     private final ConnectionAcceptor acceptor;
 
-    private final MonoProcessor<Void> onClose = MonoProcessor.create();
+    private final Sinks.Empty<Void> onClose = Sinks.empty();
 
     ServerCloseable(String name, ConnectionAcceptor acceptor) {
       Objects.requireNonNull(name, "name must not be null");
@@ -133,17 +134,18 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
       if (!registry.remove(address.getName(), acceptor)) {
         throw new AssertionError();
       }
-      onClose.onComplete();
+      onClose.tryEmitEmpty();
     }
 
     @Override
+    @SuppressWarnings("ConstantConditions")
     public boolean isDisposed() {
-      return onClose.isDisposed();
+      return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
     }
 
     @Override
     public Mono<Void> onClose() {
-      return onClose;
+      return onClose.asMono();
     }
   }
 }

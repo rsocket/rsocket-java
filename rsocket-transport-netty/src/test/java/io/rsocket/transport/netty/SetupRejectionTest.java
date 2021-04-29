@@ -1,3 +1,18 @@
+/*
+ * Copyright 2015-2021 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.rsocket.transport.netty;
 
 import io.rsocket.ConnectionSetupPayload;
@@ -20,9 +35,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.Arguments;
-import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 
 public class SetupRejectionTest {
@@ -85,21 +100,21 @@ public class SetupRejectionTest {
   }
 
   static class ErrorConsumer implements Consumer<Throwable> {
-    private final EmitterProcessor<Throwable> errors = EmitterProcessor.create();
+    private final Sinks.Many<Throwable> errors = Sinks.many().multicast().onBackpressureBuffer();
 
     @Override
     public void accept(Throwable t) {
-      errors.onNext(t);
+      errors.tryEmitNext(t);
     }
 
     Flux<Throwable> errors() {
-      return errors;
+      return errors.asFlux();
     }
   }
 
   private static class RejectingAcceptor implements SocketAcceptor {
     private final String msg;
-    private final EmitterProcessor<RSocket> requesters = EmitterProcessor.create();
+    private final Sinks.Many<RSocket> requesters = Sinks.many().multicast().onBackpressureBuffer();
 
     public RejectingAcceptor(String msg) {
       this.msg = msg;
@@ -107,12 +122,12 @@ public class SetupRejectionTest {
 
     @Override
     public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
-      requesters.onNext(sendingSocket);
+      requesters.tryEmitNext(sendingSocket);
       return Mono.error(new RuntimeException(msg));
     }
 
     public Mono<RSocket> requesterRSocket() {
-      return requesters.next();
+      return requesters.asFlux().next();
     }
   }
 }

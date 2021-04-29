@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 Pivotal Software Inc, All Rights Reserved.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
+import reactor.core.Scannable;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.NonNull;
 import reactor.util.context.Context;
@@ -78,7 +79,7 @@ import reactor.util.context.Context;
  * @author Stephane Maldini
  * @author Brian Clozel
  */
-public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
+public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription, Scannable {
 
   /** Default timeout for waiting next values to be received */
   public static final Duration DEFAULT_VALUES_TIMEOUT = Duration.ofSeconds(3);
@@ -1197,6 +1198,10 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
     return values;
   }
 
+  public List<Throwable> errors() {
+    return errors;
+  }
+
   public final AssertSubscriber<T> assertNoEvents() {
     return assertNoValues().assertNoError().assertNotComplete();
   }
@@ -1204,5 +1209,21 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
   @SafeVarargs
   public final AssertSubscriber<T> assertIncomplete(T... values) {
     return assertValues(values).assertNotComplete().assertNoError();
+  }
+
+  @Override
+  public Object scanUnsafe(Attr key) {
+    if (key == Attr.PARENT) {
+      return upstream();
+    }
+
+    boolean t = isTerminated();
+    if (key == Attr.TERMINATED) return t;
+    if (key == Attr.ERROR) return (!errors.isEmpty() ? errors.get(0) : null);
+    if (key == Attr.PREFETCH) return Integer.MAX_VALUE;
+    if (key == Attr.CANCELLED) return isCancelled();
+    if (key == Attr.RUN_STYLE) return Attr.RunStyle.SYNC;
+
+    return null;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Sinks;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -79,15 +79,12 @@ public final class LocalClientTransport implements ClientTransport {
 
           UnboundedProcessor in = new UnboundedProcessor();
           UnboundedProcessor out = new UnboundedProcessor();
-          MonoProcessor<Void> closeNotifier = MonoProcessor.create();
+          Sinks.Empty<Void> closeSink = Sinks.empty();
 
-          server
-              .apply(new LocalDuplexConnection(name, allocator, out, in, closeNotifier))
-              .subscribe();
+          server.apply(new LocalDuplexConnection(name, allocator, out, in, closeSink)).subscribe();
 
           return Mono.just(
-              (DuplexConnection)
-                  new LocalDuplexConnection(name, allocator, in, out, closeNotifier));
+              (DuplexConnection) new LocalDuplexConnection(name, allocator, in, out, closeSink));
         });
   }
 }
