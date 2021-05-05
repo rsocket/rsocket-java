@@ -857,7 +857,7 @@ public class ReconnectMonoTests {
     Assertions.assertThat(received).hasSize(1);
     Assertions.assertThat(reconnectMono.isDisposed()).isTrue();
 
-    StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+    StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
         .expectSubscription()
         .expectError(CancellationException.class)
         .verify(Duration.ofSeconds(timeout));
@@ -923,7 +923,7 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
           .expectNext("value")
           .expectComplete()
@@ -937,7 +937,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
 
-      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
           .expectNext("value")
           .expectComplete()
@@ -965,7 +965,7 @@ public class ReconnectMonoTests {
       final ReconnectMono<String> reconnectMono =
           cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
 
-      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
           .expectNext("value")
           .expectComplete()
@@ -979,7 +979,7 @@ public class ReconnectMonoTests {
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
 
-      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
           .expectSubscription()
           .expectError(CancellationException.class)
           .verify(Duration.ofSeconds(timeout));
@@ -1011,7 +1011,7 @@ public class ReconnectMonoTests {
                             .maxBackoff(Duration.ofSeconds(maxBackoff)))
                     .timeout(Duration.ofSeconds(timeout))
                     .as(m -> new ReconnectMono<>(m, onExpire(), onValue()))
-                    .subscribeOn(Schedulers.elastic()))
+                    .subscribeOn(Schedulers.boundedElastic()))
         .expectSubscription()
         .thenAwait(Duration.ofSeconds(timeout))
         .expectError(TimeoutException.class)
@@ -1027,7 +1027,7 @@ public class ReconnectMonoTests {
     final ReconnectMono<String> reconnectMono =
         new ReconnectMono<>(Mono.empty(), onExpire(), onValue());
 
-    StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+    StepVerifier.create(reconnectMono.subscribeOn(Schedulers.boundedElastic()))
         .expectSubscription()
         .expectErrorSatisfies(
             t ->
