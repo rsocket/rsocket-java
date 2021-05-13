@@ -34,4 +34,10 @@ dependencies {
     implementation 'junit:junit'
 }
 
+jar {
+    manifest {
+        attributes("Automatic-Module-Name": "rsocket.test")
+    }
+}
+
 description = 'Test utilities for RSocket projects'
