@@ -37,4 +37,10 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
+jar {
+    manifest {
+        attributes("Automatic-Module-Name": "rsocket.micrometer")
+    }
+}
+
 description = 'Transparent Metrics exposure to Micrometer'

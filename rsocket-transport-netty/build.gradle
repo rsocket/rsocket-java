@@ -46,4 +46,10 @@ dependencies {
     testRuntimeOnly 'io.netty:netty-tcnative-boringssl-static' + os_suffix
 }
 
+jar {
+    manifest {
+        attributes("Automatic-Module-Name": "rsocket.transport.netty")
+    }
+}
+
 description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'

@@ -33,4 +33,10 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
+jar {
+    manifest {
+        attributes("Automatic-Module-Name": "rsocket.transport.local")
+    }
+}
+
 description = 'Local RSocket transport implementation'

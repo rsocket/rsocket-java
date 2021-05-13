@@ -45,4 +45,10 @@ dependencies {
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
+jar {
+    manifest {
+        attributes("Automatic-Module-Name": "rsocket.core")
+    }
+}
+
 description = "Core functionality for the RSocket library"
