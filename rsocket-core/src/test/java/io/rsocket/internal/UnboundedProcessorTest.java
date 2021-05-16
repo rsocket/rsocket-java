@@ -28,7 +28,6 @@ import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.Fuseable;
@@ -190,7 +189,6 @@ public class UnboundedProcessorTest {
       name =
           "Ensures that racing between onNext | dispose | subscribe | request(n) | terminal will not cause any issues and leaks; mode[fusionEnabled={0}]")
   @ValueSource(booleans = {true, false})
-  @Disabled("hard to support in 1.0.x")
   public void smokeTest2(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
