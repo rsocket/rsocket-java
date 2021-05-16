@@ -20,7 +20,7 @@ plugins {
     id 'com.jfrog.artifactory'
     id 'com.jfrog.bintray'
     id 'io.morethan.jmhreport'
-    id 'me.champeau.gradle.jmh'
+    id 'me.champeau.jmh'
     id 'io.github.reyerizo.gradle.jcstress'
 }
 

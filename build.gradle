@@ -16,9 +16,9 @@
 
 plugins {
     id 'com.github.sherter.google-java-format' version '0.9' apply false
-    id 'com.jfrog.artifactory' version '4.15.2' apply false
+    id 'com.jfrog.artifactory' version '4.21.0' apply false
     id 'com.jfrog.bintray' version '1.8.5' apply false
-    id 'me.champeau.gradle.jmh' version '0.5.3' apply false
+    id 'me.champeau.jmh' version '0.6.4' apply false
     id 'io.spring.dependency-management' version '1.0.11.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
     id "io.github.reyerizo.gradle.jcstress" version "0.8.11" apply false
@@ -35,17 +35,18 @@ subprojects {
 
     ext['reactor-bom.version'] = '2020.0.7'
     ext['logback.version'] = '1.2.3'
-    ext['netty-bom.version'] = '4.1.59.Final'
-    ext['netty-boringssl.version'] = '2.0.36.Final'
-    ext['hdrhistogram.version'] = '2.1.10'
-    ext['mockito.version'] = '3.2.0'
-    ext['slf4j.version'] = '1.7.25'
-    ext['jmh.version'] = '1.21'
-    ext['junit.version'] = '5.5.2'
+    ext['netty-bom.version'] = '4.1.64.Final'
+    ext['netty-boringssl.version'] = '2.0.39.Final'
+    ext['hdrhistogram.version'] = '2.1.12'
+    ext['mockito.version'] = '3.10.0'
+    ext['slf4j.version'] = '1.7.30'
+    ext['jmh.version'] = '1.31'
+    ext['junit.version'] = '5.7.2'
     ext['hamcrest.version'] = '1.3'
-    ext['micrometer.version'] = '1.0.6'
-    ext['assertj.version'] = '3.11.1'
+    ext['micrometer.version'] = '1.6.7'
+    ext['assertj.version'] = '3.19.0'
     ext['netflix.limits.version'] = '0.3.6'
+    ext['bouncycastle-bcpkix.version'] = '1.68'
 
     group = "io.rsocket"
 
@@ -74,6 +75,7 @@ subprojects {
             dependency "com.netflix.concurrency-limits:concurrency-limits-core:${ext['netflix.limits.version']}"
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
             dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
+            dependency "org.bouncycastle:bcpkix-jdk15on:${ext['bouncycastle-bcpkix.version']}"
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
