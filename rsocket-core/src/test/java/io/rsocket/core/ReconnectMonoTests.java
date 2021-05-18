@@ -18,6 +18,7 @@ package io.rsocket.core;
 
 import static org.junit.Assert.assertEquals;
 
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -174,8 +176,7 @@ public class ReconnectMonoTests {
               reconnectMono.resolvingInner.mainSubscriber.onNext("value_to_not_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
             }
-          },
-          Schedulers.parallel());
+          });
 
       Assertions.assertThat(processor.isTerminated()).isTrue();
 
@@ -231,9 +232,8 @@ public class ReconnectMonoTests {
       reconnectMono.resolvingInner.mainSubscriber.onComplete();
 
       RaceTestUtils.race(
-          () ->
-              RaceTestUtils.race(
-                  reconnectMono::invalidate, reconnectMono::invalidate, Schedulers.parallel()),
+          reconnectMono::invalidate,
+          reconnectMono::invalidate,
           () -> {
             reconnectMono.subscribe(racerProcessor);
             if (!racerProcessor.isTerminated()) {
@@ -241,8 +241,7 @@ public class ReconnectMonoTests {
                   "value_to_possibly_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
             }
-          },
-          Schedulers.parallel());
+          });
 
       Assertions.assertThat(processor.isTerminated()).isTrue();
 
@@ -284,46 +283,54 @@ public class ReconnectMonoTests {
     Hooks.onErrorDropped(t -> {});
     for (int i = 0; i < 10000; i++) {
       final int index = i;
-      final TestPublisher<String> cold =
-          TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
+      final Mono<String> source =
+          Mono.fromSupplier(
+              new Supplier<String>() {
+                boolean once = false;
+
+                @Override
+                public String get() {
+
+                  if (!once) {
+                    once = true;
+                    return "value_to_expire" + index;
+                  }
+
+                  return "value_to_not_expire" + index;
+                }
+              });
 
       final ReconnectMono<String> reconnectMono =
-          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
-
-      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+          new ReconnectMono<>(
+              source.subscribeOn(Schedulers.boundedElastic()), onExpire(), onValue());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
 
-      reconnectMono.resolvingInner.mainSubscriber.onNext("value_to_expire" + i);
-      reconnectMono.resolvingInner.mainSubscriber.onComplete();
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
 
-      RaceTestUtils.race(
-          () ->
-              Assertions.assertThat(reconnectMono.block())
-                  .matches(
-                      (v) ->
-                          v.equals("value_to_not_expire" + index)
-                              || v.equals("value_to_expire" + index)),
-          () ->
-              RaceTestUtils.race(
-                  reconnectMono::invalidate,
-                  () -> {
-                    for (; ; ) {
-                      if (reconnectMono.resolvingInner.subscribers != ResolvingOperator.READY) {
-                        reconnectMono.resolvingInner.mainSubscriber.onNext(
-                            "value_to_not_expire" + index);
-                        reconnectMono.resolvingInner.mainSubscriber.onComplete();
-                        break;
-                      }
-                    }
-                  },
-                  Schedulers.parallel()),
-          Schedulers.parallel());
+      subscriber.await().assertComplete();
 
-      Assertions.assertThat(processor.isTerminated()).isTrue();
+      Assertions.assertThat(expired).isEmpty();
 
-      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
+      try {
+
+        RaceTestUtils.race(
+            () ->
+                Assertions.assertThat(reconnectMono.block())
+                    .matches(
+                        (v) ->
+                            v.equals("value_to_not_expire" + index)
+                                || v.equals("value_to_expire" + index)),
+            reconnectMono::invalidate);
+      } catch (Throwable t) {
+        t.printStackTrace();
+      }
+
+      subscriber.assertTerminated();
+
+      subscriber.assertValues("value_to_expire" + i);
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
       if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {

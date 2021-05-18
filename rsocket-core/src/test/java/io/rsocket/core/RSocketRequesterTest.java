@@ -91,7 +91,6 @@ import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
-import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
@@ -1082,15 +1081,11 @@ public class RSocketRequesterTest {
       Publisher<?> publisher2 = interaction2.apply(rule, payload2);
       RaceTestUtils.race(
           () -> rule.socket.dispose(),
-          () ->
-              RaceTestUtils.race(
-                  () -> publisher1.subscribe(assertSubscriber1),
-                  () -> publisher2.subscribe(assertSubscriber2),
-                  Schedulers.parallel()),
-          Schedulers.parallel());
+          () -> publisher1.subscribe(assertSubscriber1),
+          () -> publisher2.subscribe(assertSubscriber2));
 
       assertSubscriber1.await().assertTerminated();
-      if (interactionType1 != REQUEST_FNF) {
+      if (interactionType1 != REQUEST_FNF && interactionType1 != METADATA_PUSH) {
         assertSubscriber1.assertError(ClosedChannelException.class);
       } else {
         try {
@@ -1101,7 +1096,7 @@ public class RSocketRequesterTest {
         }
       }
       assertSubscriber2.await().assertTerminated();
-      if (interactionType2 != REQUEST_FNF) {
+      if (interactionType2 != REQUEST_FNF && interactionType2 != METADATA_PUSH) {
         assertSubscriber2.assertError(ClosedChannelException.class);
       } else {
         try {

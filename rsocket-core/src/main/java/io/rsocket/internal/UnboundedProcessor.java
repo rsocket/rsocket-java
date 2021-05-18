@@ -115,13 +115,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       while (r != e) {
         boolean d = done;
 
-        T t;
-        boolean empty;
-
-        if (!pq.isEmpty()) {
-          t = pq.poll();
-          empty = false;
-        } else {
+        T t = pq.poll();
+        boolean empty = t == null;
+        if (empty) {
           t = q.poll();
           empty = t == null;
         }
@@ -196,8 +192,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   }
 
   public void drain() {
-    if (WIP.getAndIncrement(this) != 0) {
-      if ((!outputFused && cancelled) || terminated) {
+    final int previousWip = WIP.getAndIncrement(this);
+    if (previousWip != 0) {
+      if (previousWip < 0 || terminated) {
         this.clear();
       }
       return;
@@ -231,6 +228,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       return true;
     }
     if (d && empty) {
+      this.clear();
       Throwable e = error;
       hasDownstream = false;
       if (e != null) {
@@ -330,11 +328,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
       actual.onSubscribe(this);
       this.actual = actual;
-      if (cancelled) {
-        this.hasDownstream = false;
-      } else {
-        drain();
-      }
+      drain();
     } else {
       Operators.error(
           actual,
@@ -388,6 +382,18 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   @Override
   public void clear() {
     terminated = true;
+    for (; ; ) {
+      int wip = this.wip;
+
+      clearSafely();
+
+      if (WIP.compareAndSet(this, wip, Integer.MIN_VALUE)) {
+        return;
+      }
+    }
+  }
+
+  void clearSafely() {
     if (DISCARD_GUARD.getAndIncrement(this) != 0) {
       return;
     }
@@ -428,34 +434,20 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     error = new CancellationException("Disposed");
     done = true;
 
-    boolean once = true;
     if (WIP.getAndIncrement(this) == 0) {
       cancelled = true;
-      int m = 1;
-      for (; ; ) {
-        final CoreSubscriber<? super T> a = this.actual;
+      final CoreSubscriber<? super T> a = this.actual;
 
-        if (!outputFused || terminated) {
-          clear();
-        }
-
-        if (a != null && once) {
-          try {
-            a.onError(error);
-          } catch (Throwable ignored) {
-          }
-        }
-
-        cancelled = true;
-        once = false;
-
-        int wip = this.wip;
-        if (wip == m) {
-          break;
-        }
-        m = wip;
+      if (!outputFused || terminated) {
+        clear();
       }
 
+      if (a != null) {
+        try {
+          a.onError(error);
+        } catch (Throwable ignored) {
+        }
+      }
       hasDownstream = false;
     }
   }
