@@ -213,7 +213,7 @@ public class RSocketConnector {
    *   <li>For server-to-server connections, a reasonable time interval between client {@code
    *       KEEPALIVE} frames is 500ms.
    *   <li>For mobile-to-server connections, the time interval between client {@code KEEPALIVE}
-   *       frames is often > 30,000ms.
+   *       frames is often {@code >} 30,000ms.
    * </ul>
    *
    * <p>By default these are set to 20 seconds and 90 seconds respectively.

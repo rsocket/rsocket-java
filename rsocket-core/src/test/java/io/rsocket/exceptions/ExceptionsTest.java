@@ -217,6 +217,8 @@ final class ExceptionsTest {
       assertThat(Exceptions.from(0, byteBuf))
           .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", randomCode, "test-message")
           .isInstanceOf(IllegalArgumentException.class);
+
+      byteBuf.release();
     }
   }
 
