@@ -38,7 +38,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.MonoProcessor;
-import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
 import reactor.util.retry.Retry;
@@ -194,8 +193,7 @@ public class ResolvingOperatorTests {
                         if (!processor2.isTerminated()) {
                           self.complete(valueToSend2);
                         }
-                      },
-                      Schedulers.parallel()))
+                      }))
           .then(
               self -> {
                 if (self.isPending()) {
@@ -270,16 +268,14 @@ public class ResolvingOperatorTests {
           .then(
               self ->
                   RaceTestUtils.race(
-                      () ->
-                          RaceTestUtils.race(
-                              self::invalidate, self::invalidate, Schedulers.parallel()),
+                      self::invalidate,
+                      self::invalidate,
                       () -> {
                         self.observe(consumer2);
                         if (!processor2.isTerminated()) {
                           self.complete(valueToSend2);
                         }
-                      },
-                      Schedulers.parallel()))
+                      }))
           .then(
               self -> {
                 if (!self.isPending()) {
@@ -371,19 +367,15 @@ public class ResolvingOperatorTests {
                       () ->
                           Assertions.assertThat(self.block(null))
                               .matches((v) -> v.equals(valueToSend) || v.equals(valueToSend2)),
-                      () ->
-                          RaceTestUtils.race(
-                              self::invalidate,
-                              () -> {
-                                for (; ; ) {
-                                  if (self.subscribers != ResolvingOperator.READY) {
-                                    self.complete(valueToSend2);
-                                    break;
-                                  }
-                                }
-                              },
-                              Schedulers.parallel()),
-                      Schedulers.parallel()))
+                      self::invalidate,
+                      () -> {
+                        for (; ; ) {
+                          if (self.subscribers != ResolvingOperator.READY) {
+                            self.complete(valueToSend2);
+                            break;
+                          }
+                        }
+                      }))
           .then(
               self -> {
                 if (self.isPending()) {

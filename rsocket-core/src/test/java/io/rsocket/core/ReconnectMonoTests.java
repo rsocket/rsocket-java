@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -176,8 +177,7 @@ public class ReconnectMonoTests {
               reconnectMono.resolvingInner.mainSubscriber.onNext("value_to_not_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
             }
-          },
-          Schedulers.parallel());
+          });
 
       subscriber.assertTerminated();
       subscriber.assertValues("value_to_expire" + i);
@@ -230,9 +230,8 @@ public class ReconnectMonoTests {
       reconnectMono.resolvingInner.mainSubscriber.onComplete();
 
       RaceTestUtils.race(
-          () ->
-              RaceTestUtils.race(
-                  reconnectMono::invalidate, reconnectMono::invalidate, Schedulers.parallel()),
+          reconnectMono::invalidate,
+          reconnectMono::invalidate,
           () -> {
             reconnectMono.subscribe(raceSubscriber);
             if (!raceSubscriber.isTerminated()) {
@@ -240,8 +239,7 @@ public class ReconnectMonoTests {
                   "value_to_possibly_expire" + index);
               reconnectMono.resolvingInner.mainSubscriber.onComplete();
             }
-          },
-          Schedulers.parallel());
+          });
 
       subscriber.assertTerminated();
       subscriber.assertValues("value_to_expire" + i);
@@ -279,20 +277,36 @@ public class ReconnectMonoTests {
     Hooks.onErrorDropped(t -> {});
     for (int i = 0; i < 10000; i++) {
       final int index = i;
-      final TestPublisher<String> cold =
-          TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
+      final Mono<String> source =
+          Mono.fromSupplier(
+              new Supplier<String>() {
+                boolean once = false;
+
+                @Override
+                public String get() {
+
+                  if (!once) {
+                    once = true;
+                    return "value_to_expire" + index;
+                  }
+
+                  return "value_to_not_expire" + index;
+                }
+              });
 
       final ReconnectMono<String> reconnectMono =
-          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
-
-      final AssertSubscriber<String> subscriber =
-          reconnectMono.subscribeWith(new AssertSubscriber<>());
+          new ReconnectMono<>(
+              source.subscribeOn(Schedulers.boundedElastic()), onExpire(), onValue());
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).isEmpty();
 
-      reconnectMono.resolvingInner.mainSubscriber.onNext("value_to_expire" + i);
-      reconnectMono.resolvingInner.mainSubscriber.onComplete();
+      final AssertSubscriber<String> subscriber =
+          reconnectMono.subscribeWith(new AssertSubscriber<>());
+
+      subscriber.await().assertComplete();
+
+      Assertions.assertThat(expired).isEmpty();
 
       RaceTestUtils.race(
           () ->
@@ -301,21 +315,7 @@ public class ReconnectMonoTests {
                       (v) ->
                           v.equals("value_to_not_expire" + index)
                               || v.equals("value_to_expire" + index)),
-          () ->
-              RaceTestUtils.race(
-                  reconnectMono::invalidate,
-                  () -> {
-                    for (; ; ) {
-                      if (reconnectMono.resolvingInner.subscribers != ResolvingOperator.READY) {
-                        reconnectMono.resolvingInner.mainSubscriber.onNext(
-                            "value_to_not_expire" + index);
-                        reconnectMono.resolvingInner.mainSubscriber.onComplete();
-                        break;
-                      }
-                    }
-                  },
-                  Schedulers.parallel()),
-          Schedulers.parallel());
+          reconnectMono::invalidate);
 
       subscriber.assertTerminated();
 

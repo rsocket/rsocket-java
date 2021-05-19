@@ -18,14 +18,10 @@ package io.rsocket.loadbalance;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
-import org.reactivestreams.Subscription;
-import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
-import reactor.core.Scannable;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
@@ -170,25 +166,31 @@ class ResolvingOperator<T> implements Disposable {
         delay = System.nanoTime() + timeout.toNanos();
       }
       for (; ; ) {
-        BiConsumer<T, Throwable>[] inners = this.subscribers;
+        subscribers = this.subscribers;
 
-        if (inners == READY) {
+        if (subscribers == READY) {
           final T value = this.value;
           if (value != null) {
             return value;
           } else {
             // value == null means racing between invalidate and this block
             // thus, we have to update the state again and see what happened
-            inners = this.subscribers;
+            subscribers = this.subscribers;
           }
         }
-        if (inners == TERMINATED) {
+        if (subscribers == TERMINATED) {
           RuntimeException re = Exceptions.propagate(this.t);
           re = Exceptions.addSuppressed(re, new Exception("Terminated with an error"));
           throw re;
         }
         if (timeout != null && delay < System.nanoTime()) {
           throw new IllegalStateException("Timeout on Mono blocking read");
+        }
+
+        // connect again since invalidate() has happened in between
+        if (subscribers == EMPTY_UNSUBSCRIBED
+            && SUBSCRIBERS.compareAndSet(this, EMPTY_UNSUBSCRIBED, EMPTY_SUBSCRIBED)) {
+          this.doSubscribe();
         }
 
         Thread.sleep(1);
@@ -203,6 +205,7 @@ class ResolvingOperator<T> implements Disposable {
   @SuppressWarnings("unchecked")
   final void terminate(Throwable t) {
     if (isDisposed()) {
+      Operators.onErrorDropped(t, Context.empty());
       return;
     }
 
@@ -387,177 +390,6 @@ class ResolvingOperator<T> implements Disposable {
       }
       if (SUBSCRIBERS.compareAndSet(this, a, b)) {
         return;
-      }
-    }
-  }
-
-  abstract static class DeferredResolution<T, R>
-      implements CoreSubscriber<T>, Subscription, Scannable, BiConsumer<R, Throwable> {
-
-    final ResolvingOperator<R> parent;
-    final CoreSubscriber<? super T> actual;
-
-    volatile long requested;
-
-    @SuppressWarnings("rawtypes")
-    static final AtomicLongFieldUpdater<DeferredResolution> REQUESTED =
-        AtomicLongFieldUpdater.newUpdater(DeferredResolution.class, "requested");
-
-    static final long STATE_SUBSCRIBED = -1;
-    static final long STATE_CANCELLED = Long.MIN_VALUE;
-
-    Subscription s;
-    boolean done;
-
-    DeferredResolution(ResolvingOperator<R> parent, CoreSubscriber<? super T> actual) {
-      this.parent = parent;
-      this.actual = actual;
-    }
-
-    @Override
-    public final Context currentContext() {
-      return this.actual.currentContext();
-    }
-
-    @Nullable
-    @Override
-    public Object scanUnsafe(Attr key) {
-      long state = this.requested;
-
-      if (key == Attr.PARENT) {
-        return this.s;
-      }
-      if (key == Attr.ACTUAL) {
-        return this.parent;
-      }
-      if (key == Attr.TERMINATED) {
-        return this.done;
-      }
-      if (key == Attr.CANCELLED) {
-        return state == STATE_CANCELLED;
-      }
-
-      return null;
-    }
-
-    @Override
-    public final void onSubscribe(Subscription s) {
-      final long state = this.requested;
-      Subscription a = this.s;
-      if (state == STATE_CANCELLED) {
-        s.cancel();
-        return;
-      }
-      if (a != null) {
-        s.cancel();
-        return;
-      }
-
-      long r;
-      long accumulated = 0;
-      for (; ; ) {
-        r = this.requested;
-
-        if (r == STATE_CANCELLED || r == STATE_SUBSCRIBED) {
-          s.cancel();
-          return;
-        }
-
-        this.s = s;
-
-        long toRequest = r - accumulated;
-        if (toRequest > 0) { // if there is something,
-          s.request(toRequest); // then we do a request on the given subscription
-        }
-        accumulated = r;
-
-        if (REQUESTED.compareAndSet(this, r, STATE_SUBSCRIBED)) {
-          return;
-        }
-      }
-    }
-
-    @Override
-    public final void onNext(T payload) {
-      this.actual.onNext(payload);
-    }
-
-    @Override
-    public final void onError(Throwable t) {
-      if (this.done) {
-        Operators.onErrorDropped(t, this.actual.currentContext());
-        return;
-      }
-
-      this.done = true;
-      this.actual.onError(t);
-    }
-
-    @Override
-    public final void onComplete() {
-      if (this.done) {
-        return;
-      }
-
-      this.done = true;
-      this.actual.onComplete();
-    }
-
-    @Override
-    public void request(long n) {
-      if (Operators.validate(n)) {
-        long r = this.requested; // volatile read beforehand
-
-        if (r > STATE_SUBSCRIBED) { // works only in case onSubscribe has not happened
-          long u;
-          for (; ; ) { // normal CAS loop with overflow protection
-            if (r == Long.MAX_VALUE) {
-              // if r == Long.MAX_VALUE then we dont care and we can loose this
-              // request just in case of racing
-              return;
-            }
-            u = Operators.addCap(r, n);
-            if (REQUESTED.compareAndSet(this, r, u)) {
-              // Means increment happened before onSubscribe
-              return;
-            } else {
-              // Means increment happened after onSubscribe
-
-              // update new state to see what exactly happened (onSubscribe |cancel | requestN)
-              r = this.requested;
-
-              // check state (expect -1 | -2 to exit, otherwise repeat)
-              if (r < 0) {
-                break;
-              }
-            }
-          }
-        }
-
-        if (r == STATE_CANCELLED) { // if canceled, just exit
-          return;
-        }
-
-        // if onSubscribe -> subscription exists (and we sure of that because volatile read
-        // after volatile write) so we can execute requestN on the subscription
-        this.s.request(n);
-      }
-    }
-
-    public boolean isCancelled() {
-      return this.requested == STATE_CANCELLED;
-    }
-
-    public void cancel() {
-      long state = REQUESTED.getAndSet(this, STATE_CANCELLED);
-      if (state == STATE_CANCELLED) {
-        return;
-      }
-
-      if (state == STATE_SUBSCRIBED) {
-        this.s.cancel();
-      } else {
-        this.parent.remove(this);
       }
     }
   }

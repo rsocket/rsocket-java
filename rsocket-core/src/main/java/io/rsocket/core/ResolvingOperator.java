@@ -170,25 +170,31 @@ class ResolvingOperator<T> implements Disposable {
         delay = System.nanoTime() + timeout.toNanos();
       }
       for (; ; ) {
-        BiConsumer<T, Throwable>[] inners = this.subscribers;
+        subscribers = this.subscribers;
 
-        if (inners == READY) {
+        if (subscribers == READY) {
           final T value = this.value;
           if (value != null) {
             return value;
           } else {
             // value == null means racing between invalidate and this block
             // thus, we have to update the state again and see what happened
-            inners = this.subscribers;
+            subscribers = this.subscribers;
           }
         }
-        if (inners == TERMINATED) {
+        if (subscribers == TERMINATED) {
           RuntimeException re = Exceptions.propagate(this.t);
           re = Exceptions.addSuppressed(re, new Exception("Terminated with an error"));
           throw re;
         }
         if (timeout != null && delay < System.nanoTime()) {
           throw new IllegalStateException("Timeout on Mono blocking read");
+        }
+
+        // connect again since invalidate() has happened in between
+        if (subscribers == EMPTY_UNSUBSCRIBED
+            && SUBSCRIBERS.compareAndSet(this, EMPTY_UNSUBSCRIBED, EMPTY_SUBSCRIBED)) {
+          this.doSubscribe();
         }
 
         Thread.sleep(1);
@@ -203,6 +209,7 @@ class ResolvingOperator<T> implements Disposable {
   @SuppressWarnings("unchecked")
   final void terminate(Throwable t) {
     if (isDisposed()) {
+      Operators.onErrorDropped(t, Context.empty());
       return;
     }
 

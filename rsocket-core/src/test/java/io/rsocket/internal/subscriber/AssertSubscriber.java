@@ -865,8 +865,11 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription, Sca
       if (a != null && a != Operators.cancelledSubscription()) {
         a.cancel();
 
-        if (establishedFusionMode == Fuseable.ASYNC && WIP.getAndIncrement(this) == 0) {
-          qs.clear();
+        if (establishedFusionMode == Fuseable.ASYNC) {
+          final int previousState = markWorkAdded();
+          if (!isWorkInProgress(previousState)) {
+            clearAndFinalize();
+          }
         }
       }
     }
@@ -925,11 +928,54 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription, Sca
     }
   }
 
-  void drain() {
-    if (this.wip != 0 || WIP.getAndIncrement(this) != 0) {
-      if (isCancelled()) {
-        qs.clear();
+  static boolean isFinalized(int state) {
+    return state == Integer.MIN_VALUE;
+  }
+
+  static boolean isWorkInProgress(int state) {
+    return state > 0;
+  }
+
+  int markWorkAdded() {
+    for (; ; ) {
+      int state = this.wip;
+
+      if (isFinalized(state)) {
+        return state;
       }
+
+      if ((state & Integer.MAX_VALUE) == Integer.MAX_VALUE) {
+        return state;
+      }
+      int nextState = state + 1;
+
+      if (WIP.compareAndSet(this, state, nextState)) {
+        return state;
+      }
+    }
+  }
+
+  void clearAndFinalize() {
+    final Fuseable.QueueSubscription<T> qs = this.qs;
+    for (; ; ) {
+      int state = this.wip;
+
+      qs.clear();
+
+      if (WIP.compareAndSet(this, state, Integer.MIN_VALUE)) {
+        return;
+      }
+    }
+  }
+
+  void drain() {
+    final int previousState = markWorkAdded();
+    if (isWorkInProgress(previousState)) {
+      return;
+    }
+
+    if (isFinalized(previousState)) {
+      qs.clear();
       return;
     }
 
@@ -937,14 +983,14 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription, Sca
     int m = 1;
     for (; ; ) {
       if (isCancelled()) {
-        qs.clear();
+        clearAndFinalize();
         break;
       }
       boolean done = this.done;
       t = qs.poll();
       if (t == null) {
         if (done) {
-          qs.clear(); // clear upstream to terminated it due to the contract
+          clearAndFinalize();
           cdl.countDown();
           return;
         }
@@ -974,39 +1020,41 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription, Sca
     subscriptionCount++;
     int requestMode = requestedFusionMode;
     if (requestMode >= 0) {
-      if (!setWithoutRequesting(s)) {
-        if (!isCancelled()) {
-          errors.add(new IllegalStateException("Subscription already set: " + subscriptionCount));
+      if (s instanceof Fuseable.QueueSubscription) {
+        this.qs = (Fuseable.QueueSubscription<T>) s;
+
+        int m = qs.requestFusion(requestMode);
+        establishedFusionMode = m;
+
+        if (!setWithoutRequesting(s)) {
+          qs.clear();
+          if (!isCancelled()) {
+            errors.add(new IllegalStateException("Subscription already set: " + subscriptionCount));
+          }
+          return;
         }
-      } else {
-        if (s instanceof Fuseable.QueueSubscription) {
-          this.qs = (Fuseable.QueueSubscription<T>) s;
 
-          int m = qs.requestFusion(requestMode);
-          establishedFusionMode = m;
-
-          if (m == Fuseable.SYNC) {
-            for (; ; ) {
-              T v = qs.poll();
-              if (v == null) {
-                onComplete();
-                break;
-              }
-
-              onNext(v);
+        if (m == Fuseable.SYNC) {
+          for (; ; ) {
+            T v = qs.poll();
+            if (v == null) {
+              onComplete();
+              break;
             }
-          } else {
-            requestDeferred();
+
+            onNext(v);
           }
         } else {
           requestDeferred();
         }
+
+        return;
       }
-    } else {
-      if (!set(s)) {
-        if (!isCancelled()) {
-          errors.add(new IllegalStateException("Subscription already set: " + subscriptionCount));
-        }
+    }
+
+    if (!set(s)) {
+      if (!isCancelled()) {
+        errors.add(new IllegalStateException("Subscription already set: " + subscriptionCount));
       }
     }
   }

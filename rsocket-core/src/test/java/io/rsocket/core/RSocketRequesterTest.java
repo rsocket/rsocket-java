@@ -105,7 +105,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
@@ -1171,12 +1170,8 @@ public class RSocketRequesterTest {
       Publisher<?> publisher2 = interaction2.apply(rule, payload2);
       RaceTestUtils.race(
           () -> rule.socket.dispose(),
-          () ->
-              RaceTestUtils.race(
-                  () -> publisher1.subscribe(assertSubscriber1),
-                  () -> publisher2.subscribe(assertSubscriber2),
-                  Schedulers.parallel()),
-          Schedulers.parallel());
+          () -> publisher1.subscribe(assertSubscriber1),
+          () -> publisher2.subscribe(assertSubscriber2));
 
       assertSubscriber1.await().assertTerminated();
       if (interactionType1 != REQUEST_FNF && interactionType1 != METADATA_PUSH) {

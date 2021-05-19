@@ -98,8 +98,6 @@ import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
 
@@ -372,7 +370,6 @@ public class RSocketResponderTest {
 
   @Test
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest1() {
-    Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
@@ -400,18 +397,14 @@ public class RSocketResponderTest {
       ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, 1, Integer.MAX_VALUE);
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
-          () ->
-              RaceTestUtils.race(
-                  () -> rule.connection.addToReceivedBuffer(requestNFrame),
-                  () -> rule.connection.addToReceivedBuffer(cancelFrame),
-                  parallel),
+          () -> rule.connection.addToReceivedBuffer(requestNFrame),
+          () -> rule.connection.addToReceivedBuffer(cancelFrame),
           () -> {
             sink.next(ByteBufPayload.create("d1", "m1"));
             sink.next(ByteBufPayload.create("d2", "m2"));
             sink.next(ByteBufPayload.create("d3", "m3"));
             sink.complete();
-          },
-          parallel);
+          });
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
       testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnCancel(1).expectNothing();
@@ -422,7 +415,6 @@ public class RSocketResponderTest {
   @Test
   public void
       checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromUpstreamOnErrorFromRequestChannelTest1() {
-    Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
@@ -490,18 +482,14 @@ public class RSocketResponderTest {
 
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
-          () ->
-              RaceTestUtils.race(
-                  () -> rule.connection.addToReceivedBuffer(requestNFrame),
-                  () -> rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3),
-                  parallel),
+          () -> rule.connection.addToReceivedBuffer(requestNFrame),
+          () -> rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3),
           () -> {
             sink.next(np1);
             sink.next(np2);
             sink.next(np3);
             sink.error(new RuntimeException());
-          },
-          parallel);
+          });
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
@@ -522,7 +510,6 @@ public class RSocketResponderTest {
 
   @Test
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestStreamTest1() {
-    Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
@@ -550,8 +537,7 @@ public class RSocketResponderTest {
             sink.next(ByteBufPayload.create("d1", "m1"));
             sink.next(ByteBufPayload.create("d2", "m2"));
             sink.next(ByteBufPayload.create("d3", "m3"));
-          },
-          parallel);
+          });
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
@@ -563,7 +549,6 @@ public class RSocketResponderTest {
 
   @Test
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestResponseTest1() {
-    Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
@@ -594,8 +579,7 @@ public class RSocketResponderTest {
           () -> rule.connection.addToReceivedBuffer(cancelFrame),
           () -> {
             sources[0].complete(ByteBufPayload.create("d1", "m1"));
-          },
-          parallel);
+          });
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
