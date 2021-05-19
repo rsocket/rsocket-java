@@ -234,10 +234,12 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
   public void onNext(ByteBuf frame) {
     final int state;
     final boolean isResumable = isResumableFrame(frame);
+    boolean canBeStore = isResumable;
     if (isResumable) {
       final ArrayList<ByteBuf> frames = cachedFrames;
-      int incomingFrameSize = frame.readableBytes();
+      final int incomingFrameSize = frame.readableBytes();
       final int cacheLimit = this.cacheLimit;
+
       if (cacheLimit != Integer.MAX_VALUE) {
         long availableSize = cacheLimit - cacheSize;
         if (availableSize < incomingFrameSize) {
@@ -256,17 +258,27 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
             }
           }
           CACHE_SIZE.addAndGet(this, -removedBytes);
-          POSITION.addAndGet(this, removedBytes);
+
+          canBeStore = availableSize >= incomingFrameSize;
+          POSITION.addAndGet(this, removedBytes + (canBeStore ? 0 : incomingFrameSize));
+        } else {
+          canBeStore = true;
         }
+      } else {
+        canBeStore = true;
       }
-      synchronized (this) {
-        state = this.state;
-        if (state != 2) {
-          frames.add(frame);
+
+      state = this.state;
+      if (canBeStore) {
+        synchronized (this) {
+          if (state != 2) {
+            frames.add(frame);
+          }
         }
-      }
-      if (cacheLimit != Integer.MAX_VALUE) {
-        CACHE_SIZE.addAndGet(this, incomingFrameSize);
+
+        if (cacheLimit != Integer.MAX_VALUE) {
+          CACHE_SIZE.addAndGet(this, incomingFrameSize);
+        }
       }
     } else {
       state = this.state;
@@ -274,8 +286,8 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
     final CoreSubscriber<? super ByteBuf> actual = this.actual;
     if (state == 1) {
-      actual.onNext(frame.retain());
-    } else if (!isResumable || state == 2) {
+      actual.onNext(isResumable && canBeStore ? frame.retainedSlice() : frame);
+    } else if (!isResumable || !canBeStore || state == 2) {
       frame.release();
     }
   }
@@ -302,7 +314,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       actual.onSubscribe(this);
       synchronized (this) {
         for (final ByteBuf frame : cachedFrames) {
-          actual.onNext(frame.retain());
+          actual.onNext(frame.retainedSlice());
         }
       }
 
