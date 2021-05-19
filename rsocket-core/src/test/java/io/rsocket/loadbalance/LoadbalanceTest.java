@@ -132,10 +132,14 @@ public class LoadbalanceTest {
               source,
               WeightedLoadbalanceStrategy.builder()
                   .weightedStatsResolver(
-                      rsocket ->
-                          ((PooledRSocket) rsocket).target() == target1
-                              ? weightedRSocket1
-                              : weightedRSocket2)
+                      rsocket -> {
+                        if (rsocket instanceof TestRSocket) {
+                          return (WeightedRSocket) ((TestRSocket) rsocket).source();
+                        }
+                        return ((PooledRSocket) rsocket).target() == target1
+                            ? weightedRSocket1
+                            : weightedRSocket2;
+                      })
                   .build());
 
       RaceTestUtils.race(
@@ -314,6 +318,10 @@ public class LoadbalanceTest {
     @Override
     public void dispose() {
       sink.tryEmitEmpty();
+    }
+
+    public RSocket source() {
+      return source;
     }
   }
 
