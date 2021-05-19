@@ -314,19 +314,14 @@ public class ReconnectMonoTests {
 
       Assertions.assertThat(expired).isEmpty();
 
-      try {
-
-        RaceTestUtils.race(
-            () ->
-                Assertions.assertThat(reconnectMono.block())
-                    .matches(
-                        (v) ->
-                            v.equals("value_to_not_expire" + index)
-                                || v.equals("value_to_expire" + index)),
-            reconnectMono::invalidate);
-      } catch (Throwable t) {
-        t.printStackTrace();
-      }
+      RaceTestUtils.race(
+          () ->
+              Assertions.assertThat(reconnectMono.block())
+                  .matches(
+                      (v) ->
+                          v.equals("value_to_not_expire" + index)
+                              || v.equals("value_to_expire" + index)),
+          reconnectMono::invalidate);
 
       subscriber.assertTerminated();
 
