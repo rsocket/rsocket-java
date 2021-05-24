@@ -109,7 +109,8 @@ abstract class ServerSetup {
 
         final ResumableFramesStore resumableFramesStore = resumeStoreFactory.apply(resumeToken);
         final ResumableDuplexConnection resumableDuplexConnection =
-            new ResumableDuplexConnection("server", duplexConnection, resumableFramesStore);
+            new ResumableDuplexConnection(
+                "server", resumeToken, duplexConnection, resumableFramesStore);
         final ServerRSocketSession serverRSocketSession =
             new ServerRSocketSession(
                 resumeToken,

@@ -51,7 +51,6 @@ import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
@@ -60,7 +59,6 @@ import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
@@ -93,14 +91,8 @@ public interface TransportTest {
     }
   }
 
-  @BeforeEach
-  default void setUp() {
-    Hooks.onOperatorDebug();
-  }
-
   @AfterEach
   default void close() {
-    Hooks.resetOnOperatorDebug();
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
@@ -547,7 +539,7 @@ public interface TransportTest {
                                       "Server",
                                       duplexConnection,
                                       Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(10, 1500)))
+                                          ThreadLocalRandom.current().nextInt(100, 1000)))
                                   : duplexConnection);
                     }
                   });
@@ -555,7 +547,8 @@ public interface TransportTest {
       if (withResumability) {
         rSocketServer.resume(
             new Resume()
-                .storeFactory(__ -> new InMemoryResumableFramesStore("server", Integer.MAX_VALUE)));
+                .storeFactory(
+                    token -> new InMemoryResumableFramesStore("server", token, Integer.MAX_VALUE)));
       }
 
       if (withRandomFragmentation) {
@@ -568,7 +561,7 @@ public interface TransportTest {
       final RSocketConnector rSocketConnector =
           RSocketConnector.create()
               .payloadDecoder(PayloadDecoder.ZERO_COPY)
-              .keepAlive(Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE))
+              .keepAlive(Duration.ofMillis(10), Duration.ofHours(1))
               .interceptors(
                   registry -> {
                     if (runClientWithAsyncInterceptors && !withResumability) {
@@ -594,7 +587,7 @@ public interface TransportTest {
                                       "Client",
                                       duplexConnection,
                                       Duration.ofMillis(
-                                          ThreadLocalRandom.current().nextInt(1, 2000)))
+                                          ThreadLocalRandom.current().nextInt(10, 1500)))
                                   : duplexConnection);
                     }
                   });
@@ -602,7 +595,8 @@ public interface TransportTest {
       if (withResumability) {
         rSocketConnector.resume(
             new Resume()
-                .storeFactory(__ -> new InMemoryResumableFramesStore("client", Integer.MAX_VALUE)));
+                .storeFactory(
+                    token -> new InMemoryResumableFramesStore("client", token, Integer.MAX_VALUE)));
       }
 
       if (withRandomFragmentation) {

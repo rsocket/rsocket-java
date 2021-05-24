@@ -160,7 +160,7 @@ public class Resume {
   Function<? super ByteBuf, ? extends ResumableFramesStore> getStoreFactory(String tag) {
     return storeFactory != null
         ? storeFactory
-        : token -> new InMemoryResumableFramesStore(tag, 100_000);
+        : token -> new InMemoryResumableFramesStore(tag, token, 100_000);
   }
 
   Duration getStreamTimeout() {
