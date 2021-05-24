@@ -20,14 +20,14 @@ import io.rsocket.test.TransportTest;
 import java.time.Duration;
 import java.util.UUID;
 
-final class LocalResumableTransportTest implements TransportTest {
+final class LocalResumableWithFragmentationTransportTest implements TransportTest {
 
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> "test-" + UUID.randomUUID(),
           (address, server, allocator) -> LocalClientTransport.create(address, allocator),
           (address, allocator) -> LocalServerTransport.create(address),
-          false,
+          true,
           true);
 
   @Override

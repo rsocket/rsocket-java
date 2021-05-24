@@ -612,6 +612,7 @@ public class RSocketConnector {
                                     final ResumableDuplexConnection resumableDuplexConnection =
                                         new ResumableDuplexConnection(
                                             CLIENT_TAG,
+                                            resumeToken,
                                             clientServerConnection,
                                             resumableFramesStore);
                                     final ResumableClientSetup resumableClientSetup =

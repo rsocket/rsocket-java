@@ -182,7 +182,7 @@ public class ResumeIntegrationTest {
         .resume(
             new Resume()
                 .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
-                .storeFactory(t -> new InMemoryResumableFramesStore("client", 500_000))
+                .storeFactory(t -> new InMemoryResumableFramesStore("client", t, 500_000))
                 .cleanupStoreOnKeepAlive()
                 .retry(Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))))
         .keepAlive(Duration.ofSeconds(5), Duration.ofMinutes(5))
@@ -199,7 +199,7 @@ public class ResumeIntegrationTest {
             new Resume()
                 .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
                 .cleanupStoreOnKeepAlive()
-                .storeFactory(t -> new InMemoryResumableFramesStore("server", 500_000)))
+                .storeFactory(t -> new InMemoryResumableFramesStore("server", t, 500_000)))
         .bind(serverTransport(SERVER_HOST, SERVER_PORT));
   }
 
@@ -212,7 +212,7 @@ public class ResumeIntegrationTest {
       return duplicate(
               Flux.interval(Duration.ofMillis(1))
                   .onBackpressureLatest()
-                  .publishOn(Schedulers.elastic()),
+                  .publishOn(Schedulers.boundedElastic()),
               20)
           .map(v -> DefaultPayload.create(String.valueOf(counter.getAndIncrement())))
           .takeUntilOther(Flux.from(payloads).then());
