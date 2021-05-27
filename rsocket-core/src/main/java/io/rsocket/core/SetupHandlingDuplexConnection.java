@@ -64,6 +64,11 @@ class SetupHandlingDuplexConnection extends Flux<ByteBuf>
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return source.localAddress();
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return source.remoteAddress();
   }

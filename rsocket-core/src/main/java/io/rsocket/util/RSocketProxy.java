@@ -22,6 +22,8 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.SocketAddress;
+
 /** Wrapper/Proxy for a RSocket. This is useful when we want to override a specific method. */
 public class RSocketProxy implements RSocket {
   protected final RSocket source;
@@ -53,6 +55,16 @@ public class RSocketProxy implements RSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     return source.metadataPush(payload);
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return source.localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return source.remoteAddress();
   }
 
   @Override

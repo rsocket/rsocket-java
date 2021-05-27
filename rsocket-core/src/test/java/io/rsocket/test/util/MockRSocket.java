@@ -21,6 +21,8 @@ import static org.hamcrest.Matchers.is;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+
+import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -69,6 +71,16 @@ public class MockRSocket implements RSocket {
   @Override
   public final Mono<Void> metadataPush(Payload payload) {
     return delegate.metadataPush(payload).doOnSubscribe(s -> pushCount.incrementAndGet());
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return delegate.localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return delegate.remoteAddress();
   }
 
   @Override

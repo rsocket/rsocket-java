@@ -58,6 +58,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return connection.channel().localAddress();
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return connection.channel().remoteAddress();
   }

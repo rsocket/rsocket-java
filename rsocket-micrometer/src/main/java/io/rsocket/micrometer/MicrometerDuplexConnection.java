@@ -90,6 +90,11 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return delegate.localAddress();
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return delegate.remoteAddress();
   }
