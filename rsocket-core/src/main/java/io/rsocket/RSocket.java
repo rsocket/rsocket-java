@@ -88,6 +88,7 @@ public interface RSocket extends Availability, Closeable {
    *
    * @return the local address of this channel.
    *         {@code null} if this channel is not bound.
+   * @since 1.1.1
    */
   default SocketAddress localAddress() {
     return null;
@@ -105,6 +106,7 @@ public interface RSocket extends Availability, Closeable {
    *         from arbitrary remote addresses to determine
    *         the origination of the received message as this method will
    *         return {@code null}.
+   * @since 1.1.1
    */
   default SocketAddress remoteAddress() {
     return null;

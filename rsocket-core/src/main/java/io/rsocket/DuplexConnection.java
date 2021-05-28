@@ -82,7 +82,7 @@ public interface DuplexConnection extends Availability, Closeable {
    * local transport, it is {@link io.rsocket.transport.local.LocalSocketAddress}.
    *
    * @return the address
-   *
+   * @since 1.1.1
    */
   SocketAddress localAddress();
 
