@@ -153,8 +153,9 @@ subprojects {
         test {
             useJUnitPlatform()
             testLogging {
-                events "FAILED"
+                events "PASSED", "FAILED"
                 showExceptions true
+                showCauses true
                 exceptionFormat "FULL"
                 stackTraceFilters "ENTRY_POINT"
                 maxGranularity 3
@@ -168,6 +169,8 @@ subprojects {
                     println last
                 }
             }
+
+            forkEvery = 1
 
             if (isCiServer) {
                 def stdout = new LinkedList<TestOutputEvent>()
