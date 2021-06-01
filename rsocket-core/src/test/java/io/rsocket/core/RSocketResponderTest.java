@@ -39,6 +39,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
@@ -247,7 +248,7 @@ public class RSocketResponderTest {
   @Test
   public void checkNoLeaksOnRacingCancelFromRequestChannelAndNextFromUpstream() {
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       rule.setAcceptingSocket(
@@ -301,7 +302,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       FluxSink<Payload>[] sinks = new FluxSink[1];
@@ -340,7 +341,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest1() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       FluxSink<Payload>[] sinks = new FluxSink[1];
@@ -382,7 +383,7 @@ public class RSocketResponderTest {
       checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromUpstreamOnErrorFromRequestChannelTest1() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
       rule.setAcceptingSocket(
@@ -474,7 +475,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestStreamTest1() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
       rule.setAcceptingSocket(
@@ -509,7 +510,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestResponseTest1() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       Operators.MonoSubscriber<Payload, Payload>[] sources = new Operators.MonoSubscriber[1];
 
       rule.setAcceptingSocket(
