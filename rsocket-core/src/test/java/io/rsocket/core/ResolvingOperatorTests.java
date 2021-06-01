@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import io.rsocket.RaceTestConstants;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -47,7 +48,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldExpireValueOnRacingDisposeAndComplete() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final int index = i;
 
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
@@ -91,7 +92,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldNotifyAllTheSubscribersUnderRacingBetweenSubscribeAndComplete() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
 
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
@@ -143,7 +144,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidate() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value2" + i;
 
@@ -226,7 +227,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidates() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value_to_possibly_expire" + i;
 
@@ -331,7 +332,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldNotExpireNewlyResolvedValueIfBlockIsRacingWithInvalidate() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
       final String valueToSend2 = "value2" + i;
 
@@ -392,7 +393,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribers() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
 
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
@@ -453,7 +454,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribeAndBlock() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
 
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
@@ -509,7 +510,7 @@ public class ResolvingOperatorTests {
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenBlocks() {
     Duration timeout = Duration.ofMillis(100);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final String valueToSend = "value" + i;
 
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
@@ -560,7 +561,7 @@ public class ResolvingOperatorTests {
   public void shouldExpireValueOnRacingDisposeAndError() {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<String> subscriber = AssertSubscriber.create();
       subscriber.onSubscribe(Operators.emptySubscription());
       BiConsumer<String, Throwable> consumer =
@@ -767,7 +768,8 @@ public class ResolvingOperatorTests {
     AssertSubscriber<String> sub3 = AssertSubscriber.create();
     AssertSubscriber<String> sub4 = AssertSubscriber.create();
 
-    final ArrayList<AssertSubscriber<String>> processors = new ArrayList<>(200);
+    final ArrayList<AssertSubscriber<String>> processors =
+        new ArrayList<>(RaceTestConstants.REPEATS * 2);
 
     ResolvingTest.<String>create()
         .assertDisposeCalled(0)
@@ -786,7 +788,7 @@ public class ResolvingOperatorTests {
         .assertPendingSubscribers(4)
         .then(
             self -> {
-              for (int i = 0; i < 100; i++) {
+              for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
                 AssertSubscriber<String> subA = AssertSubscriber.create();
                 AssertSubscriber<String> subB = AssertSubscriber.create();
                 processors.add(subA);
@@ -797,9 +799,9 @@ public class ResolvingOperatorTests {
               }
             })
         .assertSubscribeCalled(1)
-        .assertPendingSubscribers(204)
+        .assertPendingSubscribers(RaceTestConstants.REPEATS * 2 + 4)
         .then(self -> sub1.cancel())
-        .assertPendingSubscribers(203)
+        .assertPendingSubscribers(RaceTestConstants.REPEATS * 2 + 3)
         .then(
             self -> {
               String valueToSend = "value";
@@ -822,7 +824,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldBeSerialIfRacyMonoInner() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       long[] requested = new long[] {0};
       Subscription mockSubscription = Mockito.mock(Subscription.class);
       Mockito.doAnswer(
@@ -858,7 +860,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidates() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ResolvingTest.create()
           .assertNothingExpired()
           .assertNothingReceived()
@@ -872,7 +874,7 @@ public class ResolvingOperatorTests {
 
   @Test
   public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidateAndDispose() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ResolvingTest.create()
           .assertNothingExpired()
           .assertNothingReceived()

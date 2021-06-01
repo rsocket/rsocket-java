@@ -24,6 +24,7 @@ import io.netty.util.IllegalReferenceCountException;
 import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.PayloadAssert;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.FrameType;
@@ -545,7 +546,7 @@ public class RequestChannelRequesterFluxTest {
 
     Hooks.onErrorDropped(droppedErrors::add);
     try {
-      for (int i = 0; i < 10000; i++) {
+      for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
         final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
         final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
         final TestDuplexConnection sender = activeStreams.getDuplexConnection();
@@ -706,7 +707,7 @@ public class RequestChannelRequesterFluxTest {
   @ValueSource(strings = {"complete", "cancel"})
   public void shouldRemoveItselfFromActiveStreamsWhenInboundAndOutboundAreTerminated(
       String outboundTerminationMode) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final TestDuplexConnection sender = activeStreams.getDuplexConnection();

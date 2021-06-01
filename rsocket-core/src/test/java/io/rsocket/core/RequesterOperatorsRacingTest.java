@@ -27,6 +27,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.util.CharsetUtil;
 import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.internal.subscriber.AssertSubscriber;
@@ -168,7 +169,7 @@ public class RequesterOperatorsRacingTest {
   @ParameterizedTest(name = "Should subscribe exactly once to {0}")
   @MethodSource("scenarios")
   public void shouldSubscribeExactlyOnce(Scenario scenario) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport requesterResponderSupport =
           TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -277,7 +278,7 @@ public class RequesterOperatorsRacingTest {
     Assumptions.assumeThat(scenario.requestType())
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport activeStreams =
           TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -364,7 +365,7 @@ public class RequesterOperatorsRacingTest {
     Assumptions.assumeThat(scenario.requestType())
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport activeStreams =
           TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -472,7 +473,7 @@ public class RequesterOperatorsRacingTest {
     Assumptions.assumeThat(scenario.requestType())
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport activeStreams =
           TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -550,7 +551,7 @@ public class RequesterOperatorsRacingTest {
 
     try {
       for (boolean withReassembly : withReassemblyOptions) {
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
           final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
           final TestRequesterResponderSupport activeStreams =
               TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -668,7 +669,7 @@ public class RequesterOperatorsRacingTest {
   public void shouldBeConsistentInCaseOfRacingOfCancellationAndRequest(Scenario scenario) {
     Assumptions.assumeThat(scenario.requestType())
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport activeStreams =
           TestRequesterResponderSupport.client(testRequestInterceptor);
@@ -727,7 +728,7 @@ public class RequesterOperatorsRacingTest {
   public void shouldSentCancelFrameExactlyOnce(Scenario scenario) {
     Assumptions.assumeThat(scenario.requestType())
         .isIn(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
       final TestRequesterResponderSupport activeStreams =
           TestRequesterResponderSupport.client(testRequestInterceptor);

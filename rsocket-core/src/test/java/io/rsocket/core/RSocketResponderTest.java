@@ -49,6 +49,7 @@ import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.PayloadAssert;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
@@ -270,7 +271,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
       final Sinks.One<Payload> sink = Sinks.one();
 
@@ -331,7 +332,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       FluxSink<Payload>[] sinks = new FluxSink[1];
@@ -374,7 +375,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       FluxSink<Payload>[] sinks = new FluxSink[1];
@@ -419,7 +420,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
       rule.setAcceptingSocket(
@@ -514,7 +515,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
       rule.setAcceptingSocket(
@@ -553,7 +554,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     rule.setRequestInterceptor(testRequestInterceptor);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       Operators.MonoSubscriber<Payload, Payload>[] sources = new Operators.MonoSubscriber[1];
 
       rule.setAcceptingSocket(

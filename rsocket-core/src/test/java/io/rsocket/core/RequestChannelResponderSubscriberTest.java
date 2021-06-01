@@ -28,6 +28,7 @@ import io.netty.util.IllegalReferenceCountException;
 import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.PayloadAssert;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.FrameType;
@@ -270,7 +271,7 @@ public class RequestChannelResponderSubscriberTest {
 
   @Test
   public void streamShouldWorkCorrectlyWhenRacingHandleCompleteWithSubscription() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final TestDuplexConnection sender = activeStreams.getDuplexConnection();
@@ -331,7 +332,7 @@ public class RequestChannelResponderSubscriberTest {
   public void streamShouldWorkCorrectlyWhenRacingHandleErrorWithSubscription() {
     ApplicationErrorException applicationErrorException = new ApplicationErrorException("test");
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final Payload firstPayload = TestRequesterResponderSupport.randomPayload(allocator);
@@ -377,7 +378,7 @@ public class RequestChannelResponderSubscriberTest {
   public void streamShouldWorkCorrectlyWhenRacingOutboundErrorWithSubscription() {
     RuntimeException exception = new RuntimeException("test");
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final Payload firstPayload = TestRequesterResponderSupport.randomPayload(allocator);
@@ -425,7 +426,7 @@ public class RequestChannelResponderSubscriberTest {
 
   @Test
   public void streamShouldWorkCorrectlyWhenRacingHandleCancelWithSubscription() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final Payload firstPayload = TestRequesterResponderSupport.randomPayload(allocator);
@@ -493,7 +494,7 @@ public class RequestChannelResponderSubscriberTest {
 
     Hooks.onErrorDropped(droppedErrors::add);
     try {
-      for (int i = 0; i < 10000; i++) {
+      for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
         final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
         final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
         final TestDuplexConnection sender = activeStreams.getDuplexConnection();
@@ -656,7 +657,7 @@ public class RequestChannelResponderSubscriberTest {
     final Payload oversizePayload =
         DefaultPayload.create(new byte[FRAME_LENGTH_MASK], new byte[FRAME_LENGTH_MASK]);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
       final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
       final TestDuplexConnection sender = activeStreams.getDuplexConnection();

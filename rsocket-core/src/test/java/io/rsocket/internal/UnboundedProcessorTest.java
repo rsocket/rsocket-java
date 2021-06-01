@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.time.Duration;
@@ -88,7 +89,7 @@ public class UnboundedProcessorTest {
   public void testPrioritizedSending(boolean fusedCase) {
     UnboundedProcessor processor = new UnboundedProcessor();
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       processor.onNext(Unpooled.EMPTY_BUFFER);
     }
 
@@ -107,7 +108,7 @@ public class UnboundedProcessorTest {
   public void ensureUnboundedProcessorDisposesQueueProperly(boolean withFusionEnabled) {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -145,7 +146,7 @@ public class UnboundedProcessorTest {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     final RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -193,7 +194,7 @@ public class UnboundedProcessorTest {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     final RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -240,7 +241,7 @@ public class UnboundedProcessorTest {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     final RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -283,7 +284,7 @@ public class UnboundedProcessorTest {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     final RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
       final ByteBuf buffer1 = allocator.buffer(1);
@@ -330,7 +331,7 @@ public class UnboundedProcessorTest {
     final LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
       final ByteBuf buffer1 = allocator.buffer(1);
       final ByteBuf buffer2 = allocator.buffer(2);

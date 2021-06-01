@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.frame.ErrorFrameCodec;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.DisplayName;
@@ -201,7 +202,7 @@ final class ExceptionsTest {
   @DisplayName("from returns CustomRSocketException")
   @Test
   void fromCustomRSocketException() {
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       int randomCode =
           ThreadLocalRandom.current().nextBoolean()
               ? ThreadLocalRandom.current()

@@ -18,6 +18,7 @@ package io.rsocket.core;
 
 import static org.junit.Assert.assertEquals;
 
+import io.rsocket.RaceTestConstants;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.io.IOException;
 import java.time.Duration;
@@ -59,7 +60,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndNext() {
     Hooks.onErrorDropped(t -> {});
     Hooks.onNextDropped(System.out::println);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final int index = i;
       final CoreSubscriber<? super String>[] monoSubscribers = new CoreSubscriber[1];
       Subscription mockSubscription = Mockito.mock(Subscription.class);
@@ -108,7 +109,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldNotifyAllTheSubscribersUnderRacingBetweenSubscribeAndComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -151,7 +152,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidate() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final int index = i;
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
@@ -211,7 +212,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidates() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final int index = i;
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
@@ -275,7 +276,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldNotExpireNewlyResolvedValueIfBlockIsRacingWithInvalidate() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final int index = i;
       final Mono<String> source =
           Mono.fromSupplier(
@@ -341,7 +342,7 @@ public class ReconnectMonoTests {
 
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribers() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -388,7 +389,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribeAndBlock() {
     Duration timeout = Duration.ofMillis(100);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -436,7 +437,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenBlocks() {
     Duration timeout = Duration.ofMillis(100);
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -481,7 +482,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldExpireValueOnRacingDisposeAndNoValueComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -520,7 +521,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldExpireValueOnRacingDisposeAndComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -561,7 +562,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndError() {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -607,7 +608,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndErrorWithNoBackoff() {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -884,7 +885,7 @@ public class ReconnectMonoTests {
 
     final ArrayList<AssertSubscriber<String>> subscribers = new ArrayList<>(200);
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final AssertSubscriber<String> subA = new AssertSubscriber<>();
       final AssertSubscriber<String> subB = new AssertSubscriber<>();
       subscribers.add(subA);
@@ -892,11 +893,13 @@ public class ReconnectMonoTests {
       RaceTestUtils.race(() -> reconnectMono.subscribe(subA), () -> reconnectMono.subscribe(subB));
     }
 
-    Assertions.assertThat(reconnectMono.resolvingInner.subscribers).hasSize(204);
+    Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
+        .hasSize(RaceTestConstants.REPEATS * 2 + 4);
 
     sub1.cancel();
 
-    Assertions.assertThat(reconnectMono.resolvingInner.subscribers).hasSize(203);
+    Assertions.assertThat(reconnectMono.resolvingInner.subscribers)
+        .hasSize(RaceTestConstants.REPEATS * 2 + 3);
 
     publisher.next("value");
 
@@ -915,7 +918,7 @@ public class ReconnectMonoTests {
 
   @Test
   public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidates() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value");
       cold.complete();
@@ -963,7 +966,7 @@ public class ReconnectMonoTests {
 
   @Test
   public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidateAndDispose() {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value");
       final int timeout = 10000;

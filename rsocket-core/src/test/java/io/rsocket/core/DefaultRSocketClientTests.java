@@ -26,6 +26,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
@@ -182,7 +183,7 @@ public class DefaultRSocketClientTests {
       throws Throwable {
     Assumptions.assumeThat(requestType).isNotEqualTo(FrameType.REQUEST_CHANNEL);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
       rule.apply(
               new Statement() {
@@ -244,7 +245,7 @@ public class DefaultRSocketClientTests {
       throws Throwable {
     Assumptions.assumeThat(requestType).isNotEqualTo(FrameType.REQUEST_CHANNEL);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
       rule.apply(
               new Statement() {
@@ -481,7 +482,7 @@ public class DefaultRSocketClientTests {
 
   @Test
   public void shouldDisposeOriginalSourceIfRacing() throws Throwable {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
       rule.apply(
               new Statement() {

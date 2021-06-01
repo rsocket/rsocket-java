@@ -2,6 +2,7 @@ package io.rsocket.loadbalance;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.util.EmptyPayload;
@@ -66,7 +67,7 @@ public class RoundRobinLoadbalanceStrategyTest {
     final RSocketPool rSocketPool =
         new RSocketPool(rSocketConnectorMock, source, new RoundRobinLoadbalanceStrategy());
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
@@ -108,55 +109,62 @@ public class RoundRobinLoadbalanceStrategyTest {
     final RSocketPool rSocketPool =
         new RSocketPool(rSocketConnectorMock, source, new RoundRobinLoadbalanceStrategy());
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
     source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport1)));
 
-    Assertions.assertThat(counter1.get()).isCloseTo(1000, Offset.offset(1));
+    Assertions.assertThat(counter1.get()).isCloseTo(RaceTestConstants.REPEATS, Offset.offset(1));
 
     source.next(Collections.emptyList());
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
     source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport1)));
 
-    Assertions.assertThat(counter1.get()).isCloseTo(2000, Offset.offset(1));
+    Assertions.assertThat(counter1.get())
+        .isCloseTo(RaceTestConstants.REPEATS * 2, Offset.offset(1));
 
     source.next(
         Arrays.asList(
             LoadbalanceTarget.from("1", mockTransport1),
             LoadbalanceTarget.from("2", mockTransport2)));
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
-    Assertions.assertThat(counter1.get()).isCloseTo(2500, Offset.offset(1));
-    Assertions.assertThat(counter2.get()).isCloseTo(500, Offset.offset(1));
+    Assertions.assertThat(counter1.get())
+        .isCloseTo(RaceTestConstants.REPEATS * 2 + RaceTestConstants.REPEATS / 2, Offset.offset(1));
+    Assertions.assertThat(counter2.get())
+        .isCloseTo(RaceTestConstants.REPEATS / 2, Offset.offset(1));
 
     source.next(Collections.singletonList(LoadbalanceTarget.from("2", mockTransport1)));
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
-    Assertions.assertThat(counter1.get()).isCloseTo(2500, Offset.offset(1));
-    Assertions.assertThat(counter2.get()).isCloseTo(1500, Offset.offset(1));
+    Assertions.assertThat(counter1.get())
+        .isCloseTo(RaceTestConstants.REPEATS * 2 + RaceTestConstants.REPEATS / 2, Offset.offset(1));
+    Assertions.assertThat(counter2.get())
+        .isCloseTo(RaceTestConstants.REPEATS + RaceTestConstants.REPEATS / 2, Offset.offset(1));
 
     source.next(
         Arrays.asList(
             LoadbalanceTarget.from("1", mockTransport1),
             LoadbalanceTarget.from("2", mockTransport2)));
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < RaceTestConstants.REPEATS; j++) {
       rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
     }
 
-    Assertions.assertThat(counter1.get()).isCloseTo(3000, Offset.offset(1));
-    Assertions.assertThat(counter2.get()).isCloseTo(2000, Offset.offset(1));
+    Assertions.assertThat(counter1.get())
+        .isCloseTo(RaceTestConstants.REPEATS * 3, Offset.offset(1));
+    Assertions.assertThat(counter2.get())
+        .isCloseTo(RaceTestConstants.REPEATS * 2, Offset.offset(1));
   }
 }

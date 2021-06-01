@@ -17,7 +17,10 @@ package io.rsocket.loadbalance;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.core.RSocketConnector;
+import io.rsocket.plugins.RSocketInterceptor;
+import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.RSocketProxy;
@@ -32,6 +35,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
@@ -54,49 +59,55 @@ public class LoadbalanceTest {
   }
 
   @Test
-  public void shouldDeliverAllTheRequestsWithRoundRobinStrategy() throws Exception {
+  public void shouldDeliverAllTheRequestsWithRoundRobinStrategy() {
     final AtomicInteger counter = new AtomicInteger();
-    final ClientTransport mockTransport = Mockito.mock(ClientTransport.class);
-    final RSocketConnector rSocketConnectorMock = Mockito.mock(RSocketConnector.class);
+    final ClientTransport mockTransport = new TestClientTransport();
+    final RSocket rSocket =
+        new RSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            counter.incrementAndGet();
+            return Mono.empty();
+          }
+        };
+    final RSocketConnector rSocketConnectorMock =
+        RSocketConnector.create()
+            .interceptors(
+                ir -> ir.forRequester((RSocketInterceptor) socket -> new TestRSocket(rSocket)));
 
-    Mockito.when(rSocketConnectorMock.connect(Mockito.any(ClientTransport.class)))
-        .then(
-            im ->
-                Mono.just(
-                    new TestRSocket(
-                        new RSocket() {
-                          @Override
-                          public Mono<Void> fireAndForget(Payload payload) {
-                            counter.incrementAndGet();
-                            return Mono.empty();
-                          }
-                        })));
+    final List<LoadbalanceTarget> collectionOfDestination1 =
+        Collections.singletonList(LoadbalanceTarget.from("1", mockTransport));
+    final List<LoadbalanceTarget> collectionOfDestination2 =
+        Collections.singletonList(LoadbalanceTarget.from("2", mockTransport));
+    final List<LoadbalanceTarget> collectionOfDestinations1And2 =
+        Arrays.asList(
+            LoadbalanceTarget.from("1", mockTransport), LoadbalanceTarget.from("2", mockTransport));
 
-    for (int i = 0; i < 1000; i++) {
-      final TestPublisher<List<LoadbalanceTarget>> source = TestPublisher.create();
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
+      final Sinks.Many<List<LoadbalanceTarget>> source =
+          Sinks.unsafe().many().unicast().onBackpressureError();
       final RSocketPool rSocketPool =
-          new RSocketPool(rSocketConnectorMock, source, new RoundRobinLoadbalanceStrategy());
+          new RSocketPool(
+              rSocketConnectorMock, source.asFlux(), new RoundRobinLoadbalanceStrategy());
+      final Mono<Void> fnfSource =
+          Mono.defer(() -> rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE));
 
       RaceTestUtils.race(
           () -> {
             for (int j = 0; j < 1000; j++) {
-              Mono.defer(() -> rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE))
-                  .retry()
-                  .subscribe();
+              fnfSource.subscribe(new RetrySubscriber(fnfSource));
             }
           },
           () -> {
             for (int j = 0; j < 100; j++) {
-              source.next(Collections.emptyList());
-              source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport)));
-              source.next(
-                  Arrays.asList(
-                      LoadbalanceTarget.from("1", mockTransport),
-                      LoadbalanceTarget.from("2", mockTransport)));
-              source.next(Collections.singletonList(LoadbalanceTarget.from("1", mockTransport)));
-              source.next(Collections.singletonList(LoadbalanceTarget.from("2", mockTransport)));
-              source.next(Collections.emptyList());
-              source.next(Collections.singletonList(LoadbalanceTarget.from("2", mockTransport)));
+              source.emitNext(Collections.emptyList(), Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination1, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestinations1And2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination1, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(Collections.emptyList(), Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestinations1And2, Sinks.EmitFailureHandler.FAIL_FAST);
             }
           });
 
@@ -123,13 +134,17 @@ public class LoadbalanceTest {
         .then(im -> Mono.just(new TestRSocket(weightedRSocket1)));
     Mockito.when(rSocketConnectorMock.connect(mockTransport2))
         .then(im -> Mono.just(new TestRSocket(weightedRSocket2)));
+    final List<LoadbalanceTarget> collectionOfDestination1 = Collections.singletonList(target1);
+    final List<LoadbalanceTarget> collectionOfDestination2 = Collections.singletonList(target2);
+    final List<LoadbalanceTarget> collectionOfDestinations1And2 = Arrays.asList(target1, target2);
 
-    for (int i = 0; i < 1000; i++) {
-      final TestPublisher<List<LoadbalanceTarget>> source = TestPublisher.create();
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
+      final Sinks.Many<List<LoadbalanceTarget>> source =
+          Sinks.unsafe().many().unicast().onBackpressureError();
       final RSocketPool rSocketPool =
           new RSocketPool(
               rSocketConnectorMock,
-              source,
+              source.asFlux(),
               WeightedLoadbalanceStrategy.builder()
                   .weightedStatsResolver(
                       rsocket -> {
@@ -141,23 +156,25 @@ public class LoadbalanceTest {
                             : weightedRSocket2;
                       })
                   .build());
+      final Mono<Void> fnfSource =
+          Mono.defer(() -> rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE));
 
       RaceTestUtils.race(
           () -> {
             for (int j = 0; j < 1000; j++) {
-              Mono.defer(() -> rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE))
-                  .retry()
-                  .subscribe(aVoid -> {}, Throwable::printStackTrace);
+              fnfSource.subscribe(new RetrySubscriber(fnfSource));
             }
           },
           () -> {
             for (int j = 0; j < 100; j++) {
-              source.next(Collections.emptyList());
-              source.next(Collections.singletonList(target1));
-              source.next(Arrays.asList(target1, target2)).next(Collections.singletonList(target1));
-              source.next(Collections.singletonList(target2));
-              source.next(Collections.emptyList());
-              source.next(Collections.singletonList(target2));
+              source.emitNext(Collections.emptyList(), Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination1, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestinations1And2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination1, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(Collections.emptyList(), Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestination2, Sinks.EmitFailureHandler.FAIL_FAST);
+              source.emitNext(collectionOfDestinations1And2, Sinks.EmitFailureHandler.FAIL_FAST);
             }
           });
 
@@ -344,5 +361,30 @@ public class LoadbalanceTest {
                 record(stopTime - startTime);
               });
     }
+  }
+
+  static class RetrySubscriber implements CoreSubscriber<Void> {
+
+    final Publisher<Void> source;
+
+    private RetrySubscriber(Publisher<Void> source) {
+      this.source = source;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      s.request(Long.MAX_VALUE);
+    }
+
+    @Override
+    public void onNext(Void unused) {}
+
+    @Override
+    public void onError(Throwable t) {
+      source.subscribe(this);
+    }
+
+    @Override
+    public void onComplete() {}
   }
 }
