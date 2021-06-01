@@ -37,6 +37,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RaceTestConstants;
 import io.rsocket.TestScheduler;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
@@ -404,7 +405,7 @@ public class RSocketRequesterTest {
   public void checkNoLeaksOnRacing(
       Function<ClientSocketRule, Publisher<Payload>> initiator,
       BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule clientSocketRule = new ClientSocketRule();
       try {
         clientSocketRule
@@ -987,7 +988,7 @@ public class RSocketRequesterTest {
       FrameType interactionType2) {
     Assumptions.assumeThat(interactionType1).isNotEqualTo(METADATA_PUSH);
     Assumptions.assumeThat(interactionType2).isNotEqualTo(METADATA_PUSH);
-    for (int i = 1; i < 10000; i += 4) {
+    for (int i = 1; i < RaceTestConstants.REPEATS; i += 4) {
       Payload payload = DefaultPayload.create("test", "test");
       Publisher<?> publisher1 = interaction1.apply(rule, payload);
       Publisher<?> publisher2 = interaction2.apply(rule, payload);
@@ -1072,7 +1073,7 @@ public class RSocketRequesterTest {
       BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction2,
       FrameType interactionType1,
       FrameType interactionType2) {
-    for (int i = 1; i < 10000; i++) {
+    for (int i = 1; i < RaceTestConstants.REPEATS; i++) {
       Payload payload1 = ByteBufPayload.create("test", "test");
       Payload payload2 = ByteBufPayload.create("test", "test");
       AssertSubscriber assertSubscriber1 = AssertSubscriber.create();
