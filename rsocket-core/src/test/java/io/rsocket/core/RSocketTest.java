@@ -35,11 +35,9 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
@@ -51,7 +49,12 @@ import reactor.test.publisher.TestPublisher;
 
 public class RSocketTest {
 
-  @Rule public final SocketRule rule = new SocketRule();
+  public final SocketRule rule = new SocketRule();
+
+  @BeforeEach
+  public void setup() {
+    rule.init();
+  }
 
   @Test
   public void rsocketDisposalShouldEndupWithNoErrorsOnClose() {
@@ -81,7 +84,8 @@ public class RSocketTest {
     Assertions.assertThat(requestHandlingRSocket.isDisposed()).isTrue();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testRequestReplyNoError() {
     StepVerifier.create(rule.crs.requestResponse(DefaultPayload.create("hello")))
         .expectNextCount(1)
@@ -89,7 +93,8 @@ public class RSocketTest {
         .verify();
   }
 
-  @Test(timeout = 2000)
+  @Test
+  @Timeout(2000)
   public void testHandlerEmitsError() {
     rule.setRequestAcceptor(
         new RSocket() {
@@ -109,7 +114,8 @@ public class RSocketTest {
         .verify(Duration.ofMillis(100));
   }
 
-  @Test(timeout = 2000)
+  @Test
+  @Timeout(2000)
   public void testHandlerEmitsCustomError() {
     rule.setRequestAcceptor(
         new RSocket() {
@@ -131,7 +137,8 @@ public class RSocketTest {
         .verify();
   }
 
-  @Test(timeout = 2000)
+  @Test
+  @Timeout(2000)
   public void testRequestPropagatesCorrectlyForRequestChannel() {
     rule.setRequestAcceptor(
         new RSocket() {
@@ -140,7 +147,7 @@ public class RSocketTest {
             return Flux.from(payloads)
                 // specifically limits request to 3 in order to prevent 256 request from limitRate
                 // hidden on the responder side
-                .limitRequest(3);
+                .take(3, true);
           }
         });
 
@@ -154,21 +161,24 @@ public class RSocketTest {
         .verify(Duration.ofMillis(5000));
   }
 
-  @Test(timeout = 2000)
-  public void testStream() throws Exception {
+  @Test
+  @Timeout(2000)
+  public void testStream() {
     Flux<Payload> responses = rule.crs.requestStream(DefaultPayload.create("Payload In"));
     StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
   }
 
-  @Test(timeout = 200000)
-  public void testChannel() throws Exception {
+  @Test
+  @Timeout(200000)
+  public void testChannel() {
     Flux<Payload> requests =
         Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
     Flux<Payload> responses = rule.crs.requestChannel(requests);
     StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
   }
 
-  @Test(timeout = 2000)
+  @Test
+  @Timeout(2000)
   public void testErrorPropagatesCorrectly() {
     AtomicReference<Throwable> error = new AtomicReference<>();
     rule.setRequestAcceptor(
@@ -487,7 +497,7 @@ public class RSocketTest {
     responderPublisher.assertNoSubscribers();
   }
 
-  public static class SocketRule extends ExternalResource {
+  public static class SocketRule {
 
     Sinks.Many<ByteBuf> serverProcessor;
     Sinks.Many<ByteBuf> clientProcessor;
@@ -500,22 +510,11 @@ public class RSocketTest {
 
     private LeaksTrackingByteBufAllocator allocator;
 
-    @Override
-    public Statement apply(Statement base, Description description) {
-      return new Statement() {
-        @Override
-        public void evaluate() throws Throwable {
-          init();
-          base.evaluate();
-        }
-      };
-    }
-
     public LeaksTrackingByteBufAllocator alloc() {
       return allocator;
     }
 
-    protected void init() {
+    public void init() {
       allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
       serverProcessor = Sinks.many().multicast().directBestEffort();
       clientProcessor = Sinks.many().multicast().directBestEffort();
@@ -540,8 +539,7 @@ public class RSocketTest {
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
                   return Flux.range(1, 10)
-                      .map(
-                          i -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
+                      .map(i -> DefaultPayload.create("server got -> [" + payload + "]"));
                 }
 
                 @Override

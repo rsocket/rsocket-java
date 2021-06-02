@@ -15,11 +15,6 @@ package io.rsocket.core;
  * limitations under the License.
  */
 
-import static io.rsocket.frame.FrameHeaderCodec.frameType;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
@@ -37,7 +32,6 @@ import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,7 +46,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -64,6 +57,7 @@ import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
 import reactor.util.context.Context;
+import reactor.util.context.ContextView;
 import reactor.util.retry.Retry;
 
 public class DefaultRSocketClientTests {
@@ -75,13 +69,7 @@ public class DefaultRSocketClientTests {
     Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
     Hooks.onErrorDropped((t) -> {});
     rule = new ClientSocketRule();
-    rule.apply(
-            new Statement() {
-              @Override
-              public void evaluate() {}
-            },
-            null)
-        .evaluate();
+    rule.init();
   }
 
   @AfterEach
@@ -179,19 +167,12 @@ public class DefaultRSocketClientTests {
   @MethodSource("interactions")
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void shouldHaveNoLeaksOnPayloadInCaseOfRacingOfOnNextAndCancel(
-      BiFunction<RSocketClient, Publisher<Payload>, Publisher<?>> request, FrameType requestType)
-      throws Throwable {
+      BiFunction<RSocketClient, Publisher<Payload>, Publisher<?>> request, FrameType requestType) {
     Assumptions.assumeThat(requestType).isNotEqualTo(FrameType.REQUEST_CHANNEL);
 
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
-      rule.apply(
-              new Statement() {
-                @Override
-                public void evaluate() {}
-              },
-              null)
-          .evaluate();
+      rule.init();
       Payload payload = ByteBufPayload.create("test", "testMetadata");
       TestPublisher<Payload> testPublisher =
           TestPublisher.createNoncompliant(TestPublisher.Violation.DEFER_CANCELLATION);
@@ -241,19 +222,12 @@ public class DefaultRSocketClientTests {
   @MethodSource("interactions")
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void shouldHaveNoLeaksOnPayloadInCaseOfRacingOfRequestAndCancel(
-      BiFunction<RSocketClient, Publisher<Payload>, Publisher<?>> request, FrameType requestType)
-      throws Throwable {
+      BiFunction<RSocketClient, Publisher<Payload>, Publisher<?>> request, FrameType requestType) {
     Assumptions.assumeThat(requestType).isNotEqualTo(FrameType.REQUEST_CHANNEL);
 
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
-      rule.apply(
-              new Statement() {
-                @Override
-                public void evaluate() {}
-              },
-              null)
-          .evaluate();
+      rule.init();
       ByteBuf dataBuffer = rule.allocator.buffer();
       dataBuffer.writeCharSequence("test", CharsetUtil.UTF_8);
 
@@ -311,14 +285,17 @@ public class DefaultRSocketClientTests {
     Payload payload = ByteBufPayload.create(dataBuffer, metadataBuffer);
     AssertSubscriber assertSubscriber = new AssertSubscriber(Context.of("test", "test"));
 
-    Context[] receivedContext = new Context[1];
+    ContextView[] receivedContext = new Context[1];
     Publisher<?> publisher =
         request.apply(
             rule.client,
             Mono.just(payload)
                 .mergeWith(
-                    Mono.subscriberContext()
-                        .doOnNext(c -> receivedContext[0] = c)
+                    Mono.deferContextual(
+                            c -> {
+                              receivedContext[0] = c;
+                              return Mono.empty();
+                            })
                         .then(Mono.empty())));
     publisher.subscribe(assertSubscriber);
 
@@ -481,16 +458,11 @@ public class DefaultRSocketClientTests {
   }
 
   @Test
-  public void shouldDisposeOriginalSourceIfRacing() throws Throwable {
+  public void shouldDisposeOriginalSourceIfRacing() {
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
-      rule.apply(
-              new Statement() {
-                @Override
-                public void evaluate() {}
-              },
-              null)
-          .evaluate();
+
+      rule.init();
 
       AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
       rule.client.source().subscribe(assertSubscriber);
@@ -520,8 +492,8 @@ public class DefaultRSocketClientTests {
     protected Sinks.One<RSocket> producer;
 
     @Override
-    protected void init() {
-      super.init();
+    protected void doInit() {
+      super.doInit();
       delayer = () -> producer.tryEmitValue(socket);
       producer = Sinks.one();
       client =
@@ -546,23 +518,6 @@ public class DefaultRSocketClientTests {
           null,
           __ -> null,
           null);
-    }
-
-    public int getStreamIdForRequestType(FrameType expectedFrameType) {
-      assertThat("Unexpected frames sent.", connection.getSent(), hasSize(greaterThanOrEqualTo(1)));
-      List<FrameType> framesFound = new ArrayList<>();
-      for (ByteBuf frame : connection.getSent()) {
-        FrameType frameType = frameType(frame);
-        if (frameType == expectedFrameType) {
-          return FrameHeaderCodec.streamId(frame);
-        }
-        framesFound.add(frameType);
-      }
-      throw new AssertionError(
-          "No frames sent with frame type: "
-              + expectedFrameType
-              + ", frames found: "
-              + framesFound);
     }
   }
 }

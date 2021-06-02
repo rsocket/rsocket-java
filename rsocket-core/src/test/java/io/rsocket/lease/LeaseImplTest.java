@@ -16,8 +16,6 @@
 
 package io.rsocket.lease;
 
-import static org.junit.Assert.*;
-
 public class LeaseImplTest {
   //
   //  @Test

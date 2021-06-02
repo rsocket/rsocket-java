@@ -16,22 +16,35 @@
 
 package io.rsocket.test;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.rsocket.Payload;
 import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import reactor.core.publisher.Flux;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
-  @Rule public final T setup = createClientServer();
+  public final T setup = createClientServer();
 
   protected abstract T createClientServer();
 
-  @Test(timeout = 10000)
+  @BeforeEach
+  public void init() {
+    setup.init();
+  }
+
+  @AfterEach
+  public void teardown() {
+    setup.tearDown();
+  }
+
+  @Test
+  @Timeout(10000)
   public void testFireNForget10() {
     long outputCount =
         Flux.range(1, 10)
@@ -40,10 +53,11 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(0, outputCount);
+    assertThat(outputCount).isZero();
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testPushMetadata10() {
     long outputCount =
         Flux.range(1, 10)
@@ -52,7 +66,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(0, outputCount);
+    assertThat(outputCount).isZero();
   }
 
   @Test // (timeout = 10000)
@@ -65,10 +79,11 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(1, outputCount);
+    assertThat(outputCount).isZero();
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestResponse10() {
     long outputCount =
         Flux.range(1, 10)
@@ -78,7 +93,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(10, outputCount);
+    assertThat(outputCount).isEqualTo(10);
   }
 
   private Payload testPayload(int metadataPresent) {
@@ -97,7 +112,8 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     return DefaultPayload.create("hello", metadata);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestResponse100() {
     long outputCount =
         Flux.range(1, 100)
@@ -107,10 +123,11 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(100, outputCount);
+    assertThat(outputCount).isEqualTo(100);
   }
 
-  @Test(timeout = 20000)
+  @Test
+  @Timeout(20000)
   public void testRequestResponse10_000() {
     long outputCount =
         Flux.range(1, 10_000)
@@ -120,28 +137,31 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
             .count()
             .block();
 
-    assertEquals(10_000, outputCount);
+    assertThat(outputCount).isEqualTo(10_000);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestStream() {
     Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
     long count = publisher.take(5).count().block();
 
-    assertEquals(5, count);
+    assertThat(count).isEqualTo(5);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestStreamAll() {
     Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
     long count = publisher.count().block();
 
-    assertEquals(10000, count);
+    assertThat(count).isEqualTo(10000);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestStreamWithRequestN() {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
     ts.expect(5);
@@ -149,16 +169,17 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
 
     ts.await();
-    assertEquals(5, ts.count());
+    assertThat(ts.count()).isEqualTo(5);
 
     ts.expect(5);
     ts.await();
     ts.cancel();
 
-    assertEquals(10, ts.count());
+    assertThat(ts.count()).isEqualTo(10);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testRequestStreamWithDelayedRequestN() {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
 
@@ -167,34 +188,37 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     ts.expect(5);
 
     ts.await();
-    assertEquals(5, ts.count());
+    assertThat(ts.count()).isEqualTo(5);
 
     ts.expect(5);
     ts.await();
     ts.cancel();
 
-    assertEquals(10, ts.count());
+    assertThat(ts.count()).isEqualTo(10);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testChannel0() {
     Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.empty());
 
     long count = publisher.count().block();
 
-    assertEquals(0, count);
+    assertThat(count).isZero();
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testChannel1() {
     Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0)));
 
     long count = publisher.count().block();
 
-    assertEquals(1, count);
+    assertThat(count).isOne();
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testChannel3() {
     Flux<Payload> publisher =
         setup
@@ -203,44 +227,48 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
     long count = publisher.count().block();
 
-    assertEquals(3, count);
+    assertThat(count).isEqualTo(3);
   }
 
-  @Test(timeout = 10000)
+  @Test
+  @Timeout(10000)
   public void testChannel512() {
     Flux<Payload> payloads = Flux.range(1, 512).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
-    assertEquals(512, count);
+    assertThat(count).isEqualTo(512);
   }
 
-  @Test(timeout = 30000)
+  @Test
+  @Timeout(30000)
   public void testChannel20_000() {
     Flux<Payload> payloads = Flux.range(1, 20_000).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
-    assertEquals(20_000, count);
+    assertThat(count).isEqualTo(20_000);
   }
 
-  @Test(timeout = 60_000)
+  @Test
+  @Timeout(60_000)
   public void testChannel200_000() {
     Flux<Payload> payloads = Flux.range(1, 200_000).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
-    assertEquals(200_000, count);
+    assertThat(count).isEqualTo(200_000);
   }
 
-  @Test(timeout = 60_000)
-  @Ignore
+  @Test
+  @Timeout(60_000)
+  @Disabled
   public void testChannel2_000_000() {
     AtomicInteger counter = new AtomicInteger(0);
 
     Flux<Payload> payloads = Flux.range(1, 2_000_000).map(i -> DefaultPayload.create("hello " + i));
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
-    assertEquals(2_000_000, count);
+    assertThat(count).isEqualTo(2_000_000);
   }
 }

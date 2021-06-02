@@ -16,9 +16,8 @@
 
 package io.rsocket.integration;
 
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -38,9 +37,10 @@ import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.RSocketProxy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
@@ -108,7 +108,7 @@ public class IntegrationTest {
   private CountDownLatch disconnectionCounter;
   private AtomicInteger errorCount;
 
-  @Before
+  @BeforeEach
   public void startup() {
     errorCount = new AtomicInteger();
     requestCount = new AtomicInteger();
@@ -163,23 +163,26 @@ public class IntegrationTest {
             .block();
   }
 
-  @After
+  @AfterEach
   public void teardown() {
     server.dispose();
   }
 
-  @Test(timeout = 5_000L)
+  @Test
+  @Timeout(5_000L)
   public void testRequest() {
     client.requestResponse(DefaultPayload.create("REQUEST", "META")).block();
-    assertThat("Server did not see the request.", requestCount.get(), is(1));
-    assertTrue(calledRequester);
-    assertTrue(calledResponder);
-    assertTrue(calledClientAcceptor);
-    assertTrue(calledServerAcceptor);
-    assertTrue(calledFrame);
+    assertThat(requestCount).as("Server did not see the request.").hasValue(1);
+
+    assertThat(calledRequester).isTrue();
+    assertThat(calledResponder).isTrue();
+    assertThat(calledClientAcceptor).isTrue();
+    assertThat(calledServerAcceptor).isTrue();
+    assertThat(calledFrame).isTrue();
   }
 
-  @Test(timeout = 5_000L)
+  @Test
+  @Timeout(5_000L)
   public void testStream() {
     Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
     client.requestStream(DefaultPayload.create("start")).subscribe(subscriber);
@@ -188,7 +191,8 @@ public class IntegrationTest {
     verifyNoMoreInteractions(subscriber);
   }
 
-  @Test(timeout = 5_000L)
+  @Test
+  @Timeout(5_000L)
   public void testClose() throws InterruptedException {
     client.dispose();
     disconnectionCounter.await();
@@ -196,10 +200,8 @@ public class IntegrationTest {
 
   @Test // (timeout = 5_000L)
   public void testCallRequestWithErrorAndThenRequest() {
-    try {
-      client.requestChannel(Mono.error(new Throwable())).blockLast();
-    } catch (Throwable t) {
-    }
+    assertThatThrownBy(client.requestChannel(Mono.error(new Throwable("test")))::blockLast)
+        .hasMessage("java.lang.Throwable: test");
 
     testRequest();
   }

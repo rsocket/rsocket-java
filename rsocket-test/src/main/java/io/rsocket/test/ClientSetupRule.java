@@ -25,12 +25,9 @@ import io.rsocket.transport.ServerTransport;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import reactor.core.publisher.Mono;
 
-public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
+public class ClientSetupRule<T, S extends Closeable> {
   private static final String data = "hello world";
   private static final String metadata = "metadata";
 
@@ -39,6 +36,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
   private Function<T, S> serverInit;
 
   private RSocket client;
+  private S server;
 
   public ClientSetupRule(
       Supplier<T> addressSupplier,
@@ -59,18 +57,14 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
                 .block();
   }
 
-  @Override
-  public Statement apply(Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        T address = addressSupplier.get();
-        S server = serverInit.apply(address);
-        client = clientConnector.apply(address, server);
-        base.evaluate();
-        server.dispose();
-      }
-    };
+  public void init() {
+    T address = addressSupplier.get();
+    S server = serverInit.apply(address);
+    client = clientConnector.apply(address, server);
+  }
+
+  public void tearDown() {
+    server.dispose();
   }
 
   public RSocket getRSocket() {

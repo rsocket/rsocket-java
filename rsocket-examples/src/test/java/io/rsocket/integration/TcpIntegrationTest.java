@@ -16,8 +16,7 @@
 
 package io.rsocket.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -31,9 +30,10 @@ import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.RSocketProxy;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -44,7 +44,7 @@ public class TcpIntegrationTest {
 
   private CloseableChannel server;
 
-  @Before
+  @BeforeEach
   public void startup() {
     server =
         RSocketServer.create((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
@@ -56,12 +56,13 @@ public class TcpIntegrationTest {
     return RSocketConnector.connectWith(TcpClientTransport.create(server.address())).block();
   }
 
-  @After
+  @AfterEach
   public void cleanup() {
     server.dispose();
   }
 
-  @Test(timeout = 15_000L)
+  @Test
+  @Timeout(15_000L)
   public void testCompleteWithoutNext() {
     handler =
         new RSocket() {
@@ -74,10 +75,11 @@ public class TcpIntegrationTest {
     Boolean hasElements =
         client.requestStream(DefaultPayload.create("REQUEST", "META")).log().hasElements().block();
 
-    assertFalse(hasElements);
+    assertThat(hasElements).isFalse();
   }
 
-  @Test(timeout = 15_000L)
+  @Test
+  @Timeout(15_000L)
   public void testSingleStream() {
     handler =
         new RSocket() {
@@ -91,10 +93,11 @@ public class TcpIntegrationTest {
 
     Payload result = client.requestStream(DefaultPayload.create("REQUEST", "META")).blockLast();
 
-    assertEquals("RESPONSE", result.getDataUtf8());
+    assertThat(result.getDataUtf8()).isEqualTo("RESPONSE");
   }
 
-  @Test(timeout = 15_000L)
+  @Test
+  @Timeout(15_000L)
   public void testZeroPayload() {
     handler =
         new RSocket() {
@@ -108,10 +111,11 @@ public class TcpIntegrationTest {
 
     Payload result = client.requestStream(DefaultPayload.create("REQUEST", "META")).blockFirst();
 
-    assertEquals("", result.getDataUtf8());
+    assertThat(result.getDataUtf8()).isEmpty();
   }
 
-  @Test(timeout = 15_000L)
+  @Test
+  @Timeout(15_000L)
   public void testRequestResponseErrors() {
     handler =
         new RSocket() {
@@ -141,11 +145,12 @@ public class TcpIntegrationTest {
             .onErrorReturn(DefaultPayload.create("ERROR"))
             .block();
 
-    assertEquals("ERROR", response1.getDataUtf8());
-    assertEquals("SUCCESS", response2.getDataUtf8());
+    assertThat(response1.getDataUtf8()).isEqualTo("ERROR");
+    assertThat(response2.getDataUtf8()).isEqualTo("SUCCESS");
   }
 
-  @Test(timeout = 15_000L)
+  @Test
+  @Timeout(15_000L)
   public void testTwoConcurrentStreams() throws InterruptedException {
     ConcurrentHashMap<String, Sinks.Many<Payload>> map = new ConcurrentHashMap<>();
     Sinks.Many<Payload> processor1 = Sinks.many().unicast().onBackpressureBuffer();

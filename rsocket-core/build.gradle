@@ -40,10 +40,7 @@ dependencies {
     testRuntimeOnly 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
-    // TODO: Remove after JUnit5 migration
-    testCompileOnly 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 
     jcstressImplementation "ch.qos.logback:logback-classic"
 }

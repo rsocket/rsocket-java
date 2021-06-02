@@ -16,9 +16,8 @@
 
 package io.rsocket.client;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -31,7 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -44,7 +43,7 @@ public class RSocketSupplierTest {
   public void testError() throws InterruptedException {
     testRSocket(
         (latch, socket) -> {
-          assertEquals(1.0, socket.availability(), 0.0);
+          assertThat(socket.availability()).isEqualTo(1.0);
           Publisher<Payload> payloadPublisher = socket.requestResponse(EmptyPayload.INSTANCE);
 
           Subscriber<Payload> subscriber = TestSubscriber.create();
@@ -64,7 +63,7 @@ public class RSocketSupplierTest {
           payloadPublisher.subscribe(subscriber);
           verify(subscriber).onError(any(RuntimeException.class));
           double bad = socket.availability();
-          assertTrue(good > bad);
+          assertThat(good > bad).isTrue();
           latch.countDown();
         });
   }
@@ -73,7 +72,7 @@ public class RSocketSupplierTest {
   public void testWidowReset() throws InterruptedException {
     testRSocket(
         (latch, socket) -> {
-          assertEquals(1.0, socket.availability(), 0.0);
+          assertThat(socket.availability()).isEqualTo(1.0);
           Publisher<Payload> payloadPublisher = socket.requestResponse(EmptyPayload.INSTANCE);
 
           Subscriber<Payload> subscriber = TestSubscriber.create();
@@ -87,7 +86,7 @@ public class RSocketSupplierTest {
 
           verify(subscriber).onError(any(RuntimeException.class));
           double bad = socket.availability();
-          assertTrue(good > bad);
+          assertThat(good > bad).isTrue();
 
           try {
             Thread.sleep(200);
@@ -96,7 +95,7 @@ public class RSocketSupplierTest {
           }
 
           double reset = socket.availability();
-          assertTrue(reset > bad);
+          assertThat(reset > bad).isTrue();
           latch.countDown();
         });
   }

@@ -1,16 +1,17 @@
 package io.rsocket.frame;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ResumeOkFrameCodecTest {
 
   @Test
   public void testEncoding() {
     ByteBuf byteBuf = ResumeOkFrameCodec.encode(ByteBufAllocator.DEFAULT, 42);
-    Assert.assertEquals(42, ResumeOkFrameCodec.lastReceivedClientPos(byteBuf));
+    assertThat(ResumeOkFrameCodec.lastReceivedClientPos(byteBuf)).isEqualTo(42);
     byteBuf.release();
   }
 }

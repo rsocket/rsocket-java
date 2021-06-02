@@ -16,6 +16,9 @@
 
 package io.rsocket.client;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
@@ -24,9 +27,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -34,7 +37,8 @@ import reactor.core.publisher.Mono;
 
 public class LoadBalancedRSocketMonoTest {
 
-  @Test(timeout = 10_000L)
+  @Test
+  @Timeout(10_000L)
   public void testNeverSelectFailingFactories() throws InterruptedException {
     TestingRSocket socket = new TestingRSocket(Function.identity());
     RSocketSupplier failing = failingClient();
@@ -44,7 +48,8 @@ public class LoadBalancedRSocketMonoTest {
     testBalancer(factories);
   }
 
-  @Test(timeout = 10_000L)
+  @Test
+  @Timeout(10_000L)
   public void testNeverSelectFailingSocket() throws InterruptedException {
     TestingRSocket socket = new TestingRSocket(Function.identity());
     TestingRSocket failingSocket =
@@ -67,8 +72,9 @@ public class LoadBalancedRSocketMonoTest {
     testBalancer(clients);
   }
 
-  @Test(timeout = 10_000L)
-  @Ignore
+  @Test
+  @Timeout(10_000L)
+  @Disabled
   public void testRefreshesSocketsOnSelectBeforeReturningFailedAfterNewFactoriesDelivered() {
     TestingRSocket socket = new TestingRSocket(Function.identity());
 
@@ -87,12 +93,12 @@ public class LoadBalancedRSocketMonoTest {
 
     LoadBalancedRSocketMono balancer = LoadBalancedRSocketMono.create(factories);
 
-    Assert.assertEquals(0.0, balancer.availability(), 0);
+    assertThat(balancer.availability()).isZero();
 
     laterSupplier.complete(succeedingFactory(socket));
     balancer.rSocketMono.block();
 
-    Assert.assertEquals(1.0, balancer.availability(), 0);
+    assertThat(balancer.availability()).isEqualTo(1.0);
   }
 
   private void testBalancer(List<RSocketSupplier> factories) throws InterruptedException {
@@ -128,7 +134,7 @@ public class LoadBalancedRSocketMonoTest {
     Mockito.when(mock.get())
         .thenAnswer(
             a -> {
-              Assert.fail();
+              fail();
               return null;
             });
 

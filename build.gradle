@@ -84,8 +84,6 @@ subprojects {
                 entry 'mockito-junit-jupiter'
                 entry 'mockito-core'
             }
-            // TODO: Remove after JUnit5 migration
-            dependency 'junit:junit:4.12'
             dependency "org.hamcrest:hamcrest-library:${ext['hamcrest.version']}"
             dependencySet(group: 'org.openjdk.jmh', version: ext['jmh.version']) {
                 entry 'jmh-core'

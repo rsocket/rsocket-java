@@ -16,7 +16,7 @@
 
 package io.rsocket.core;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -65,32 +65,32 @@ public class ClientServerInputMultiplexerTest {
         .subscribe();
 
     source.addToReceivedBuffer(errorFrame(1).retain());
-    assertEquals(1, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isOne();
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(errorFrame(1).retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(leaseFrame().retain());
-    assertEquals(3, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(3);
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(keepAliveFrame().retain());
-    assertEquals(4, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(4);
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(errorFrame(2).retain());
-    assertEquals(4, clientFrames.get());
-    assertEquals(1, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(4);
+    assertThat(serverFrames.get()).isOne();
 
     source.addToReceivedBuffer(errorFrame(0).retain());
-    assertEquals(5, clientFrames.get());
-    assertEquals(1, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(5);
+    assertThat(serverFrames.get()).isOne();
 
     source.addToReceivedBuffer(metadataPushFrame().retain());
-    assertEquals(5, clientFrames.get());
-    assertEquals(2, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(5);
+    assertThat(serverFrames.get()).isEqualTo(2);
   }
 
   @Test
@@ -110,32 +110,32 @@ public class ClientServerInputMultiplexerTest {
         .subscribe();
 
     source.addToReceivedBuffer(errorFrame(1).retain());
-    assertEquals(1, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(1);
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(errorFrame(1).retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(0, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isZero();
 
     source.addToReceivedBuffer(leaseFrame().retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(1, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isOne();
 
     source.addToReceivedBuffer(keepAliveFrame().retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(2, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isEqualTo(2);
 
     source.addToReceivedBuffer(errorFrame(2).retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(3, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isEqualTo(3);
 
     source.addToReceivedBuffer(errorFrame(0).retain());
-    assertEquals(2, clientFrames.get());
-    assertEquals(4, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(2);
+    assertThat(serverFrames.get()).isEqualTo(4);
 
     source.addToReceivedBuffer(metadataPushFrame().retain());
-    assertEquals(3, clientFrames.get());
-    assertEquals(4, serverFrames.get());
+    assertThat(clientFrames.get()).isEqualTo(3);
+    assertThat(serverFrames.get()).isEqualTo(4);
   }
 
   private ByteBuf leaseFrame() {

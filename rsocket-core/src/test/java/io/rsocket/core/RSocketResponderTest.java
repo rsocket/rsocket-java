@@ -88,7 +88,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -107,17 +106,11 @@ public class RSocketResponderTest {
   ServerSocketRule rule;
 
   @BeforeEach
-  public void setUp() throws Throwable {
+  public void setUp() {
     Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
     Hooks.onErrorDropped(t -> {});
     rule = new ServerSocketRule();
-    rule.apply(
-            new Statement() {
-              @Override
-              public void evaluate() {}
-            },
-            null)
-        .evaluate();
+    rule.init();
   }
 
   @AfterEach
@@ -129,7 +122,7 @@ public class RSocketResponderTest {
   @Test
   @Timeout(2_000)
   @Disabled
-  public void testHandleKeepAlive() throws Exception {
+  public void testHandleKeepAlive() {
     rule.connection.addToReceivedBuffer(
         KeepAliveFrameCodec.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
     ByteBuf sent = rule.connection.awaitFrame();
@@ -143,7 +136,7 @@ public class RSocketResponderTest {
 
   @Test
   @Timeout(2_000)
-  public void testHandleResponseFrameNoError() throws Exception {
+  public void testHandleResponseFrameNoError() {
     final int streamId = 4;
     rule.connection.clearSendReceiveBuffers();
     final TestPublisher<Payload> testPublisher = TestPublisher.create();
@@ -165,7 +158,7 @@ public class RSocketResponderTest {
 
   @Test
   @Timeout(2_000)
-  public void testHandlerEmitsError() throws Exception {
+  public void testHandlerEmitsError() {
     final int streamId = 4;
     rule.prefetch = 1;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
@@ -309,9 +302,7 @@ public class RSocketResponderTest {
           PayloadFrameCodec.encode(allocator, 1, false, true, true, metadata3, data3);
 
       RaceTestUtils.race(
-          () -> {
-            rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3);
-          },
+          () -> rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3),
           () -> {
             assertSubscriber.cancel();
             sink.tryEmitEmpty();
@@ -1200,7 +1191,7 @@ public class RSocketResponderTest {
     private RequestInterceptor requestInterceptor;
 
     @Override
-    protected void init() {
+    protected void doInit() {
       acceptingSocket =
           new RSocket() {
             @Override
@@ -1208,7 +1199,7 @@ public class RSocketResponderTest {
               return Mono.just(payload);
             }
           };
-      super.init();
+      super.doInit();
     }
 
     public void setAcceptingSocket(RSocket acceptingSocket) {
@@ -1216,12 +1207,12 @@ public class RSocketResponderTest {
       connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
       this.prefetch = Integer.MAX_VALUE;
-      super.init();
+      super.doInit();
     }
 
     public void setRequestInterceptor(RequestInterceptor requestInterceptor) {
       this.requestInterceptor = requestInterceptor;
-      super.init();
+      super.doInit();
     }
 
     public void setAcceptingSocket(RSocket acceptingSocket, int prefetch) {
@@ -1229,7 +1220,7 @@ public class RSocketResponderTest {
       connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
       this.prefetch = prefetch;
-      super.init();
+      super.doInit();
     }
 
     @Override
