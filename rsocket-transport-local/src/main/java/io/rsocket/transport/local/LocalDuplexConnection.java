@@ -27,11 +27,9 @@ import java.util.Objects;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
-import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.Sinks;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
@@ -40,7 +38,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
   private final Flux<ByteBuf> in;
 
-  private final Sinks.Empty<Void> onClose;
+  private final Mono<Void> onClose;
 
   private final UnboundedProcessor out;
 
@@ -58,7 +56,7 @@ final class LocalDuplexConnection implements DuplexConnection {
       ByteBufAllocator allocator,
       Flux<ByteBuf> in,
       UnboundedProcessor out,
-      Sinks.Empty<Void> onClose) {
+      Mono<Void> onClose) {
     this.address = new LocalSocketAddress(name);
     this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");
     this.in = Objects.requireNonNull(in, "in must not be null");
@@ -69,24 +67,23 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public void dispose() {
     out.onComplete();
-    onClose.tryEmitEmpty();
   }
 
   @Override
-  @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
+    return out.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose.asMono();
+    return onClose;
   }
 
   @Override
   public Flux<ByteBuf> receive() {
     return in.transform(
-        Operators.<ByteBuf, ByteBuf>lift((__, actual) -> new ByteBufReleaserOperator(actual)));
+        Operators.<ByteBuf, ByteBuf>lift(
+            (__, actual) -> new ByteBufReleaserOperator(actual, this)));
   }
 
   @Override
@@ -119,11 +116,14 @@ final class LocalDuplexConnection implements DuplexConnection {
       implements CoreSubscriber<ByteBuf>, Subscription, Fuseable.QueueSubscription<ByteBuf> {
 
     final CoreSubscriber<? super ByteBuf> actual;
+    final LocalDuplexConnection parent;
 
     Subscription s;
 
-    public ByteBufReleaserOperator(CoreSubscriber<? super ByteBuf> actual) {
+    public ByteBufReleaserOperator(
+        CoreSubscriber<? super ByteBuf> actual, LocalDuplexConnection parent) {
       this.actual = actual;
+      this.parent = parent;
     }
 
     @Override
@@ -136,17 +136,22 @@ final class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public void onNext(ByteBuf buf) {
-      actual.onNext(buf);
-      buf.release();
+      try {
+        actual.onNext(buf);
+      } finally {
+        buf.release();
+      }
     }
 
     @Override
     public void onError(Throwable t) {
+      parent.out.onError(t);
       actual.onError(t);
     }
 
     @Override
     public void onComplete() {
+      parent.out.onComplete();
       actual.onComplete();
     }
 
@@ -158,6 +163,7 @@ final class LocalDuplexConnection implements DuplexConnection {
     @Override
     public void cancel() {
       s.cancel();
+      parent.out.onComplete();
     }
 
     @Override

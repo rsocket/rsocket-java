@@ -77,14 +77,17 @@ public final class LocalClientTransport implements ClientTransport {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
 
-          UnboundedProcessor in = new UnboundedProcessor();
-          UnboundedProcessor out = new UnboundedProcessor();
-          Sinks.Empty<Void> closeSink = Sinks.empty();
+          Sinks.One<Object> inSink = Sinks.one();
+          Sinks.One<Object> outSink = Sinks.one();
+          UnboundedProcessor in = new UnboundedProcessor(() -> inSink.tryEmitValue(inSink));
+          UnboundedProcessor out = new UnboundedProcessor(() -> outSink.tryEmitValue(outSink));
 
-          server.apply(new LocalDuplexConnection(name, allocator, out, in, closeSink)).subscribe();
+          Mono<Void> onClose = inSink.asMono().zipWith(outSink.asMono()).then();
 
-          return Mono.just(
-              (DuplexConnection) new LocalDuplexConnection(name, allocator, in, out, closeSink));
+          server.apply(new LocalDuplexConnection(name, allocator, out, in, onClose)).subscribe();
+
+          return Mono.<DuplexConnection>just(
+              new LocalDuplexConnection(name, allocator, in, out, onClose));
         });
   }
 }

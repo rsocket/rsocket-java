@@ -45,6 +45,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
   final Queue<ByteBuf> queue;
   final Queue<ByteBuf> priorityQueue;
+  final Runnable onFinalizedHook;
 
   boolean cancelled;
   boolean done;
@@ -88,6 +89,11 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   boolean outputFused;
 
   public UnboundedProcessor() {
+    this(() -> {});
+  }
+
+  public UnboundedProcessor(Runnable onFinalizedHook) {
+    this.onFinalizedHook = onFinalizedHook;
     this.queue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
     this.priorityQueue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
   }
@@ -793,6 +799,9 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       }
 
       if (STATE.compareAndSet(instance, state, nextState | FLAG_TERMINATED)) {
+        if (isFinalized(nextState)) {
+          instance.onFinalizedHook.run();
+        }
         return state;
       }
     }
@@ -906,6 +915,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
       if (STATE.compareAndSet(
           instance, state, (state & ~MAX_WIP_VALUE & ~FLAG_HAS_VALUE) | FLAG_FINALIZED)) {
+        instance.onFinalizedHook.run();
         break;
       }
     }
