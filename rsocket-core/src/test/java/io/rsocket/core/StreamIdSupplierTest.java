@@ -16,22 +16,23 @@
 
 package io.rsocket.core;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class StreamIdSupplierTest {
   @Test
   public void testClientSequence() {
     IntObjectMap<Object> map = new IntObjectHashMap<>();
     StreamIdSupplier s = StreamIdSupplier.clientSupplier();
-    assertEquals(1, s.nextStreamId(map));
-    assertEquals(3, s.nextStreamId(map));
-    assertEquals(5, s.nextStreamId(map));
+    assertThat(s.nextStreamId(map)).isEqualTo(1);
+    assertThat(s.nextStreamId(map)).isEqualTo(3);
+    assertThat(s.nextStreamId(map)).isEqualTo(5);
   }
 
   @Test

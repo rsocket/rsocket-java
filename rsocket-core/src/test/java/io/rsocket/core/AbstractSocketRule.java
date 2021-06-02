@@ -24,12 +24,9 @@ import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.time.Duration;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import org.reactivestreams.Subscriber;
 
-public abstract class AbstractSocketRule<T extends RSocket> extends ExternalResource {
+public abstract class AbstractSocketRule<T extends RSocket> {
 
   protected TestDuplexConnection connection;
   protected Subscriber<Void> connectSub;
@@ -38,22 +35,15 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected int maxFrameLength = FRAME_LENGTH_MASK;
   protected int maxInboundPayloadSize = Integer.MAX_VALUE;
 
-  @Override
-  public Statement apply(final Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        allocator =
-            LeaksTrackingByteBufAllocator.instrument(
-                ByteBufAllocator.DEFAULT, Duration.ofSeconds(5), "");
-        connectSub = TestSubscriber.create();
-        init();
-        base.evaluate();
-      }
-    };
+  public void init() {
+    allocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(5), "");
+    connectSub = TestSubscriber.create();
+    doInit();
   }
 
-  protected void init() {
+  protected void doInit() {
     if (socket != null) {
       socket.dispose();
     }
@@ -66,12 +56,12 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
 
   public void setMaxInboundPayloadSize(int maxInboundPayloadSize) {
     this.maxInboundPayloadSize = maxInboundPayloadSize;
-    init();
+    doInit();
   }
 
   public void setMaxFrameLength(int maxFrameLength) {
     this.maxFrameLength = maxFrameLength;
-    init();
+    doInit();
   }
 
   protected abstract T newRSocket();

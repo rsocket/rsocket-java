@@ -96,7 +96,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -119,13 +118,7 @@ public class RSocketRequesterTest {
     Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
     Hooks.onErrorDropped((t) -> {});
     rule = new ClientSocketRule();
-    rule.apply(
-            new Statement() {
-              @Override
-              public void evaluate() {}
-            },
-            null)
-        .evaluate();
+    rule.init();
   }
 
   @AfterEach
@@ -432,18 +425,8 @@ public class RSocketRequesterTest {
       BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule clientSocketRule = new ClientSocketRule();
-      try {
-        clientSocketRule
-            .apply(
-                new Statement() {
-                  @Override
-                  public void evaluate() {}
-                },
-                null)
-            .evaluate();
-      } catch (Throwable throwable) {
-        throwable.printStackTrace();
-      }
+
+      clientSocketRule.init();
 
       Publisher<Payload> payloadP = initiator.apply(clientSocketRule);
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(0);

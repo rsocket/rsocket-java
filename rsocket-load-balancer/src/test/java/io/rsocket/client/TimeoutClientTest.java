@@ -24,7 +24,7 @@ import io.rsocket.client.filter.RSockets;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 

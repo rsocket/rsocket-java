@@ -18,8 +18,8 @@ package io.rsocket.stat;
 
 import java.util.Arrays;
 import java.util.Random;
-import org.junit.Assert;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class MedianTest {
   private double errorSum = 0;
@@ -59,7 +59,8 @@ public class MedianTest {
     maxError = Math.max(maxError, error);
     minError = Math.min(minError, error);
 
-    Assert.assertTrue(
-        "p50=" + estimation + ", real=" + expected + ", error=" + error, error < 0.02);
+    Assertions.assertThat(error < 0.02)
+        .describedAs("p50=" + estimation + ", real=" + expected + ", error=" + error)
+        .isTrue();
   }
 }

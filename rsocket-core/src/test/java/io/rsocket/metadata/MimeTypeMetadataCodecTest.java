@@ -21,7 +21,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.util.List;
 import org.assertj.core.util.Lists;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link MimeTypeMetadataCodec}. */
 public class MimeTypeMetadataCodecTest {

@@ -15,7 +15,7 @@
  */
 package io.rsocket.core;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.rsocket.RSocket;
 import io.rsocket.test.util.TestClientTransport;
@@ -49,7 +49,7 @@ public class RSocketReconnectTest {
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
 
-    Assertions.assertThat(rSocket1).isEqualTo(rSocket2);
+    assertThat(rSocket1).isEqualTo(rSocket2);
 
     testClientTransport[0].testConnection().dispose();
     testClientTransport[0] = new TestClientTransport();
@@ -57,7 +57,7 @@ public class RSocketReconnectTest {
     RSocket rSocket3 = rSocketMono.block();
     RSocket rSocket4 = rSocketMono.block();
 
-    Assertions.assertThat(rSocket3).isEqualTo(rSocket4).isNotEqualTo(rSocket2);
+    assertThat(rSocket3).isEqualTo(rSocket4).isNotEqualTo(rSocket2);
   }
 
   @Test
@@ -81,7 +81,7 @@ public class RSocketReconnectTest {
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
 
-    Assertions.assertThat(rSocket1).isEqualTo(rSocket2);
+    assertThat(rSocket1).isEqualTo(rSocket2);
     assertRetries(
         UncheckedIOException.class,
         UncheckedIOException.class,
@@ -131,17 +131,17 @@ public class RSocketReconnectTest {
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
 
-    Assertions.assertThat(rSocket1).isNotEqualTo(rSocket2);
+    assertThat(rSocket1).isNotEqualTo(rSocket2);
   }
 
   @SafeVarargs
   private final void assertRetries(Class<? extends Throwable>... exceptions) {
-    assertEquals(exceptions.length, retries.size());
+    assertThat(retries.size()).isEqualTo(exceptions.length);
     int index = 0;
     for (Iterator<Retry.RetrySignal> it = retries.iterator(); it.hasNext(); ) {
       Retry.RetrySignal retryContext = it.next();
-      assertEquals(index, retryContext.totalRetries());
-      assertEquals(exceptions[index], retryContext.failure().getClass());
+      assertThat(retryContext.totalRetries()).isEqualTo(index);
+      assertThat(retryContext.failure().getClass()).isEqualTo(exceptions[index]);
       index++;
     }
   }

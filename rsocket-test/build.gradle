@@ -29,9 +29,6 @@ dependencies {
     implementation 'io.projectreactor:reactor-test'
     implementation 'org.assertj:assertj-core'
     implementation 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    implementation 'junit:junit'
 }
 
 jar {

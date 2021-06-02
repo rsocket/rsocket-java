@@ -16,11 +16,12 @@
 
 package io.rsocket.frame;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import java.util.Arrays;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 public class ResumeFrameCodecTest {
@@ -31,10 +32,10 @@ public class ResumeFrameCodecTest {
     Arrays.fill(tokenBytes, (byte) 1);
     ByteBuf token = Unpooled.wrappedBuffer(tokenBytes);
     ByteBuf byteBuf = ResumeFrameCodec.encode(ByteBufAllocator.DEFAULT, token, 21, 12);
-    Assert.assertEquals(ResumeFrameCodec.CURRENT_VERSION, ResumeFrameCodec.version(byteBuf));
-    Assert.assertEquals(token, ResumeFrameCodec.token(byteBuf));
-    Assert.assertEquals(21, ResumeFrameCodec.lastReceivedServerPos(byteBuf));
-    Assert.assertEquals(12, ResumeFrameCodec.firstAvailableClientPos(byteBuf));
+    assertThat(ResumeFrameCodec.version(byteBuf)).isEqualTo(ResumeFrameCodec.CURRENT_VERSION);
+    assertThat(ResumeFrameCodec.token(byteBuf)).isEqualTo(token);
+    assertThat(ResumeFrameCodec.lastReceivedServerPos(byteBuf)).isEqualTo(21);
+    assertThat(ResumeFrameCodec.firstAvailableClientPos(byteBuf)).isEqualTo(12);
     byteBuf.release();
   }
 }

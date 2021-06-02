@@ -27,13 +27,14 @@ import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
 public class TestingStreaming {
   LocalServerTransport serverTransport = LocalServerTransport.create("test");
 
-  @Test(expected = ApplicationErrorException.class)
+  @Test
   public void testRangeButThrowException() {
     Closeable server = null;
     try {
@@ -53,8 +54,9 @@ public class TestingStreaming {
               .bind(serverTransport)
               .block();
 
-      Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
-      System.out.println("here");
+      Assertions.assertThatThrownBy(
+              Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i))::blockLast)
+          .isInstanceOf(ApplicationErrorException.class);
 
     } finally {
       server.dispose();

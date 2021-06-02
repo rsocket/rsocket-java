@@ -16,8 +16,7 @@
 
 package io.rsocket.util;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -26,8 +25,7 @@ import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class DefaultPayloadTest {
   public static final String DATA_VAL = "data";
@@ -41,12 +39,12 @@ public class DefaultPayloadTest {
   }
 
   public void assertDataAndMetadata(Payload p, String dataVal, String metadataVal) {
-    assertThat("Unexpected data.", p.getDataUtf8(), equalTo(dataVal));
+    assertThat(p.getDataUtf8()).describedAs("Unexpected data.").isEqualTo(dataVal);
     if (metadataVal == null) {
-      assertThat("Non-null metadata", p.hasMetadata(), equalTo(false));
+      assertThat(p.hasMetadata()).describedAs("Non-null metadata").isEqualTo(false);
     } else {
-      assertThat("Null metadata", p.hasMetadata(), equalTo(true));
-      assertThat("Unexpected metadata.", p.getMetadataUtf8(), equalTo(metadataVal));
+      assertThat(p.hasMetadata()).describedAs("Null metadata").isEqualTo(true);
+      assertThat(p.getMetadataUtf8()).describedAs("Unexpected metadata.").isEqualTo(metadataVal);
     }
   }
 
@@ -60,7 +58,7 @@ public class DefaultPayloadTest {
   public void shouldIndicateThatItHasNotMetadata() {
     Payload payload = DefaultPayload.create("data");
 
-    Assertions.assertThat(payload.hasMetadata()).isFalse();
+    assertThat(payload.hasMetadata()).isFalse();
   }
 
   @Test
@@ -68,7 +66,7 @@ public class DefaultPayloadTest {
     Payload payload =
         DefaultPayload.create(Unpooled.wrappedBuffer("data".getBytes()), Unpooled.EMPTY_BUFFER);
 
-    Assertions.assertThat(payload.hasMetadata()).isTrue();
+    assertThat(payload.hasMetadata()).isTrue();
   }
 
   @Test
@@ -76,7 +74,7 @@ public class DefaultPayloadTest {
     Payload payload =
         DefaultPayload.create(ByteBuffer.wrap("data".getBytes()), ByteBuffer.allocate(0));
 
-    Assertions.assertThat(payload.hasMetadata()).isTrue();
+    assertThat(payload.hasMetadata()).isTrue();
   }
 
   @Test
@@ -96,9 +94,9 @@ public class DefaultPayloadTest {
 
       Payload payload = DefaultPayload.create(data, metadata);
 
-      Assertions.assertThat(payload.getData()).isEqualTo(ByteBuffer.wrap(new byte[] {i}));
+      assertThat(payload.getData()).isEqualTo(ByteBuffer.wrap(new byte[] {i}));
 
-      Assertions.assertThat(payload.getMetadata())
+      assertThat(payload.getMetadata())
           .isEqualTo(
               metadataPresent
                   ? ByteBuffer.wrap(new byte[] {(byte) (i + 1)})

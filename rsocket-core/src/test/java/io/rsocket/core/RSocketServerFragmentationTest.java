@@ -3,7 +3,7 @@ package io.rsocket.core;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.test.util.TestServerTransport;
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class RSocketServerFragmentationTest {
 

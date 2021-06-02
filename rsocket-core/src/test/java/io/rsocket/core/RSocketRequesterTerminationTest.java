@@ -8,27 +8,27 @@ import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.function.Function;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-@RunWith(Parameterized.class)
 public class RSocketRequesterTerminationTest {
 
-  @Rule public final ClientSocketRule rule = new ClientSocketRule();
-  private Function<RSocket, ? extends Publisher<?>> interaction;
+  public final ClientSocketRule rule = new ClientSocketRule();
 
-  public RSocketRequesterTerminationTest(Function<RSocket, ? extends Publisher<?>> interaction) {
-    this.interaction = interaction;
+  @BeforeEach
+  public void setup() {
+    rule.init();
   }
 
-  @Test
-  public void testCurrentStreamIsTerminatedOnConnectionClose() {
+  @ParameterizedTest
+  @MethodSource("rsocketInteractions")
+  public void testCurrentStreamIsTerminatedOnConnectionClose(
+      Function<RSocket, ? extends Publisher<?>> interaction) {
     RSocketRequester rSocket = rule.socket;
 
     Mono.delay(Duration.ofSeconds(1)).doOnNext(v -> rule.connection.dispose()).subscribe();
@@ -38,8 +38,10 @@ public class RSocketRequesterTerminationTest {
         .verify(Duration.ofSeconds(5));
   }
 
-  @Test
-  public void testSubsequentStreamIsTerminatedAfterConnectionClose() {
+  @ParameterizedTest
+  @MethodSource("rsocketInteractions")
+  public void testSubsequentStreamIsTerminatedAfterConnectionClose(
+      Function<RSocket, ? extends Publisher<?>> interaction) {
     RSocketRequester rSocket = rule.socket;
 
     rule.connection.dispose();
@@ -48,14 +50,46 @@ public class RSocketRequesterTerminationTest {
         .verify(Duration.ofSeconds(5));
   }
 
-  @Parameterized.Parameters
   public static Iterable<Function<RSocket, ? extends Publisher<?>>> rsocketInteractions() {
     EmptyPayload payload = EmptyPayload.INSTANCE;
     Publisher<Payload> payloadStream = Flux.just(payload);
 
-    Function<RSocket, Mono<Payload>> resp = rSocket -> rSocket.requestResponse(payload);
-    Function<RSocket, Flux<Payload>> stream = rSocket -> rSocket.requestStream(payload);
-    Function<RSocket, Flux<Payload>> channel = rSocket -> rSocket.requestChannel(payloadStream);
+    Function<RSocket, Mono<Payload>> resp =
+        new Function<RSocket, Mono<Payload>>() {
+          @Override
+          public Mono<Payload> apply(RSocket rSocket) {
+            return rSocket.requestResponse(payload);
+          }
+
+          @Override
+          public String toString() {
+            return "Request Response";
+          }
+        };
+    Function<RSocket, Flux<Payload>> stream =
+        new Function<RSocket, Flux<Payload>>() {
+          @Override
+          public Flux<Payload> apply(RSocket rSocket) {
+            return rSocket.requestStream(payload);
+          }
+
+          @Override
+          public String toString() {
+            return "Request Stream";
+          }
+        };
+    Function<RSocket, Flux<Payload>> channel =
+        new Function<RSocket, Flux<Payload>>() {
+          @Override
+          public Flux<Payload> apply(RSocket rSocket) {
+            return rSocket.requestChannel(payloadStream);
+          }
+
+          @Override
+          public String toString() {
+            return "Request Channel";
+          }
+        };
 
     return Arrays.asList(resp, stream, channel);
   }
