@@ -40,6 +40,8 @@ import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -264,9 +266,12 @@ class RSocketResponder implements RSocket {
 
   private synchronized void cleanUpSendingSubscriptions() {
     // Iterate explicitly to handle collisions with concurrent removals
-    for (IntObjectMap.PrimitiveEntry<Subscription> entry : sendingSubscriptions.entries()) {
+    final IntObjectMap<Subscription> sendingSubscriptions = this.sendingSubscriptions;
+    final Collection<Subscription> sendingSubscriptionsCopy =
+        new ArrayList<>(sendingSubscriptions.values());
+    for (Subscription subscription : sendingSubscriptionsCopy) {
       try {
-        entry.value().cancel();
+        subscription.cancel();
       } catch (Throwable ex) {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug("Dropped exception", ex);

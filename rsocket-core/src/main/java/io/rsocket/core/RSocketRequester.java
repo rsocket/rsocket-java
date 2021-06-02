@@ -50,6 +50,8 @@ import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -772,20 +774,26 @@ class RSocketRequester implements RSocket {
     leaseHandler.dispose();
 
     // Iterate explicitly to handle collisions with concurrent removals
-    for (IntObjectMap.PrimitiveEntry<Processor<Payload, Payload>> entry : receivers.entries()) {
+    final IntObjectMap<Processor<Payload, Payload>> receivers = this.receivers;
+    // copy to avoid collection modification from the foreach loop
+    final Collection<Processor<Payload, Payload>> receiversCopy =
+        new ArrayList<>(receivers.values());
+    for (Processor<Payload, Payload> handler : receiversCopy) {
       try {
-        entry.value().onError(e);
+        handler.onError(e);
       } catch (Throwable ex) {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug("Dropped exception", ex);
         }
       }
     }
-
     // Iterate explicitly to handle collisions with concurrent removals
-    for (IntObjectMap.PrimitiveEntry<Subscription> entry : senders.entries()) {
+    final IntObjectMap<Subscription> senders = this.senders;
+    // copy to avoid collection modification from the foreach loop
+    final Collection<Subscription> sendersCopy = new ArrayList<>(senders.values());
+    for (Subscription subscription : sendersCopy) {
       try {
-        entry.value().cancel();
+        subscription.cancel();
       } catch (Throwable ex) {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug("Dropped exception", ex);
