@@ -33,6 +33,8 @@ import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.RequestInterceptor;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Function;
@@ -184,8 +186,9 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   }
 
   private synchronized void cleanUpSendingSubscriptions() {
-    for (IntObjectMap.PrimitiveEntry<FrameHandler> entry : activeStreams.entries()) {
-      FrameHandler handler = entry.value();
+    final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
+    final Collection<FrameHandler> activeStreamsCopy = new ArrayList<>(activeStreams.values());
+    for (FrameHandler handler : activeStreamsCopy) {
       if (handler != null) {
         handler.handleCancel();
       }
