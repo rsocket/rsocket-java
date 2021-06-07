@@ -114,10 +114,10 @@ abstract class ServerSetup {
         final ServerRSocketSession serverRSocketSession =
             new ServerRSocketSession(
                 resumeToken,
-                duplexConnection,
                 resumableDuplexConnection,
-                resumeSessionDuration,
+                duplexConnection,
                 resumableFramesStore,
+                resumeSessionDuration,
                 cleanupStoreOnKeepAlive);
 
         sessionManager.save(serverRSocketSession, resumeToken);

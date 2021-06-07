@@ -23,7 +23,7 @@ import io.rsocket.frame.KeepAliveFrameCodec;
 import io.rsocket.resume.ResumeStateHolder;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -38,11 +38,19 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
   final Duration keepAliveTimeout;
   final long keepAliveTimeoutMillis;
 
-  final AtomicBoolean started = new AtomicBoolean();
+  volatile int state;
+  static final AtomicIntegerFieldUpdater<KeepAliveSupport> STATE =
+      AtomicIntegerFieldUpdater.newUpdater(KeepAliveSupport.class, "state");
+
+  static final int STOPPED_STATE = 0;
+  static final int STARTING_STATE = 1;
+  static final int STARTED_STATE = 2;
+  static final int DISPOSED_STATE = -1;
 
   volatile Consumer<KeepAlive> onTimeout;
   volatile Consumer<ByteBuf> onFrameSent;
-  volatile Disposable ticksDisposable;
+
+  Disposable ticksDisposable;
 
   volatile ResumeStateHolder resumeStateHolder;
   volatile long lastReceivedMillis;
@@ -57,25 +65,30 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
   }
 
   public KeepAliveSupport start() {
-    this.lastReceivedMillis = scheduler.now(TimeUnit.MILLISECONDS);
-    if (started.compareAndSet(false, true)) {
-      ticksDisposable =
+    if (this.state == STOPPED_STATE && STATE.compareAndSet(this, STOPPED_STATE, STARTING_STATE)) {
+      this.lastReceivedMillis = scheduler.now(TimeUnit.MILLISECONDS);
+
+      final Disposable disposable =
           Flux.interval(keepAliveInterval, scheduler).subscribe(v -> onIntervalTick());
+      this.ticksDisposable = disposable;
+
+      if (this.state != STARTING_STATE
+          || !STATE.compareAndSet(this, STARTING_STATE, STARTED_STATE)) {
+        disposable.dispose();
+      }
     }
     return this;
   }
 
   public void stop() {
-    if (started.compareAndSet(true, false)) {
-      ticksDisposable.dispose();
-    }
+    terminate(STOPPED_STATE);
   }
 
   @Override
   public void receive(ByteBuf keepAliveFrame) {
     this.lastReceivedMillis = scheduler.now(TimeUnit.MILLISECONDS);
     if (resumeStateHolder != null) {
-      long remoteLastReceivedPos = remoteLastReceivedPosition(keepAliveFrame);
+      final long remoteLastReceivedPos = KeepAliveFrameCodec.lastPosition(keepAliveFrame);
       resumeStateHolder.onImpliedPosition(remoteLastReceivedPos);
     }
     if (KeepAliveFrameCodec.respondFlag(keepAliveFrame)) {
@@ -104,6 +117,16 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
     return this;
   }
 
+  @Override
+  public void dispose() {
+    terminate(DISPOSED_STATE);
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return ticksDisposable.isDisposed();
+  }
+
   abstract void onIntervalTick();
 
   void send(ByteBuf frame) {
@@ -122,22 +145,24 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
     }
   }
 
+  void terminate(int terminationState) {
+    for (; ; ) {
+      final int state = this.state;
+
+      if (state == STOPPED_STATE || state == DISPOSED_STATE) {
+        return;
+      }
+
+      final Disposable disposable = this.ticksDisposable;
+      if (STATE.compareAndSet(this, state, terminationState)) {
+        disposable.dispose();
+        return;
+      }
+    }
+  }
+
   long localLastReceivedPosition() {
     return resumeStateHolder != null ? resumeStateHolder.impliedPosition() : 0;
-  }
-
-  long remoteLastReceivedPosition(ByteBuf keepAliveFrame) {
-    return KeepAliveFrameCodec.lastPosition(keepAliveFrame);
-  }
-
-  @Override
-  public void dispose() {
-    stop();
-  }
-
-  @Override
-  public boolean isDisposed() {
-    return ticksDisposable.isDisposed();
   }
 
   public static final class ClientKeepAliveSupport extends KeepAliveSupport {
