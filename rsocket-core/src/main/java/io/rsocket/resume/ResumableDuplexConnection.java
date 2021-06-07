@@ -103,20 +103,17 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   }
 
   void initConnection(DuplexConnection nextConnection) {
-    if (logger.isDebugEnabled()) {
-      logger.debug(
-          "Side[{}]|Session[{}]. Connecting to DuplexConnection[{}]",
-          side,
-          session,
-          nextConnection);
-    }
-
-    final int currentConnectionIndex = connectionIndex;
+    final int nextConnectionIndex = this.connectionIndex + 1;
     final FrameReceivingSubscriber frameReceivingSubscriber =
         new FrameReceivingSubscriber(side, resumableFramesStore, receiveSubscriber);
 
-    this.connectionIndex = currentConnectionIndex + 1;
+    this.connectionIndex = nextConnectionIndex;
     this.activeReceivingSubscriber = frameReceivingSubscriber;
+
+    if (logger.isDebugEnabled()) {
+      logger.debug(
+          "Side[{}]|Session[{}]|DuplexConnection[{}]. Connecting", side, session, connectionIndex);
+    }
 
     final Disposable resumeStreamSubscription =
         resumableFramesStore
@@ -136,17 +133,18 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
               resumeStreamSubscription.dispose();
               if (logger.isDebugEnabled()) {
                 logger.debug(
-                    "Side[{}]|Session[{}]. Disconnected from DuplexConnection[{}]",
+                    "Side[{}]|Session[{}]|DuplexConnection[{}]. Disconnected",
                     side,
                     session,
-                    nextConnection);
+                    connectionIndex);
               }
-              Sinks.EmitResult result = onConnectionClosedSink.tryEmitNext(currentConnectionIndex);
+              Sinks.EmitResult result = onConnectionClosedSink.tryEmitNext(nextConnectionIndex);
               if (!result.equals(Sinks.EmitResult.OK)) {
                 logger.error(
-                    "Side[{}]|Session[{}]. Failed to notify session of closed connection: {}",
+                    "Side[{}]|Session[{}]|DuplexConnection[{}]. Failed to notify session of closed connection: {}",
                     side,
                     session,
+                    connectionIndex,
                     result);
               }
             })
@@ -193,14 +191,18 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             null,
             t -> {
               framesSaverDisposable.dispose();
+              activeReceivingSubscriber.dispose();
               savableFramesSender.dispose();
               onConnectionClosedSink.tryEmitComplete();
+
               onClose.tryEmitError(t);
             },
             () -> {
               framesSaverDisposable.dispose();
+              activeReceivingSubscriber.dispose();
               savableFramesSender.dispose();
               onConnectionClosedSink.tryEmitComplete();
+
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
                 onClose.tryEmitEmpty();
@@ -242,7 +244,11 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     }
 
     if (logger.isDebugEnabled()) {
-      logger.debug("Side[{}]|Session[{}]. Disposing...", side, session);
+      logger.debug(
+          "Side[{}]|Session[{}]|DuplexConnection[{}]. Disposing...",
+          side,
+          session,
+          connectionIndex);
     }
 
     framesSaverDisposable.dispose();
