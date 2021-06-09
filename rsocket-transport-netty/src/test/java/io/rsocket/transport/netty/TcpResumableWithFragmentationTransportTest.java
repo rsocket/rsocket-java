@@ -19,37 +19,32 @@ package io.rsocket.transport.netty;
 import io.netty.channel.ChannelOption;
 import io.rsocket.test.TransportTest;
 import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import reactor.netty.tcp.TcpClient;
 import reactor.netty.tcp.TcpServer;
 
-final class TcpResumableWithFragmentationTransportTest implements TransportTest {
-
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> InetSocketAddress.createUnresolved("localhost", 0),
-          (address, server, allocator) ->
-              TcpClientTransport.create(
-                  TcpClient.create()
-                      .remoteAddress(server::address)
-                      .option(ChannelOption.ALLOCATOR, allocator)),
-          (address, allocator) ->
-              TcpServerTransport.create(
-                  TcpServer.create()
-                      .bindAddress(() -> address)
-                      .option(ChannelOption.ALLOCATOR, allocator)),
-          true,
-          true);
+final class TcpResumableWithFragmentationTransportTest
+    extends TransportTest<InetSocketAddress, CloseableChannel> {
 
   @Override
-  public Duration getTimeout() {
-    return Duration.ofMinutes(3);
-  }
-
-  @Override
-  public TransportPair getTransportPair() {
-    return transportPair;
+  protected TransportPair<InetSocketAddress, CloseableChannel> createTransportPair() {
+    return new TransportPair<>(
+        () -> InetSocketAddress.createUnresolved("localhost", 0),
+        (address, server, allocator) ->
+            TcpClientTransport.create(
+                TcpClient.create()
+                    .remoteAddress(server::address)
+                    .option(ChannelOption.ALLOCATOR, allocator)),
+        (address, allocator) ->
+            TcpServerTransport.create(
+                TcpServer.create()
+                    .bindAddress(() -> address)
+                    .option(ChannelOption.ALLOCATOR, allocator)),
+        true,
+        true,
+        Duration.ofMinutes(2));
   }
 }

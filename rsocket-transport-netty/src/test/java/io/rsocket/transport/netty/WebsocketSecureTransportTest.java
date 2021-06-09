@@ -17,62 +17,59 @@
 package io.rsocket.transport.netty;
 
 import io.netty.channel.ChannelOption;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.rsocket.test.TransportTest;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
 import java.time.Duration;
 import reactor.core.Exceptions;
+import reactor.netty.http.Http11SslContextSpec;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 
-final class WebsocketSecureTransportTest implements TransportTest {
-
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> new InetSocketAddress("localhost", 0),
-          (address, server, allocator) ->
-              WebsocketClientTransport.create(
-                  HttpClient.create()
-                      .option(ChannelOption.ALLOCATOR, allocator)
-                      .remoteAddress(server::address)
-                      .secure(
-                          ssl ->
-                              ssl.sslContext(
-                                  SslContextBuilder.forClient()
-                                      .trustManager(InsecureTrustManagerFactory.INSTANCE))),
-                  String.format(
-                      "https://%s:%d/",
-                      server.address().getHostName(), server.address().getPort())),
-          (address, allocator) -> {
-            try {
-              SelfSignedCertificate ssc = new SelfSignedCertificate();
-              HttpServer server =
-                  HttpServer.create()
-                      .option(ChannelOption.ALLOCATOR, allocator)
-                      .bindAddress(() -> address)
-                      .secure(
-                          ssl ->
-                              ssl.sslContext(
-                                  SslContextBuilder.forServer(
-                                      ssc.certificate(), ssc.privateKey())));
-              return WebsocketServerTransport.create(server);
-            } catch (CertificateException e) {
-              throw Exceptions.propagate(e);
-            }
-          });
+final class WebsocketSecureTransportTest
+    extends TransportTest<InetSocketAddress, CloseableChannel> {
 
   @Override
-  public Duration getTimeout() {
-    return Duration.ofMinutes(5);
-  }
-
-  @Override
-  public TransportPair getTransportPair() {
-    return transportPair;
+  protected TransportPair<InetSocketAddress, CloseableChannel> createTransportPair() {
+    return new TransportPair<>(
+        () -> new InetSocketAddress("localhost", 0),
+        (address, server, allocator) ->
+            WebsocketClientTransport.create(
+                HttpClient.create()
+                    .option(ChannelOption.ALLOCATOR, allocator)
+                    .remoteAddress(server::address)
+                    .secure(
+                        ssl ->
+                            ssl.sslContext(
+                                Http11SslContextSpec.forClient()
+                                    .configure(
+                                        scb ->
+                                            scb.trustManager(
+                                                InsecureTrustManagerFactory.INSTANCE)))),
+                String.format(
+                    "https://%s:%d/", server.address().getHostName(), server.address().getPort())),
+        (address, allocator) -> {
+          try {
+            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            HttpServer server =
+                HttpServer.create()
+                    .option(ChannelOption.ALLOCATOR, allocator)
+                    .bindAddress(() -> address)
+                    .secure(
+                        ssl ->
+                            ssl.sslContext(
+                                Http11SslContextSpec.forServer(
+                                    ssc.certificate(), ssc.privateKey())));
+            return WebsocketServerTransport.create(server);
+          } catch (CertificateException e) {
+            throw Exceptions.propagate(e);
+          }
+        },
+        Duration.ofMinutes(2));
   }
 }

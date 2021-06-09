@@ -16,25 +16,19 @@
 
 package io.rsocket.transport.local;
 
+import io.rsocket.Closeable;
 import io.rsocket.test.TransportTest;
 import java.time.Duration;
 import java.util.UUID;
 
-final class LocalTransportTest implements TransportTest {
-
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> "test-" + UUID.randomUUID(),
-          (address, server, allocator) -> LocalClientTransport.create(address, allocator),
-          (address, allocator) -> LocalServerTransport.create(address));
+final class LocalTransportTest extends TransportTest<String, Closeable> {
 
   @Override
-  public Duration getTimeout() {
-    return Duration.ofSeconds(10);
-  }
-
-  @Override
-  public TransportPair getTransportPair() {
-    return transportPair;
+  protected TransportPair<String, Closeable> createTransportPair() {
+    return new TransportPair<>(
+        () -> "test-" + UUID.randomUUID(),
+        (address, server, allocator) -> LocalClientTransport.create(address, allocator),
+        (address, allocator) -> LocalServerTransport.create(address),
+        Duration.ofSeconds(10));
   }
 }

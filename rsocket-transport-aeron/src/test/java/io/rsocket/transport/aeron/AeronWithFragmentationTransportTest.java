@@ -23,8 +23,11 @@ import io.rsocket.test.TransportTest;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
+import org.junit.jupiter.api.Disabled;
 
-final class AeronTransportTest extends TransportTest<InetSocketAddress, AeronServer> {
+@Disabled
+final class AeronWithFragmentationTransportTest
+    extends TransportTest<InetSocketAddress, AeronServer> {
 
   static final MediaDriver mediaDriver =
       MediaDriver.launch(
@@ -53,7 +56,7 @@ final class AeronTransportTest extends TransportTest<InetSocketAddress, AeronSer
           (address, server, allocator) ->
               AeronClientTransport.createIpc(clientAeron, eventLoopGroup),
           (address, allocator) -> AeronServerTransport.createIpc(serverAeron, eventLoopGroup),
-          false,
+          true,
           false,
           false,
           Duration.ofMinutes(2));
