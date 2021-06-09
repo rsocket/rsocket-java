@@ -29,8 +29,8 @@ repositories {
     maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.0'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.0'
+    implementation 'io.rsocket:rsocket-core:1.1.1'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.1'
 }
 ```
 
@@ -40,12 +40,12 @@ Example:
 
 ```groovy
 repositories {
-    maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://maven.pkg.github.com/rsocket/rsocket-java' }
     maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.1-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.1-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.1.2-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.2-SNAPSHOT'
 }
 ```
 
