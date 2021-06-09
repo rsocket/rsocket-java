@@ -17,8 +17,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
+    id 'signing'
     id "com.google.osdetector" version "1.4.0"
 }
 
@@ -35,7 +34,9 @@ dependencies {
     testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.junit.jupiter:junit-jupiter-params'
+    testImplementation 'org.slf4j:slf4j-api'
 
+    testImplementation 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }

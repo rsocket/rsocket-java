@@ -28,17 +28,17 @@ import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
 import reactor.core.Fuseable;
 import reactor.core.Fuseable.QueueSubscription;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.util.context.Context;
 
 class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
-  private static final Logger logger = LoggerFactory.getLogger(MonoSendMany.class);
+  static final Logger logger = LoggerFactory.getLogger(MonoSendMany.class);
 
   static final ThreadLocal<BufferClaim> BUFFER_CLAIMS = ThreadLocal.withInitial(BufferClaim::new);
   static final ThreadLocal<UnsafeBuffer> UNSAFE_BUFFER = ThreadLocal.withInitial(UnsafeBuffer::new);
 
-  final MonoProcessor<Void> onClose;
+  final Sinks.Empty<Void> onClose;
   final EventLoop eventLoop;
   final ExclusivePublication publication;
   final int effort;
@@ -59,7 +59,7 @@ class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
   boolean cancelled;
 
   public MonoSendMany(
-      MonoProcessor<Void> onClose,
+      Sinks.Empty<Void> onClose,
       EventLoop eventLoop,
       ExclusivePublication publication,
       int effort,
@@ -130,7 +130,7 @@ class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
   }
 
   void drainAsync() {
-    final MonoProcessor<Void> onClose = this.onClose;
+    final Sinks.Empty<Void> onClose = this.onClose;
     final ExclusivePublication publication = this.publication;
     final QueueSubscription<ByteBuf> qs = this.subscription;
     final EventLoop eventLoop = this.eventLoop;
@@ -159,7 +159,7 @@ class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
         qs.cancel();
 
         this.done = true;
-        onClose.onError(t);
+        onClose.tryEmitError(t);
         return;
       }
 
@@ -200,9 +200,9 @@ class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
 
             final Throwable t = this.t;
             if (t == null) {
-              onClose.onComplete();
+              onClose.tryEmitEmpty();
             } else {
-              onClose.onError(t);
+              onClose.tryEmitError(t);
             }
           }
           break;
@@ -217,7 +217,7 @@ class MonoSendMany implements Disposable, CoreSubscriber<ByteBuf>, Runnable {
           buf.release();
 
           this.done = true;
-          onClose.onError(t);
+          onClose.tryEmitError(t);
           return;
         }
 

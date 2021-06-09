@@ -31,8 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 
 class FluxReceiver extends Flux<ByteBuf>
     implements org.reactivestreams.Subscription, ControlledFragmentHandler, Runnable {
@@ -44,7 +44,7 @@ class FluxReceiver extends Flux<ByteBuf>
   final Subscription subscription;
   final ControlledFragmentAssembler assembler;
   final EventLoop eventLoop;
-  final MonoProcessor<Void> onClose;
+  final Sinks.Empty<Void> onClose;
   final int effort;
 
   volatile long requested;
@@ -61,7 +61,7 @@ class FluxReceiver extends Flux<ByteBuf>
   int produced;
 
   public FluxReceiver(
-      MonoProcessor<Void> onClose, EventLoop eventLoop, Subscription subscription, int effort) {
+      Sinks.Empty<Void> onClose, EventLoop eventLoop, Subscription subscription, int effort) {
     this.onClose = onClose;
     this.eventLoop = eventLoop;
     this.subscription = subscription;
@@ -140,7 +140,7 @@ class FluxReceiver extends Flux<ByteBuf>
             final NotConnectedException exception =
                 new NotConnectedException("Aeron Subscription has been closed unexpectedly");
             this.actual.onError(exception);
-            this.onClose.onError(exception);
+            this.onClose.tryEmitError(exception);
             return;
           }
 

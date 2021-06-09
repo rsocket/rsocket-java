@@ -245,7 +245,7 @@ class WrappedDirectBufferByteBuf extends AbstractByteBuf {
   public ByteBuffer nioBuffer(int index, int length) {
     final ByteBuffer buffer = directBuffer.byteBuffer();
     if (buffer != null) {
-      return buffer.duplicate().position(index).limit(index + length);
+      return (ByteBuffer) buffer.duplicate().position(index).limit(index + length);
     } else {
       final byte[] bytes = directBuffer.byteArray();
       return ByteBuffer.wrap(bytes, index, length);
