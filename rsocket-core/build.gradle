@@ -46,7 +46,7 @@ dependencies {
 }
 
 jcstress {
-    mode = 'default' //quick, default, tough
+    mode = 'quick' //quick, default, tough
     jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.7"
 }
 
