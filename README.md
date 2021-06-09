@@ -15,7 +15,7 @@ Learn more at http://rsocket.io
 
 ## Build and Binaries
 
-[![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=develop)](https://travis-ci.org/rsocket/rsocket-java)
+[![Main Branches Java CI](https://github.com/rsocket/rsocket-java/actions/workflows/gradle-main.yml/badge.svg?branch=1.0.x)](https://github.com/rsocket/rsocket-java/actions/workflows/gradle-main.yml)
 
 Releases and milestones are available via Maven Central.
 
@@ -27,8 +27,8 @@ repositories {
     maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.4'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.4'
+    implementation 'io.rsocket:rsocket-core:1.0.5'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.5'
 }
 ```
 
@@ -38,12 +38,12 @@ Example:
 
 ```groovy
 repositories {
-    maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+    maven { url 'https://maven.pkg.github.com/rsocket/rsocket-java' }
     maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.5-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.5-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.0.6-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.6-SNAPSHOT'
 }
 ```
 
