@@ -1,23 +1,21 @@
 subprojects {
 
-  plugins.withType(JavaLibraryPlugin) {
-	plugins.withType(MavenPublishPlugin) {
-	  publishing {
-		repositories {
-		  maven {
-			name = "GitHubPackages"
-			url = uri("https://maven.pkg.github.com/rsocket/rsocket-java")
-			credentials {
-			  username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-			  password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
-			}
+  plugins.withType(MavenPublishPlugin) {
+	publishing {
+	  repositories {
+		maven {
+		  name = "GitHubPackages"
+		  url = uri("https://maven.pkg.github.com/rsocket/rsocket-java")
+		  credentials {
+			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
 		  }
 		}
 	  }
+	}
 
-	  tasks.named("publish").configure {
-		onlyIf { System.getenv('SKIP_RELEASE') != "true" }
-	  }
+	tasks.named("publish").configure {
+	  onlyIf { System.getenv('SKIP_RELEASE') != "true" }
 	}
   }
 }
