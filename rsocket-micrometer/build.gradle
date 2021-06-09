@@ -18,7 +18,6 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'signing'
-    id 'com.jfrog.artifactory'
 }
 
 dependencies {

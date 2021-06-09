@@ -1,4 +1,3 @@
-apply from: "${rootDir}/gradle/artifactory.gradle"
 apply from: "${rootDir}/gradle/github-pkg.gradle"
 apply from: "${rootDir}/gradle/sonotype.gradle"
 
