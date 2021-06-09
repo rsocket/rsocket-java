@@ -17,7 +17,6 @@
 plugins {
     id 'com.github.sherter.google-java-format' version '0.9' apply false
     id 'com.jfrog.artifactory' version '4.21.0' apply false
-    id 'com.jfrog.bintray' version '1.8.5' apply false
     id 'me.champeau.jmh' version '0.6.4' apply false
     id 'io.spring.dependency-management' version '1.0.11.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false

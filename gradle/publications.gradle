@@ -1,5 +1,6 @@
 apply from: "${rootDir}/gradle/artifactory.gradle"
-apply from: "${rootDir}/gradle/bintray.gradle"
+apply from: "${rootDir}/gradle/github-pkg.gradle"
+apply from: "${rootDir}/gradle/sonotype.gradle"
 
 subprojects {
     plugins.withType(MavenPublishPlugin) {
