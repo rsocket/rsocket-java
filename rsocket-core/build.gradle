@@ -17,8 +17,8 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
     id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
     id 'io.morethan.jmhreport'
     id 'me.champeau.gradle.jmh'
 }
