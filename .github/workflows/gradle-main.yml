@@ -37,10 +37,9 @@ jobs:
         run: ./gradlew clean build
       - name: Publish Packages to Artifactory
         if: ${{ matrix.jdk == '1.8' }}
-        run: ./gradlew -PbintrayUser="${bintrayUser}" -PbintrayKey="${bintrayKey}" -PversionSuffix="-SNAPSHOT" -PbuildNumber="${buildNumber}" artifactoryPublish --stacktrace
+        run: ./gradlew -PversionSuffix="-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToGitHubPackagesRepository --stacktrace
         env:
-          bintrayUser: ${{ secrets.bintrayUser }}
-          bintrayKey: ${{ secrets.bintrayKey }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           buildNumber: ${{ github.run_number }}
       - name: Aggregate test reports with ciMate
         if: always()

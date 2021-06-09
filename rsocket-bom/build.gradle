@@ -17,7 +17,6 @@ plugins {
     id 'java-platform'
     id 'maven-publish'
     id 'signing'
-    id 'com.jfrog.artifactory'
 }
 
 description = 'RSocket Java Bill of materials.'

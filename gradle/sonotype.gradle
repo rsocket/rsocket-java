@@ -1,31 +1,29 @@
 subprojects {
   if (project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
-	plugins.withType(JavaLibraryPlugin) {
-	  plugins.withType(MavenPublishPlugin) {
-		plugins.withType(SigningPlugin) {
+	plugins.withType(MavenPublishPlugin) {
+	  plugins.withType(SigningPlugin) {
 
-		  signing {
-			//requiring signature if there is a publish task that is not to MavenLocal
-			required { gradle.taskGraph.allTasks.any { it.name.toLowerCase().contains("publish") && !it.name.contains("MavenLocal") } }
-			def signingKey = project.findProperty("signingKey")
-			def signingPassword = project.findProperty("signingPassword")
+		signing {
+		  //requiring signature if there is a publish task that is not to MavenLocal
+		  required { gradle.taskGraph.allTasks.any { it.name.toLowerCase().contains("publish") && !it.name.contains("MavenLocal") } }
+		  def signingKey = project.findProperty("signingKey")
+		  def signingPassword = project.findProperty("signingPassword")
 
-			useInMemoryPgpKeys(signingKey, signingPassword)
+		  useInMemoryPgpKeys(signingKey, signingPassword)
 
-			afterEvaluate {
-			  sign publishing.publications.maven
-			}
+		  afterEvaluate {
+			sign publishing.publications.maven
 		  }
+		}
 
-		  publishing {
-			repositories {
-			  maven {
-				name = "sonatype"
-				url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
-				credentials {
-				  username project.findProperty("sonatypeUsername")
-				  password project.findProperty("sonatypePassword")
-				}
+		publishing {
+		  repositories {
+			maven {
+			  name = "sonatype"
+			  url = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			  credentials {
+				username project.findProperty("sonatypeUsername")
+				password project.findProperty("sonatypePassword")
 			  }
 			}
 		  }

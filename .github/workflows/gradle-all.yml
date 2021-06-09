@@ -37,9 +37,8 @@ jobs:
         run: ./gradlew clean build
       - name: Publish Packages to Artifactory
         if: ${{ matrix.jdk == '1.8' }}
-        run: ./gradlew -PbintrayUser="${bintrayUser}" -PbintrayKey="${bintrayKey}" -PversionSuffix="-${githubRef#refs/heads/}-SNAPSHOT" -PbuildNumber="${buildNumber}" artifactoryPublish --stacktrace
+        run: ./gradlew -PversionSuffix="-${githubRef#refs/heads/}-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToGitHubPackagesRepository --stacktrace
         env:
-          bintrayUser: ${{ secrets.bintrayUser }}
-          bintrayKey: ${{ secrets.bintrayKey }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           githubRef: ${{ github.ref }}
           buildNumber: ${{ github.run_number }}

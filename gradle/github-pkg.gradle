@@ -8,8 +8,8 @@ subprojects {
 			name = "GitHubPackages"
 			url = uri("https://maven.pkg.github.com/rsocket/rsocket-java")
 			credentials {
-			  username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
-			  password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+			  username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			  password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
 			}
 		  }
 		}

@@ -18,7 +18,6 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'signing'
-    id 'com.jfrog.artifactory'
     id "com.google.osdetector" version "1.4.0"
 }
 
