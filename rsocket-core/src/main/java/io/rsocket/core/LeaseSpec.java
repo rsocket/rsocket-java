@@ -38,7 +38,7 @@ public final class LeaseSpec {
    *     no leases is available
    */
   public LeaseSpec maxPendingRequests(int maxPendingRequests) {
-    this.maxPendingRequests = 0;
+    this.maxPendingRequests = maxPendingRequests;
     return this;
   }
 }
