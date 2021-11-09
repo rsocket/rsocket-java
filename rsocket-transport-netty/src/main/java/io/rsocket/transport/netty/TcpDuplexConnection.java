@@ -64,7 +64,6 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   protected void doOnClose() {
-    sender.dispose();
     connection.dispose();
   }
 
