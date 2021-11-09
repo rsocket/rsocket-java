@@ -39,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.SocketAddress;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -51,6 +52,7 @@ import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
@@ -68,14 +70,14 @@ import reactor.test.StepVerifier;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 
-public interface TransportTest {
+public abstract class TransportTest<T, S extends Closeable> {
 
-  Logger logger = Loggers.getLogger(TransportTest.class);
+  static final Logger logger = Loggers.getLogger(TransportTest.class);
 
-  String MOCK_DATA = "test-data";
-  String MOCK_METADATA = "metadata";
-  String LARGE_DATA = read("words.shakespeare.txt.gz");
-  Payload LARGE_PAYLOAD = ByteBufPayload.create(LARGE_DATA, LARGE_DATA);
+  static final String MOCK_DATA = "test-data";
+  static final String MOCK_METADATA = "metadata";
+  static final String LARGE_DATA = read("words.shakespeare.txt.gz");
+  static final Payload LARGE_PAYLOAD = ByteBufPayload.create(LARGE_DATA, LARGE_DATA);
 
   static String read(String resourceName) {
 
@@ -83,7 +85,10 @@ public interface TransportTest {
         new BufferedReader(
             new InputStreamReader(
                 new GZIPInputStream(
-                    TransportTest.class.getClassLoader().getResourceAsStream(resourceName))))) {
+                    Objects.requireNonNull(
+                        TransportTest.class
+                            .getClassLoader()
+                            .getResourceAsStream(resourceName)))))) {
 
       return br.lines().map(String::toLowerCase).collect(Collectors.joining("\n\r"));
     } catch (Throwable e) {
@@ -91,21 +96,30 @@ public interface TransportTest {
     }
   }
 
-  @AfterEach
-  default void close() {
-    getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
-    getTransportPair().dispose();
-    getTransportPair().awaitClosed();
-    RuntimeException throwable = new RuntimeException();
+  TransportPair<T, S> transportPair;
 
+  protected abstract TransportPair<T, S> createTransportPair();
+
+  @BeforeEach
+  void setup() {
+    transportPair = createTransportPair();
+  }
+
+  @AfterEach
+  void close() {
+    transportPair.responder.awaitAllInteractionTermination(transportPair.timeout);
+    transportPair.dispose();
+    transportPair.awaitClosed();
+
+    RuntimeException throwable = new RuntimeException();
     try {
-      getTransportPair().byteBufAllocator2.assertHasNoLeaks();
+      transportPair.byteBufAllocator2.assertHasNoLeaks();
     } catch (Throwable t) {
       throwable = Exceptions.addSuppressed(throwable, t);
     }
 
     try {
-      getTransportPair().byteBufAllocator1.assertHasNoLeaks();
+      transportPair.byteBufAllocator1.assertHasNoLeaks();
     } catch (Throwable t) {
       throwable = Exceptions.addSuppressed(throwable, t);
     }
@@ -115,7 +129,7 @@ public interface TransportTest {
     }
   }
 
-  default Payload createTestPayload(int metadataPresent) {
+  static Payload createTestPayload(int metadataPresent) {
     String metadata1;
 
     switch (metadataPresent % 5) {
@@ -136,66 +150,63 @@ public interface TransportTest {
 
   @DisplayName("makes 10 fireAndForget requests")
   @Test
-  default void fireAndForget10() {
+  protected void fireAndForget10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().fireAndForget(createTestPayload(i)))
+        .flatMap(i -> transportPair.client.fireAndForget(createTestPayload(i)))
         .as(StepVerifier::create)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(transportPair.responder.awaitUntilObserved(10, transportPair.timeout))
+        .isTrue();
   }
 
   @DisplayName("makes 10 fireAndForget with Large Payload in Requests")
   @Test
-  default void largePayloadFireAndForget10() {
+  protected void largePayloadFireAndForget10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().fireAndForget(LARGE_PAYLOAD.retain()))
+        .flatMap(i -> transportPair.client.fireAndForget(LARGE_PAYLOAD.retain()))
         .as(StepVerifier::create)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(transportPair.responder.awaitUntilObserved(10, transportPair.timeout))
+        .isTrue();
   }
-
-  default RSocket getClient() {
-    return getTransportPair().getClient();
-  }
-
-  Duration getTimeout();
-
-  TransportPair getTransportPair();
 
   @DisplayName("makes 10 metadataPush requests")
   @Test
-  default void metadataPush10() {
-    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
+  protected void metadataPush10() {
+    Assumptions.assumeThat(transportPair.withResumability).isFalse();
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", "test-metadata")))
+        .flatMap(i -> transportPair.client.metadataPush(ByteBufPayload.create("", "test-metadata")))
         .as(StepVerifier::create)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(transportPair.responder.awaitUntilObserved(10, transportPair.timeout))
+        .isTrue();
   }
 
   @DisplayName("makes 10 metadataPush with Large Metadata in requests")
   @Test
-  default void largePayloadMetadataPush10() {
-    Assumptions.assumeThat(getTransportPair().withResumability).isFalse();
+  protected void largePayloadMetadataPush10() {
+    Assumptions.assumeThat(transportPair.withResumability).isFalse();
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", LARGE_DATA)))
+        .flatMap(i -> transportPair.client.metadataPush(ByteBufPayload.create("", LARGE_DATA)))
         .as(StepVerifier::create)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
 
-    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
+    Assertions.assertThat(transportPair.responder.awaitUntilObserved(10, transportPair.timeout))
+        .isTrue();
   }
 
   @DisplayName("makes 1 requestChannel request with 0 payloads")
   @Test
-  default void requestChannel0() {
-    getClient()
+  protected void requestChannel0() {
+    transportPair
+        .client
         .requestChannel(Flux.empty())
         .as(StepVerifier::create)
         .expectErrorSatisfies(
@@ -203,101 +214,107 @@ public interface TransportTest {
                 Assertions.assertThat(t)
                     .isInstanceOf(CancellationException.class)
                     .hasMessage("Empty Source"))
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 1 payloads")
   @Test
-  default void requestChannel1() {
-    getClient()
+  protected void requestChannel1() {
+    transportPair
+        .client
         .requestChannel(Mono.just(createTestPayload(0)))
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 200,000 payloads")
   @Test
-  default void requestChannel200_000() {
-    Flux<Payload> payloads = Flux.range(0, 200_000).map(this::createTestPayload);
+  protected void requestChannel200_000() {
+    Flux<Payload> payloads = Flux.range(0, 200_000).map(TransportTest::createTestPayload);
 
-    getClient()
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .limitRate(8)
         .as(StepVerifier::create)
         .expectNextCount(200_000)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 50 large payloads")
   @Test
-  default void largePayloadRequestChannel50() {
+  protected void largePayloadRequestChannel50() {
     Flux<Payload> payloads = Flux.range(0, 50).map(__ -> LARGE_PAYLOAD.retain());
 
-    getClient()
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(50)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 20,000 payloads")
   @Test
-  default void requestChannel20_000() {
+  protected void requestChannel20_000() {
     Flux<Payload> payloads = Flux.range(0, 20_000).map(metadataPresent -> createTestPayload(7));
 
-    getClient()
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(this::assertChannelPayload)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(20_000)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 2,000,000 payloads")
   @SlowTest
-  default void requestChannel2_000_000() {
-    Flux<Payload> payloads = Flux.range(0, 2_000_000).map(this::createTestPayload);
+  protected void requestChannel2_000_000() {
+    Flux<Payload> payloads = Flux.range(0, 2_000_000).map(TransportTest::createTestPayload);
 
-    getClient()
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .limitRate(8)
         .as(StepVerifier::create)
         .expectNextCount(2_000_000)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestChannel request with 3 payloads")
   @Test
-  default void requestChannel3() {
+  protected void requestChannel3() {
     AtomicLong requested = new AtomicLong();
     Flux<Payload> payloads =
-        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
+        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(TransportTest::createTestPayload);
 
-    getClient()
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .as(publisher -> StepVerifier.create(publisher, 3))
         .expectNextCount(3)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
 
     Assertions.assertThat(requested.get()).isEqualTo(3L);
   }
 
   @DisplayName("makes 1 requestChannel request with 256 payloads")
   @Test
-  default void requestChannel256() {
+  protected void requestChannel256() {
     AtomicInteger counter = new AtomicInteger();
     Flux<Payload> payloads =
         Flux.defer(
@@ -314,8 +331,9 @@ public interface TransportTest {
         .blockLast();
   }
 
-  default void check(Flux<Payload> payloads) {
-    getClient()
+  void check(Flux<Payload> payloads) {
+    transportPair
+        .client
         .requestChannel(payloads)
         .doOnNext(ReferenceCounted::release)
         .limitRate(8)
@@ -323,89 +341,107 @@ public interface TransportTest {
         .expectNextCount(256)
         .as("expected 256 items")
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestResponse request")
   @Test
-  default void requestResponse1() {
-    getClient()
+  protected void requestResponse1() {
+    transportPair
+        .client
         .requestResponse(createTestPayload(1))
         .doOnNext(this::assertPayload)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 10 requestResponse requests")
   @Test
-  default void requestResponse10() {
+  protected void requestResponse10() {
     Flux.range(1, 10)
         .flatMap(
             i ->
-                getClient()
+                transportPair
+                    .client
                     .requestResponse(createTestPayload(i))
                     .doOnNext(v -> assertPayload(v))
                     .doOnNext(Payload::release))
         .as(StepVerifier::create)
         .expectNextCount(10)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 100 requestResponse requests")
   @Test
-  default void requestResponse100() {
+  protected void requestResponse100() {
     Flux.range(1, 100)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).doOnNext(Payload::release))
+        .flatMap(
+            i ->
+                transportPair
+                    .client
+                    .requestResponse(createTestPayload(i))
+                    .doOnNext(Payload::release))
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 50 requestResponse requests")
   @Test
-  default void largePayloadRequestResponse50() {
+  protected void largePayloadRequestResponse50() {
     Flux.range(1, 50)
         .flatMap(
-            i -> getClient().requestResponse(LARGE_PAYLOAD.retain()).doOnNext(Payload::release))
+            i ->
+                transportPair
+                    .client
+                    .requestResponse(LARGE_PAYLOAD.retain())
+                    .doOnNext(Payload::release))
         .as(StepVerifier::create)
         .expectNextCount(50)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 10,000 requestResponse requests")
   @Test
-  default void requestResponse10_000() {
+  protected void requestResponse10_000() {
     Flux.range(1, 10_000)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).doOnNext(Payload::release))
+        .flatMap(
+            i ->
+                transportPair
+                    .client
+                    .requestResponse(createTestPayload(i))
+                    .doOnNext(Payload::release))
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestStream request and receives 10,000 responses")
   @Test
-  default void requestStream10_000() {
-    getClient()
+  protected void requestStream10_000() {
+    transportPair
+        .client
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestStream request and receives 5 responses")
   @Test
-  default void requestStream5() {
-    getClient()
+  protected void requestStream5() {
+    transportPair
+        .client
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
         .doOnNext(Payload::release)
@@ -413,13 +449,14 @@ public interface TransportTest {
         .as(StepVerifier::create)
         .expectNextCount(5)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
   @DisplayName("makes 1 requestStream request and consumes result incrementally")
   @Test
-  default void requestStreamDelayedRequestN() {
-    getClient()
+  protected void requestStreamDelayedRequestN() {
+    transportPair
+        .client
         .requestStream(createTestPayload(3))
         .take(10)
         .doOnNext(Payload::release)
@@ -429,29 +466,30 @@ public interface TransportTest {
         .thenRequest(5)
         .expectNextCount(5)
         .expectComplete()
-        .verify(getTimeout());
+        .verify(transportPair.timeout);
   }
 
-  default void assertPayload(Payload p) {
-    TransportPair transportPair = getTransportPair();
+  void assertPayload(Payload p) {
+    TransportPair<T, S> transportPair = this.transportPair;
     if (!transportPair.expectedPayloadData().equals(p.getDataUtf8())
         || !transportPair.expectedPayloadMetadata().equals(p.getMetadataUtf8())) {
       throw new IllegalStateException("Unexpected payload");
     }
   }
 
-  default void assertChannelPayload(Payload p) {
+  void assertChannelPayload(Payload p) {
     if (!MOCK_DATA.equals(p.getDataUtf8()) || !MOCK_METADATA.equals(p.getMetadataUtf8())) {
       throw new IllegalStateException("Unexpected payload");
     }
   }
 
-  class TransportPair<T, S extends Closeable> implements Disposable {
+  public static class TransportPair<T, S extends Closeable> implements Disposable {
 
     private static final String data = "hello world";
     private static final String metadata = "metadata";
 
     private final boolean withResumability;
+    private final boolean withAsyncSupport;
 
     private final LeaksTrackingByteBufAllocator byteBufAllocator1 =
         LeaksTrackingByteBufAllocator.instrument(
@@ -466,24 +504,14 @@ public interface TransportTest {
 
     private final S server;
 
-    public TransportPair(
-        Supplier<T> addressSupplier,
-        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
-        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier) {
-      this(addressSupplier, clientTransportSupplier, serverTransportSupplier, false);
-    }
+    private final Duration timeout;
 
     public TransportPair(
         Supplier<T> addressSupplier,
         TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
         BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
-        boolean withRandomFragmentation) {
-      this(
-          addressSupplier,
-          clientTransportSupplier,
-          serverTransportSupplier,
-          withRandomFragmentation,
-          false);
+        Duration timeout) {
+      this(addressSupplier, clientTransportSupplier, serverTransportSupplier, false, timeout);
     }
 
     public TransportPair(
@@ -491,13 +519,52 @@ public interface TransportTest {
         TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
         BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
         boolean withRandomFragmentation,
-        boolean withResumability) {
+        Duration timeout) {
+      this(
+          addressSupplier,
+          clientTransportSupplier,
+          serverTransportSupplier,
+          withRandomFragmentation,
+          false,
+          timeout);
+    }
+
+    public TransportPair(
+        Supplier<T> addressSupplier,
+        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
+        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
+        boolean withRandomFragmentation,
+        boolean withResumability,
+        Duration timeout) {
+      this(
+          addressSupplier,
+          clientTransportSupplier,
+          serverTransportSupplier,
+          withRandomFragmentation,
+          withResumability,
+          true,
+          timeout);
+    }
+
+    public TransportPair(
+        Supplier<T> addressSupplier,
+        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
+        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
+        boolean withRandomFragmentation,
+        boolean withResumability,
+        boolean withAsyncSupport,
+        Duration timeout) {
+
       this.withResumability = withResumability;
+      this.withAsyncSupport = withAsyncSupport;
+      this.timeout = timeout;
 
       T address = addressSupplier.get();
 
-      final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
-      final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+      final boolean runClientWithAsyncInterceptors =
+          ThreadLocalRandom.current().nextBoolean() && withAsyncSupport;
+      final boolean runServerWithAsyncInterceptors =
+          ThreadLocalRandom.current().nextBoolean() && withAsyncSupport;
 
       ByteBufAllocator allocatorToSupply1;
       ByteBufAllocator allocatorToSupply2;
@@ -561,7 +628,7 @@ public interface TransportTest {
       final RSocketConnector rSocketConnector =
           RSocketConnector.create()
               .payloadDecoder(PayloadDecoder.ZERO_COPY)
-              .keepAlive(Duration.ofMillis(10), Duration.ofHours(1))
+              .keepAlive(Duration.ofMillis(10), timeout.dividedBy(10))
               .interceptors(
                   registry -> {
                     if (runClientWithAsyncInterceptors && !withResumability) {
@@ -614,10 +681,6 @@ public interface TransportTest {
     public void dispose() {
       server.dispose();
       client.dispose();
-    }
-
-    RSocket getClient() {
-      return client;
     }
 
     public String expectedPayloadData() {
