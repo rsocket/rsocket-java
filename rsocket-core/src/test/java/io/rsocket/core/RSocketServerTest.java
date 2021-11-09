@@ -67,7 +67,7 @@ public class RSocketServerTest {
     final VirtualTimeScheduler scheduler = VirtualTimeScheduler.getOrSet();
     try {
       TestServerTransport transport = new TestServerTransport();
-      RSocketServer.create().setupHandlingTimeout(Duration.ofMinutes(2)).bind(transport).block();
+      RSocketServer.create().maxTimeToFirstFrame(Duration.ofMinutes(2)).bind(transport).block();
 
       final TestDuplexConnection duplexConnection = transport.connect();
 
