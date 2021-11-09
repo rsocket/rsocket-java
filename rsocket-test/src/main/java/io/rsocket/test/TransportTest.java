@@ -39,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.SocketAddress;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -101,6 +102,11 @@ public interface TransportTest {
           @Override
           public synchronized Throwable fillInStackTrace() {
             return this;
+          }
+
+          @Override
+          public String getMessage() {
+            return Arrays.toString(getSuppressed());
           }
         };
 
