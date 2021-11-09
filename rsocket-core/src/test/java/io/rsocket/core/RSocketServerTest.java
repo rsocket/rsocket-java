@@ -29,11 +29,13 @@ import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestServerTransport;
 import java.time.Duration;
 import java.util.Random;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
+import reactor.test.scheduler.VirtualTimeScheduler;
 
 public class RSocketServerTest {
 
@@ -58,6 +60,32 @@ public class RSocketServerTest {
         .hasData("SETUP or RESUME frame must be received before any others")
         .hasStreamIdZero()
         .hasNoLeaks();
+  }
+
+  @Test
+  public void timeoutOnNoFirstFrame() {
+    final VirtualTimeScheduler scheduler = VirtualTimeScheduler.getOrSet();
+    try {
+      TestServerTransport transport = new TestServerTransport();
+      RSocketServer.create().setupHandlingTimeout(Duration.ofMinutes(2)).bind(transport).block();
+
+      final TestDuplexConnection duplexConnection = transport.connect();
+
+      scheduler.advanceTimeBy(Duration.ofMinutes(1));
+
+      Assertions.assertThat(duplexConnection.isDisposed()).isFalse();
+
+      scheduler.advanceTimeBy(Duration.ofMinutes(1));
+
+      StepVerifier.create(duplexConnection.onClose())
+          .expectSubscription()
+          .expectComplete()
+          .verify(Duration.ofSeconds(10));
+
+      FrameAssert.assertThat(duplexConnection.pollFrame()).isNull();
+    } finally {
+      VirtualTimeScheduler.reset();
+    }
   }
 
   @Test

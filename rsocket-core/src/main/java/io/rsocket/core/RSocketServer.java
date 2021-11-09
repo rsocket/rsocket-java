@@ -41,6 +41,7 @@ import io.rsocket.plugins.InterceptorRegistry;
 import io.rsocket.plugins.RequestInterceptor;
 import io.rsocket.resume.SessionManager;
 import io.rsocket.transport.ServerTransport;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -70,6 +71,7 @@ public final class RSocketServer {
   private int mtu = 0;
   private int maxInboundPayloadSize = Integer.MAX_VALUE;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
+  private Duration timeout = Duration.ofMinutes(1);
 
   private RSocketServer() {}
 
@@ -224,6 +226,22 @@ public final class RSocketServer {
   }
 
   /**
+   * Specifies timeout for the first incoming frame from the accepted connection.
+   *
+   * <p>By default this is set to 1 minute.
+   *
+   * @param timeout duration
+   * @return the same instance for method chaining
+   */
+  public RSocketServer setupHandlingTimeout(Duration timeout) {
+    if (timeout.isNegative() || timeout.isZero()) {
+      throw new IllegalArgumentException("Setup Handling Timeout should be greater than zero");
+    }
+    this.timeout = timeout;
+    return this;
+  }
+
+  /**
    * When this is set, frames larger than the given maximum transmission unit (mtu) size value are
    * fragmented.
    *
@@ -287,7 +305,7 @@ public final class RSocketServer {
   public <T extends Closeable> Mono<T> bind(ServerTransport<T> transport) {
     return Mono.defer(
         new Supplier<Mono<T>>() {
-          final ServerSetup serverSetup = serverSetup();
+          final ServerSetup serverSetup = serverSetup(timeout);
 
           @Override
           public Mono<T> get() {
@@ -326,7 +344,7 @@ public final class RSocketServer {
   public ServerTransport.ConnectionAcceptor asConnectionAcceptor(int maxFrameLength) {
     assertValidateSetup(maxFrameLength, maxInboundPayloadSize, mtu);
     return new ServerTransport.ConnectionAcceptor() {
-      private final ServerSetup serverSetup = serverSetup();
+      private final ServerSetup serverSetup = serverSetup(timeout);
 
       @Override
       public Mono<Void> apply(DuplexConnection connection) {
@@ -469,12 +487,13 @@ public final class RSocketServer {
         });
   }
 
-  private ServerSetup serverSetup() {
-    return resume != null ? createSetup() : new ServerSetup.DefaultServerSetup();
+  private ServerSetup serverSetup(Duration timeout) {
+    return resume != null ? createSetup(timeout) : new ServerSetup.DefaultServerSetup(timeout);
   }
 
-  ServerSetup createSetup() {
+  ServerSetup createSetup(Duration timeout) {
     return new ServerSetup.ResumableServerSetup(
+        timeout,
         new SessionManager(),
         resume.getSessionDuration(),
         resume.getStreamTimeout(),

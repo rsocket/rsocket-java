@@ -36,9 +36,16 @@ import reactor.util.function.Tuple2;
 
 abstract class ServerSetup {
 
+  final Duration timeout;
+
+  protected ServerSetup(Duration timeout) {
+    this.timeout = timeout;
+  }
+
   Mono<Tuple2<ByteBuf, DuplexConnection>> init(DuplexConnection connection) {
     return Mono.<Tuple2<ByteBuf, DuplexConnection>>create(
             sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)))
+        .timeout(this.timeout)
         .or(connection.onClose().then(Mono.error(ClosedChannelException::new)));
   }
 
@@ -56,6 +63,10 @@ abstract class ServerSetup {
   }
 
   static class DefaultServerSetup extends ServerSetup {
+
+    DefaultServerSetup(Duration timeout) {
+      super(timeout);
+    }
 
     @Override
     public Mono<Void> acceptRSocketSetup(
@@ -86,11 +97,13 @@ abstract class ServerSetup {
     private final boolean cleanupStoreOnKeepAlive;
 
     ResumableServerSetup(
+        Duration timeout,
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
         boolean cleanupStoreOnKeepAlive) {
+      super(timeout);
       this.sessionManager = sessionManager;
       this.resumeSessionDuration = resumeSessionDuration;
       this.resumeStreamTimeout = resumeStreamTimeout;

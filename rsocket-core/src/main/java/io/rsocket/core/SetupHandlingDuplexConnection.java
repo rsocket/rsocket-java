@@ -96,6 +96,7 @@ class SetupHandlingDuplexConnection extends Flux<ByteBuf>
 
   @Override
   public void cancel() {
+    source.dispose();
     s.cancel();
   }
 
