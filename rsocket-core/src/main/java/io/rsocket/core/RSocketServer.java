@@ -233,7 +233,7 @@ public final class RSocketServer {
    * @param timeout duration
    * @return the same instance for method chaining
    */
-  public RSocketServer setupHandlingTimeout(Duration timeout) {
+  public RSocketServer maxTimeToFirstFrame(Duration timeout) {
     if (timeout.isNegative() || timeout.isZero()) {
       throw new IllegalArgumentException("Setup Handling Timeout should be greater than zero");
     }
