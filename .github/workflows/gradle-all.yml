@@ -142,7 +142,10 @@ jobs:
         run: chmod +x gradlew
       - name: Publish Packages to Artifactory
         if: ${{ matrix.jdk == '1.8' }}
-        run: ./gradlew -PversionSuffix="-${githubRef#refs/heads/}-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToGitHubPackagesRepository --no-daemon --stacktrace
+        run: |
+          githubRef="${githubRef#refs/heads/}"
+          githubRef="${githubRef////-}"
+          ./gradlew -PversionSuffix="-${githubRef}-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToGitHubPackagesRepository --no-daemon --stacktrace
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           githubRef: ${{ github.ref }}

@@ -39,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.SocketAddress;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -96,7 +97,18 @@ public interface TransportTest {
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
-    RuntimeException throwable = new RuntimeException();
+    RuntimeException throwable =
+        new RuntimeException() {
+          @Override
+          public synchronized Throwable fillInStackTrace() {
+            return this;
+          }
+
+          @Override
+          public String getMessage() {
+            return Arrays.toString(getSuppressed());
+          }
+        };
 
     try {
       getTransportPair().byteBufAllocator2.assertHasNoLeaks();
@@ -776,8 +788,11 @@ public interface TransportTest {
 
       @Override
       public void onNext(ByteBuf buf) {
-        actual.onNext(buf);
-        buf.release();
+        try {
+          actual.onNext(buf);
+        } finally {
+          buf.release();
+        }
       }
 
       Mono<Void> onClose() {
