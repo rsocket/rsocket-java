@@ -96,12 +96,13 @@ public interface TransportTest {
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
-    RuntimeException throwable = new RuntimeException() {
-      @Override
-      public synchronized Throwable fillInStackTrace() {
-        return this;
-      }
-    };
+    RuntimeException throwable =
+        new RuntimeException() {
+          @Override
+          public synchronized Throwable fillInStackTrace() {
+            return this;
+          }
+        };
 
     try {
       getTransportPair().byteBufAllocator2.assertHasNoLeaks();
