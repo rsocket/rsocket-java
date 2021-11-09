@@ -226,7 +226,7 @@ public final class RSocketServer {
   }
 
   /**
-   * Specifies timeout for the first incoming frame from the accepted connection.
+   * Specify the max time to wait for the first frame (e.g. {@code SETUP}) on an accepted connection.
    *
    * <p>By default this is set to 1 minute.
    *
