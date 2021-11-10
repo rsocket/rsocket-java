@@ -146,10 +146,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return;
       }
 
-      if (isWorkInProgress(previousState)
-          || isCancelled(previousState)
-          || isDisposed(previousState)
-          || isTerminated(previousState)) {
+      if (isWorkInProgress(previousState)) {
         return;
       }
 
@@ -185,10 +182,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
         return;
       }
 
-      if (isWorkInProgress(previousState)
-          || isCancelled(previousState)
-          || isDisposed(previousState)
-          || isTerminated(previousState)) {
+      if (isWorkInProgress(previousState)) {
         return;
       }
 

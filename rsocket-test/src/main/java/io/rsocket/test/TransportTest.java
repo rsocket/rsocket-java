@@ -641,7 +641,11 @@ public interface TransportTest {
     }
 
     public void awaitClosed() {
-      server.onClose().and(client.onClose()).block(Duration.ofMinutes(1));
+      server
+          .onClose()
+          .onErrorResume(__ -> Mono.empty())
+          .and(client.onClose().onErrorResume(__ -> Mono.empty()))
+          .block(Duration.ofMinutes(1));
     }
 
     private static class AsyncDuplexConnection implements DuplexConnection {
