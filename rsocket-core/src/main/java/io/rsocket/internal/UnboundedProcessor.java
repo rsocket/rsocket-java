@@ -443,6 +443,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
 
     if (isCancelled(previousState)) {
       clearAndFinalize(this);
+      return;
     }
 
     if (isDisposed(previousState)) {
