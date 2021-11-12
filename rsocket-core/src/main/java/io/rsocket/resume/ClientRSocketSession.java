@@ -36,6 +36,7 @@ import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.CoreSubscriber;
+import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.function.Tuple2;
@@ -58,6 +59,7 @@ public class ClientRSocketSession
   final boolean cleanupStoreOnKeepAlive;
   final ByteBuf resumeToken;
   final String session;
+  final Disposable reconnectDisposable;
 
   volatile Subscription s;
   static final AtomicReferenceFieldUpdater<ClientRSocketSession, Subscription> S =
@@ -110,10 +112,22 @@ public class ClientRSocketSession
     this.resumableConnection = resumableDuplexConnection;
 
     resumableDuplexConnection.onClose().doFinally(__ -> dispose()).subscribe();
-    resumableDuplexConnection.onActiveConnectionClosed().subscribe(this::reconnect);
+
+    this.reconnectDisposable =
+        resumableDuplexConnection.onActiveConnectionClosed().subscribe(this::reconnect);
   }
 
   void reconnect(int index) {
+    if (this.s == Operators.cancelledSubscription()) {
+      if (logger.isDebugEnabled()) {
+        logger.debug(
+            "Side[client]|Session[{}]. Connection[{}] is lost. Reconnecting rejected since session is closed",
+            session,
+            index);
+      }
+      return;
+    }
+
     keepAliveSupport.stop();
     if (logger.isDebugEnabled()) {
       logger.debug(
@@ -147,6 +161,8 @@ public class ClientRSocketSession
   @Override
   public void dispose() {
     Operators.terminate(S, this);
+
+    reconnectDisposable.dispose();
     resumableConnection.dispose();
     resumableFramesStore.dispose();
 
