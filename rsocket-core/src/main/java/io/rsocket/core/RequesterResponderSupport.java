@@ -7,6 +7,7 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.RequestInterceptor;
+import java.util.Objects;
 import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
@@ -118,9 +119,14 @@ class RequesterResponderSupport {
   }
 
   public synchronized boolean add(int streamId, FrameHandler frameHandler) {
-    final FrameHandler previousHandler = this.activeStreams.putIfAbsent(streamId, frameHandler);
-
-    return previousHandler == null;
+    final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
+    // copy of Map.putIfAbsent(key, value) without `streamId` boxing
+    final FrameHandler previousHandler = activeStreams.get(streamId);
+    if (previousHandler == null) {
+      activeStreams.put(streamId, frameHandler);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -143,6 +149,13 @@ class RequesterResponderSupport {
    *     instance equals to the passed one
    */
   public synchronized boolean remove(int streamId, FrameHandler frameHandler) {
-    return this.activeStreams.remove(streamId, frameHandler);
+    final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
+    // copy of Map.remove(key, value) without `streamId` boxing
+    final FrameHandler curValue = activeStreams.get(streamId);
+    if (!Objects.equals(curValue, frameHandler)) {
+      return false;
+    }
+    activeStreams.remove(streamId);
+    return true;
   }
 }
