@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.Exceptions;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
@@ -641,7 +642,11 @@ public interface TransportTest {
     }
 
     public void awaitClosed() {
-      server.onClose().and(client.onClose()).block(Duration.ofMinutes(1));
+      server
+          .onClose()
+          .onErrorResume(__ -> Mono.empty())
+          .and(client.onClose().onErrorResume(__ -> Mono.empty()))
+          .block(Duration.ofMinutes(1));
     }
 
     private static class AsyncDuplexConnection implements DuplexConnection {
@@ -706,6 +711,7 @@ public interface TransportTest {
       private final String tag;
       final DuplexConnection source;
       final Duration delay;
+      final Disposable.Swap disposables = Disposables.swap();
 
       DisconnectingDuplexConnection(String tag, DuplexConnection source, Duration delay) {
         this.tag = tag;
@@ -715,6 +721,7 @@ public interface TransportTest {
 
       @Override
       public void dispose() {
+        disposables.dispose();
         source.dispose();
       }
 
@@ -743,14 +750,15 @@ public interface TransportTest {
                 bb -> {
                   if (!receivedFirst) {
                     receivedFirst = true;
-                    Mono.delay(delay)
-                        .takeUntilOther(source.onClose())
-                        .subscribe(
-                            __ -> {
-                              logger.warn(
-                                  "Tag {}. Disposing Connection[{}]", tag, source.hashCode());
-                              source.dispose();
-                            });
+                    disposables.replace(
+                        Mono.delay(delay)
+                            .takeUntilOther(source.onClose())
+                            .subscribe(
+                                __ -> {
+                                  logger.warn(
+                                      "Tag {}. Disposing Connection[{}]", tag, source.hashCode());
+                                  source.dispose();
+                                }));
                   }
                 });
       }
