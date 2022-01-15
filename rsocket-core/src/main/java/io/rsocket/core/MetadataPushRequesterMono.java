@@ -25,14 +25,12 @@ import io.netty.util.IllegalReferenceCountException;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.MetadataPushFrameCodec;
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import reactor.core.CoreSubscriber;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.NonNull;
-import reactor.util.annotation.Nullable;
 
 final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
 
@@ -112,63 +110,6 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
     this.connection.sendFrame(0, requestFrame);
 
     Operators.complete(actual);
-  }
-
-  @Override
-  @Nullable
-  public Void block(Duration m) {
-    return block();
-  }
-
-  @Override
-  @Nullable
-  public Void block() {
-    long previousState = markSubscribed(STATE, this);
-    if (isSubscribedOrTerminated(previousState)) {
-      throw new IllegalStateException("MetadataPushMono allows only a single Subscriber");
-    }
-
-    final Payload p = this.payload;
-    final ByteBuf metadata;
-    try {
-      final boolean hasMetadata = p.hasMetadata();
-      metadata = p.metadata();
-      if (hasMetadata) {
-        lazyTerminate(STATE, this);
-        p.release();
-        throw new IllegalArgumentException("Metadata push does not support metadata field");
-      }
-      if (!isValidMetadata(this.maxFrameLength, metadata)) {
-        lazyTerminate(STATE, this);
-        p.release();
-        throw new IllegalArgumentException("Too Big Payload size");
-      }
-    } catch (IllegalReferenceCountException e) {
-      lazyTerminate(STATE, this);
-      throw e;
-    }
-
-    final ByteBuf metadataRetainedSlice;
-    try {
-      metadataRetainedSlice = metadata.retainedSlice();
-    } catch (IllegalReferenceCountException e) {
-      lazyTerminate(STATE, this);
-      throw e;
-    }
-
-    try {
-      p.release();
-    } catch (IllegalReferenceCountException e) {
-      lazyTerminate(STATE, this);
-      metadataRetainedSlice.release();
-      throw e;
-    }
-
-    final ByteBuf requestFrame =
-        MetadataPushFrameCodec.encode(this.allocator, metadataRetainedSlice);
-    this.connection.sendFrame(0, requestFrame);
-
-    return null;
   }
 
   @Override

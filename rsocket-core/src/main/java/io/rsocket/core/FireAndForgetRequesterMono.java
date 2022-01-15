@@ -26,7 +26,6 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.RequestInterceptor;
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -177,104 +176,6 @@ final class FireAndForgetRequesterMono extends Mono<Void> implements Subscriptio
   @Override
   public void cancel() {
     markTerminated(STATE, this);
-  }
-
-  @Override
-  @Nullable
-  public Void block(Duration m) {
-    return block();
-  }
-
-  @Override
-  @Nullable
-  public Void block() {
-    long previousState = markSubscribed(STATE, this);
-    if (isSubscribedOrTerminated(previousState)) {
-      final IllegalStateException e =
-          new IllegalStateException("FireAndForgetMono allows only a single Subscriber");
-      final RequestInterceptor requestInterceptor = this.requestInterceptor;
-      if (requestInterceptor != null) {
-        requestInterceptor.onReject(e, FrameType.REQUEST_FNF, null);
-      }
-      throw e;
-    }
-
-    final Payload p = this.payload;
-    try {
-      if (!isValid(this.mtu, this.maxFrameLength, p, false)) {
-        lazyTerminate(STATE, this);
-
-        final IllegalArgumentException e =
-            new IllegalArgumentException(
-                String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
-
-        final RequestInterceptor requestInterceptor = this.requestInterceptor;
-        if (requestInterceptor != null) {
-          requestInterceptor.onReject(e, FrameType.REQUEST_FNF, p.metadata());
-        }
-
-        p.release();
-
-        throw e;
-      }
-    } catch (IllegalReferenceCountException e) {
-      lazyTerminate(STATE, this);
-
-      final RequestInterceptor requestInterceptor = this.requestInterceptor;
-      if (requestInterceptor != null) {
-        requestInterceptor.onReject(e, FrameType.REQUEST_FNF, null);
-      }
-
-      throw Exceptions.propagate(e);
-    }
-
-    final int streamId;
-    try {
-      streamId = this.requesterResponderSupport.getNextStreamId();
-    } catch (Throwable t) {
-      lazyTerminate(STATE, this);
-
-      final RequestInterceptor requestInterceptor = this.requestInterceptor;
-      if (requestInterceptor != null) {
-        requestInterceptor.onReject(Exceptions.unwrap(t), FrameType.REQUEST_FNF, p.metadata());
-      }
-
-      p.release();
-
-      throw Exceptions.propagate(t);
-    }
-
-    final RequestInterceptor interceptor = this.requestInterceptor;
-    if (interceptor != null) {
-      interceptor.onStart(streamId, FrameType.REQUEST_FNF, p.metadata());
-    }
-
-    try {
-      sendReleasingPayload(
-          streamId,
-          FrameType.REQUEST_FNF,
-          this.mtu,
-          this.payload,
-          this.connection,
-          this.allocator,
-          true);
-    } catch (Throwable e) {
-      lazyTerminate(STATE, this);
-
-      if (interceptor != null) {
-        interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, e);
-      }
-
-      throw Exceptions.propagate(e);
-    }
-
-    lazyTerminate(STATE, this);
-
-    if (interceptor != null) {
-      interceptor.onTerminate(streamId, FrameType.REQUEST_FNF, null);
-    }
-
-    return null;
   }
 
   @Override
