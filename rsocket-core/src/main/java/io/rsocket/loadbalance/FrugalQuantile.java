@@ -65,7 +65,8 @@ class FrugalQuantile implements Quantile {
       estimate = x;
       sign = 1;
     } else {
-      double v = rnd.nextDouble();
+      final double v = rnd.nextDouble();
+      final double estimate = this.estimate;
 
       if (x > estimate && v > (1 - quantile)) {
         higher(x);
@@ -76,6 +77,8 @@ class FrugalQuantile implements Quantile {
   }
 
   private void higher(double x) {
+    double estimate = this.estimate;
+
     step += sign * increment;
 
     if (step > 0) {
@@ -94,9 +97,13 @@ class FrugalQuantile implements Quantile {
     }
 
     sign = 1;
+
+    this.estimate = estimate;
   }
 
   private void lower(double x) {
+    double estimate = this.estimate;
+
     step -= sign * increment;
 
     if (step > 0) {
@@ -115,6 +122,8 @@ class FrugalQuantile implements Quantile {
     }
 
     sign = -1;
+
+    this.estimate = estimate;
   }
 
   @Override

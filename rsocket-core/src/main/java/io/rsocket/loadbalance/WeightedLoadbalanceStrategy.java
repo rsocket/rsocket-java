@@ -124,7 +124,10 @@ public class WeightedLoadbalanceStrategy implements ClientLoadbalanceStrategy {
 
   private static double algorithmicWeight(
       RSocket rSocket, @Nullable final WeightedStats weightedStats) {
-    if (weightedStats == null || rSocket.isDisposed() || rSocket.availability() == 0.0) {
+    if (weightedStats == null) {
+      return 1.0;
+    }
+    if (rSocket.isDisposed() || rSocket.availability() == 0.0) {
       return 0.0;
     }
     final int pending = weightedStats.pending();

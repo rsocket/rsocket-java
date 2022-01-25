@@ -33,6 +33,7 @@ class Median extends FrugalQuantile {
       estimate = x;
       sign = 1;
     } else {
+      final double estimate = this.estimate;
       if (x > estimate) {
         greaterThanZero(x);
       } else if (x < estimate) {
@@ -42,6 +43,8 @@ class Median extends FrugalQuantile {
   }
 
   private void greaterThanZero(double x) {
+    double estimate = this.estimate;
+
     step += sign;
 
     if (step > 0) {
@@ -60,9 +63,13 @@ class Median extends FrugalQuantile {
     }
 
     sign = 1;
+
+    this.estimate = estimate;
   }
 
   private void lessThanZero(double x) {
+    double estimate = this.estimate;
+
     step -= sign;
 
     if (step > 0) {
@@ -81,6 +88,8 @@ class Median extends FrugalQuantile {
     }
 
     sign = -1;
+
+    this.estimate = estimate;
   }
 
   @Override
