@@ -17,6 +17,7 @@
 package io.rsocket.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import io.rsocket.RaceTestConstants;
 import io.rsocket.internal.subscriber.AssertSubscriber;
@@ -321,6 +322,7 @@ public class ReconnectMonoTests {
 
       assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
       if (reconnectMono.resolvingInner.subscribers == ResolvingOperator.READY) {
+        await().atMost(Duration.ofSeconds(5)).until(() -> received.size() == 2);
         assertThat(received)
             .hasSize(2)
             .containsExactly(

@@ -47,6 +47,7 @@ subprojects {
     ext['assertj.version'] = '3.21.0'
     ext['netflix.limits.version'] = '0.3.6'
     ext['bouncycastle-bcpkix.version'] = '1.68'
+    ext['awaitility.version'] = '4.1.1'
 
     group = "io.rsocket"
 
@@ -80,6 +81,7 @@ subprojects {
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
             dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
+            dependency "org.awaitility:awaitility:${ext['awaitility.version']}"
             dependencySet(group: 'org.mockito', version: ext['mockito.version']) {
                 entry 'mockito-junit-jupiter'
                 entry 'mockito-core'
