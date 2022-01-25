@@ -34,10 +34,7 @@ import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_N;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -76,7 +73,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,12 +122,13 @@ public class RSocketResponderTest {
     rule.connection.addToReceivedBuffer(
         KeepAliveFrameCodec.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
     ByteBuf sent = rule.connection.awaitFrame();
-    assertThat("Unexpected frame sent.", frameType(sent), is(FrameType.KEEPALIVE));
+    assertThat(frameType(sent))
+        .describedAs("Unexpected frame sent.")
+        .isEqualTo(FrameType.KEEPALIVE);
     /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
-    assertThat(
-        "Unexpected keep-alive frame respond flag.",
-        KeepAliveFrameCodec.respondFlag(sent),
-        is(false));
+    assertThat(KeepAliveFrameCodec.respondFlag(sent))
+        .describedAs("Unexpected keep-alive frame respond flag.")
+        .isEqualTo(false);
   }
 
   @Test
@@ -149,10 +146,9 @@ public class RSocketResponderTest {
         });
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
     testPublisher.complete();
-    assertThat(
-        "Unexpected frame sent.",
-        frameType(rule.connection.awaitFrame()),
-        anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
+    assertThat(frameType(rule.connection.awaitFrame()))
+        .describedAs("Unexpected frame sent.")
+        .isIn(FrameType.COMPLETE, FrameType.NEXT_COMPLETE);
     testPublisher.assertWasNotCancelled();
   }
 
@@ -162,8 +158,9 @@ public class RSocketResponderTest {
     final int streamId = 4;
     rule.prefetch = 1;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
-    assertThat(
-        "Unexpected frame sent.", frameType(rule.connection.awaitFrame()), is(FrameType.ERROR));
+    assertThat(frameType(rule.connection.awaitFrame()))
+        .describedAs("Unexpected frame sent.")
+        .isEqualTo(FrameType.ERROR);
   }
 
   @Test
@@ -182,12 +179,12 @@ public class RSocketResponderTest {
         });
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
 
-    assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
+    assertThat(rule.connection.getSent()).describedAs("Unexpected frame sent.").isEmpty();
 
     rule.connection.addToReceivedBuffer(CancelFrameCodec.encode(allocator, streamId));
 
-    assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
-    assertThat("Subscription not cancelled.", cancelled.get(), is(true));
+    assertThat(rule.connection.getSent()).describedAs("Unexpected frame sent.").isEmpty();
+    assertThat(cancelled.get()).describedAs("Subscription not cancelled.").isTrue();
     rule.assertHasNoLeaks();
   }
 
@@ -243,7 +240,7 @@ public class RSocketResponderTest {
     for (Runnable runnable : runnables) {
       rule.connection.clearSendReceiveBuffers();
       runnable.run();
-      Assertions.assertThat(rule.connection.getSent())
+      assertThat(rule.connection.getSent())
           .hasSize(1)
           .first()
           .matches(bb -> FrameHeaderCodec.frameType(bb) == FrameType.ERROR)
@@ -253,7 +250,7 @@ public class RSocketResponderTest {
                       .contains(String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
           .matches(ReferenceCounted::release);
 
-      assertThat("Subscription not cancelled.", cancelled.get(), is(true));
+      assertThat(cancelled.get()).describedAs("Subscription not cancelled.").isTrue();
     }
 
     rule.assertHasNoLeaks();
@@ -308,9 +305,9 @@ public class RSocketResponderTest {
             sink.tryEmitEmpty();
           });
 
-      Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
+      assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
       testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnComplete(1).expectNothing();
@@ -353,7 +350,7 @@ public class RSocketResponderTest {
             sink.complete();
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
       testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnCancel(1).expectNothing();
@@ -398,7 +395,7 @@ public class RSocketResponderTest {
             sink.complete();
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
       testRequestInterceptor.expectOnStart(1, REQUEST_CHANNEL).expectOnCancel(1).expectNothing();
       rule.assertHasNoLeaks();
     }
@@ -483,13 +480,13 @@ public class RSocketResponderTest {
             sink.error(new RuntimeException());
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       assertSubscriber
           .assertTerminated()
           .assertError(CancellationException.class)
           .assertErrorMessage("Outbound has terminated with an error");
-      Assertions.assertThat(assertSubscriber.values())
+      assertThat(assertSubscriber.values())
           .allMatch(
               msg -> {
                 ReferenceCountUtil.safeRelease(msg);
@@ -531,7 +528,7 @@ public class RSocketResponderTest {
             sink.next(ByteBufPayload.create("d3", "m3"));
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
 
@@ -573,7 +570,7 @@ public class RSocketResponderTest {
             sources[0].complete(ByteBufPayload.create("d1", "m1"));
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
 
@@ -581,7 +578,7 @@ public class RSocketResponderTest {
           .expectOnStart(1, REQUEST_RESPONSE)
           .assertNext(
               e ->
-                  Assertions.assertThat(e.eventType)
+                  assertThat(e.eventType)
                       .isIn(
                           TestRequestInterceptor.EventType.ON_COMPLETE,
                           TestRequestInterceptor.EventType.ON_CANCEL))
@@ -614,7 +611,7 @@ public class RSocketResponderTest {
     sink.next(ByteBufPayload.create("d3", "m3"));
     rule.connection.addToReceivedBuffer(cancelFrame);
 
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+    assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
     rule.assertHasNoLeaks();
   }
@@ -660,7 +657,7 @@ public class RSocketResponderTest {
 
     rule.connection.addToReceivedBuffer(cancelFrame);
 
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+    assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
     rule.assertHasNoLeaks();
   }
@@ -730,8 +727,7 @@ public class RSocketResponderTest {
     }
 
     if (responsesCnt > 0) {
-      Assertions.assertThat(
-              rule.connection.getSent().stream().filter(bb -> frameType(bb) != REQUEST_N))
+      assertThat(rule.connection.getSent().stream().filter(bb -> frameType(bb) != REQUEST_N))
           .describedAs(
               "Interaction Type :[%s]. Expected to observe %s frames sent", frameType, responsesCnt)
           .hasSize(responsesCnt)
@@ -739,8 +735,7 @@ public class RSocketResponderTest {
     }
 
     if (framesCnt > 1) {
-      Assertions.assertThat(
-              rule.connection.getSent().stream().filter(bb -> frameType(bb) == REQUEST_N))
+      assertThat(rule.connection.getSent().stream().filter(bb -> frameType(bb) == REQUEST_N))
           .describedAs(
               "Interaction Type :[%s]. Expected to observe single RequestN(%s) frame",
               frameType, framesCnt - 1)
@@ -749,9 +744,9 @@ public class RSocketResponderTest {
           .matches(bb -> RequestNFrameCodec.requestN(bb) == (framesCnt - 1));
     }
 
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+    assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-    Assertions.assertThat(assertSubscriber.awaitAndAssertNextValueCount(framesCnt).values())
+    assertThat(assertSubscriber.awaitAndAssertNextValueCount(framesCnt).values())
         .hasSize(framesCnt)
         .allMatch(p -> !p.hasMetadata())
         .allMatch(ReferenceCounted::release);
@@ -796,7 +791,7 @@ public class RSocketResponderTest {
 
     rule.sendRequest(1, frameType);
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(
@@ -837,13 +832,13 @@ public class RSocketResponderTest {
     rule.connection.addToReceivedBuffer(
         ErrorFrameCodec.encode(rule.alloc(), 1, new RuntimeException("test")));
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_N)
         .matches(ReferenceCounted::release);
 
-    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+    assertThat(rule.socket.isDisposed()).isFalse();
     testPublisher.assertWasCancelled();
 
     rule.assertHasNoLeaks();

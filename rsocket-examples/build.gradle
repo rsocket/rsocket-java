@@ -34,7 +34,6 @@ dependencies {
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'io.projectreactor:reactor-test'
 
-    testImplementation 'org.hamcrest:hamcrest-library'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
