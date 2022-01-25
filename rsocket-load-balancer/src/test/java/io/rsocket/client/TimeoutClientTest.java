@@ -16,14 +16,13 @@
 
 package io.rsocket.client;
 
-import static org.hamcrest.Matchers.instanceOf;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSockets;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
-import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -50,8 +49,9 @@ public class TimeoutClientTest {
 
               @Override
               public void onError(Throwable t) {
-                MatcherAssert.assertThat(
-                    "Unexpected exception in onError", t, instanceOf(TimeoutException.class));
+                assertThat(t)
+                    .describedAs("Unexpected exception in onError")
+                    .isInstanceOf(TimeoutException.class);
               }
 
               @Override

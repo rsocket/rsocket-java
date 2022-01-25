@@ -32,10 +32,7 @@ import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -131,7 +128,7 @@ public class RSocketRequesterTest {
   @Timeout(2_000)
   public void testInvalidFrameOnStream0ShouldNotTerminateRSocket() {
     rule.connection.addToReceivedBuffer(RequestNFrameCodec.encode(rule.alloc(), 0, 10));
-    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+    assertThat(rule.socket.isDisposed()).isFalse();
     rule.assertHasNoLeaks();
   }
 
@@ -149,19 +146,21 @@ public class RSocketRequesterTest {
         };
     stream.subscribe(subscriber);
 
-    Assertions.assertThat(rule.connection.getSent()).isEmpty();
+    assertThat(rule.connection.getSent()).isEmpty();
 
     subscriber.request(5);
 
     List<ByteBuf> sent = new ArrayList<>(rule.connection.getSent());
 
-    assertThat("sent frame count", sent.size(), is(1));
+    assertThat(sent.size()).describedAs("sent frame count").isEqualTo(1);
 
     ByteBuf f = sent.get(0);
 
-    assertThat("initial frame", frameType(f), is(REQUEST_STREAM));
-    assertThat("initial request n", RequestStreamFrameCodec.initialRequestN(f), is(5L));
-    assertThat("should be released", f.release(), is(true));
+    assertThat(frameType(f)).describedAs("initial frame").isEqualTo(REQUEST_STREAM);
+    assertThat(RequestStreamFrameCodec.initialRequestN(f))
+        .describedAs("initial request n")
+        .isEqualTo(5L);
+    assertThat(f.release()).describedAs("should be released").isEqualTo(true);
     rule.assertHasNoLeaks();
   }
 
@@ -189,7 +188,7 @@ public class RSocketRequesterTest {
 
     verify(responseSub).onError(any(ApplicationErrorException.class));
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         // requestResponseFrame
         .hasSize(1)
         .allMatch(ReferenceCounted::release);
@@ -210,7 +209,7 @@ public class RSocketRequesterTest {
             rule.alloc(), streamId, EmptyPayload.INSTANCE));
 
     verify(sub).onComplete();
-    Assertions.assertThat(rule.connection.getSent()).hasSize(1).allMatch(ReferenceCounted::release);
+    assertThat(rule.connection.getSent()).hasSize(1).allMatch(ReferenceCounted::release);
     rule.assertHasNoLeaks();
   }
 
@@ -226,10 +225,13 @@ public class RSocketRequesterTest {
 
     List<ByteBuf> sent = new ArrayList<>(rule.connection.getSent());
 
-    assertThat(
-        "Unexpected frame sent on the connection.", frameType(sent.get(0)), is(REQUEST_RESPONSE));
-    assertThat("Unexpected frame sent on the connection.", frameType(sent.get(1)), is(CANCEL));
-    Assertions.assertThat(sent).hasSize(2).allMatch(ReferenceCounted::release);
+    assertThat(frameType(sent.get(0)))
+        .describedAs("Unexpected frame sent on the connection.")
+        .isEqualTo(REQUEST_RESPONSE);
+    assertThat(frameType(sent.get(1)))
+        .describedAs("Unexpected frame sent on the connection.")
+        .isEqualTo(CANCEL);
+    assertThat(sent).hasSize(2).allMatch(ReferenceCounted::release);
     rule.assertHasNoLeaks();
   }
 
@@ -282,7 +284,7 @@ public class RSocketRequesterTest {
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+    assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
     rule.assertHasNoLeaks();
   }
 
@@ -303,10 +305,9 @@ public class RSocketRequesterTest {
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
 
-    Assertions.assertThat(
-            request.scan(Scannable.Attr.TERMINATED) || request.scan(Scannable.Attr.CANCELLED))
+    assertThat(request.scan(Scannable.Attr.TERMINATED) || request.scan(Scannable.Attr.CANCELLED))
         .isTrue();
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(bb -> frameType(bb) == REQUEST_CHANNEL)
@@ -336,14 +337,13 @@ public class RSocketRequesterTest {
 
     ByteBuf initialFrame = iterator.next();
 
-    Assertions.assertThat(FrameHeaderCodec.frameType(initialFrame)).isEqualTo(REQUEST_CHANNEL);
-    Assertions.assertThat(RequestChannelFrameCodec.initialRequestN(initialFrame))
-        .isEqualTo(Long.MAX_VALUE);
-    Assertions.assertThat(RequestChannelFrameCodec.data(initialFrame).toString(CharsetUtil.UTF_8))
+    assertThat(FrameHeaderCodec.frameType(initialFrame)).isEqualTo(REQUEST_CHANNEL);
+    assertThat(RequestChannelFrameCodec.initialRequestN(initialFrame)).isEqualTo(Long.MAX_VALUE);
+    assertThat(RequestChannelFrameCodec.data(initialFrame).toString(CharsetUtil.UTF_8))
         .isEqualTo("0");
-    Assertions.assertThat(initialFrame.release()).isTrue();
+    assertThat(initialFrame.release()).isTrue();
 
-    Assertions.assertThat(iterator.hasNext()).isFalse();
+    assertThat(iterator.hasNext()).isFalse();
     rule.assertHasNoLeaks();
   }
 
@@ -364,7 +364,7 @@ public class RSocketRequesterTest {
                   .expectSubscription()
                   .expectErrorSatisfies(
                       t ->
-                          Assertions.assertThat(t)
+                          assertThat(t)
                               .isInstanceOf(IllegalArgumentException.class)
                               .hasMessage(
                                   String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
@@ -406,11 +406,11 @@ public class RSocketRequesterTest {
             })
         .expectErrorSatisfies(
             t ->
-                Assertions.assertThat(t)
+                assertThat(t)
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage(String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
         .verify();
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         // expect to be sent RequestChannelFrame
         // expect to be sent CancelFrame
         .hasSize(2)
@@ -439,8 +439,7 @@ public class RSocketRequesterTest {
 
       runner.accept(assertSubscriber, clientSocketRule);
 
-      Assertions.assertThat(clientSocketRule.connection.getSent())
-          .allMatch(ReferenceCounted::release);
+      assertThat(clientSocketRule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       clientSocketRule.assertHasNoLeaks();
     }
@@ -501,8 +500,8 @@ public class RSocketRequesterTest {
                   RaceTestUtils.race(() -> as.request(1), as::cancel);
                   // ensures proper frames order
                   if (rule.connection.getSent().size() > 0) {
-                    Assertions.assertThat(rule.connection.getSent()).hasSize(2);
-                    Assertions.assertThat(rule.connection.getSent())
+                    assertThat(rule.connection.getSent()).hasSize(2);
+                    assertThat(rule.connection.getSent())
                         .element(0)
                         .matches(
                             bb -> frameType(bb) == REQUEST_STREAM,
@@ -511,7 +510,7 @@ public class RSocketRequesterTest {
                                 + "} but was {"
                                 + frameType(rule.connection.getSent().stream().findFirst().get())
                                 + "}");
-                    Assertions.assertThat(rule.connection.getSent())
+                    assertThat(rule.connection.getSent())
                         .element(1)
                         .matches(
                             bb -> frameType(bb) == CANCEL,
@@ -548,8 +547,8 @@ public class RSocketRequesterTest {
                   int size = rule.connection.getSent().size();
                   if (size > 0) {
 
-                    Assertions.assertThat(size).isLessThanOrEqualTo(3).isGreaterThanOrEqualTo(2);
-                    Assertions.assertThat(rule.connection.getSent())
+                    assertThat(size).isLessThanOrEqualTo(3).isGreaterThanOrEqualTo(2);
+                    assertThat(rule.connection.getSent())
                         .element(0)
                         .matches(
                             bb -> frameType(bb) == REQUEST_CHANNEL,
@@ -559,7 +558,7 @@ public class RSocketRequesterTest {
                                 + frameType(rule.connection.getSent().stream().findFirst().get())
                                 + "}");
                     if (size == 2) {
-                      Assertions.assertThat(rule.connection.getSent())
+                      assertThat(rule.connection.getSent())
                           .element(1)
                           .matches(
                               bb -> frameType(bb) == CANCEL,
@@ -570,7 +569,7 @@ public class RSocketRequesterTest {
                                       rule.connection.getSent().stream().skip(1).findFirst().get())
                                   + "}");
                     } else {
-                      Assertions.assertThat(rule.connection.getSent())
+                      assertThat(rule.connection.getSent())
                           .element(1)
                           .matches(
                               bb -> frameType(bb) == COMPLETE || frameType(bb) == CANCEL,
@@ -582,7 +581,7 @@ public class RSocketRequesterTest {
                                   + frameType(
                                       rule.connection.getSent().stream().skip(1).findFirst().get())
                                   + "}");
-                      Assertions.assertThat(rule.connection.getSent())
+                      assertThat(rule.connection.getSent())
                           .element(2)
                           .matches(
                               bb -> frameType(bb) == CANCEL || frameType(bb) == COMPLETE,
@@ -720,7 +719,7 @@ public class RSocketRequesterTest {
 
     assertSubscriber.cancel();
 
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
+    assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
 
     rule.assertHasNoLeaks();
   }
@@ -744,7 +743,7 @@ public class RSocketRequesterTest {
         ErrorFrameCodec.encode(
             allocator, streamId, new CustomRSocketException(0x00000404, "test")));
 
-    Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
+    assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
 
     rule.assertHasNoLeaks();
   }
@@ -815,18 +814,18 @@ public class RSocketRequesterTest {
       testPublisher.next(ByteBufPayload.create("d" + i));
     }
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .describedAs(
             "Interaction Type :[%s]. Expected to observe %s frames sent", frameType, framesCnt)
         .hasSize(framesCnt)
         .allMatch(bb -> !FrameHeaderCodec.hasMetadata(bb))
         .allMatch(ByteBuf::release);
 
-    Assertions.assertThat(assertSubscriber.isTerminated())
+    assertThat(assertSubscriber.isTerminated())
         .describedAs("Interaction Type :[%s]. Expected to be terminated", frameType)
         .isTrue();
 
-    Assertions.assertThat(assertSubscriber.values())
+    assertThat(assertSubscriber.values())
         .describedAs(
             "Interaction Type :[%s]. Expected to observe %s frames received",
             frameType, responsesCnt)
@@ -889,12 +888,12 @@ public class RSocketRequesterTest {
     Payload payload2 = ByteBufPayload.create("abc2");
     Mono<Void> fnf2 = rule.socket.fireAndForget(payload2);
 
-    Assertions.assertThat(rule.connection.getSent()).isEmpty();
+    assertThat(rule.connection.getSent()).isEmpty();
 
     // checks that fnf2 should have id 1 even though it was generated later than fnf1
     AssertSubscriber<Void> voidAssertSubscriber2 = fnf2.subscribeWith(AssertSubscriber.create(0));
     voidAssertSubscriber2.assertTerminated().assertNoError();
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(bb -> frameType(bb) == REQUEST_FNF)
@@ -912,7 +911,7 @@ public class RSocketRequesterTest {
     // checks that fnf1 should have id 3 even though it was generated earlier
     AssertSubscriber<Void> voidAssertSubscriber1 = fnf1.subscribeWith(AssertSubscriber.create(0));
     voidAssertSubscriber1.assertTerminated().assertNoError();
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(bb -> frameType(bb) == REQUEST_FNF)
@@ -936,7 +935,7 @@ public class RSocketRequesterTest {
     Payload payload2 = ByteBufPayload.create("abc2");
     Publisher<Payload> interaction2 = interaction.apply(rule, payload2);
 
-    Assertions.assertThat(rule.connection.getSent()).isEmpty();
+    assertThat(rule.connection.getSent()).isEmpty();
 
     AssertSubscriber<Payload> assertSubscriber1 = AssertSubscriber.create(0);
     interaction1.subscribe(assertSubscriber1);
@@ -945,12 +944,12 @@ public class RSocketRequesterTest {
     assertSubscriber1.assertNotTerminated().assertNoError();
     assertSubscriber2.assertNotTerminated().assertNoError();
     // even though we subscribed, nothing should happen until the first requestN
-    Assertions.assertThat(rule.connection.getSent()).isEmpty();
+    assertThat(rule.connection.getSent()).isEmpty();
 
     // first request on the second interaction to ensure that stream id issuing on the first request
     assertSubscriber2.request(1);
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(frameType == REQUEST_CHANNEL ? 2 : 1)
         .first()
         .matches(bb -> frameType(bb) == frameType)
@@ -979,7 +978,7 @@ public class RSocketRequesterTest {
         .matches(ReferenceCounted::release);
 
     if (frameType == REQUEST_CHANNEL) {
-      Assertions.assertThat(rule.connection.getSent())
+      assertThat(rule.connection.getSent())
           .element(1)
           .matches(bb -> frameType(bb) == COMPLETE)
           .matches(
@@ -993,7 +992,7 @@ public class RSocketRequesterTest {
     rule.connection.clearSendReceiveBuffers();
 
     assertSubscriber1.request(1);
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(frameType == REQUEST_CHANNEL ? 2 : 1)
         .first()
         .matches(bb -> frameType(bb) == frameType)
@@ -1022,7 +1021,7 @@ public class RSocketRequesterTest {
         .matches(ReferenceCounted::release);
 
     if (frameType == REQUEST_CHANNEL) {
-      Assertions.assertThat(rule.connection.getSent())
+      assertThat(rule.connection.getSent())
           .element(1)
           .matches(bb -> frameType(bb) == COMPLETE)
           .matches(
@@ -1068,7 +1067,7 @@ public class RSocketRequesterTest {
           () -> publisher1.subscribe(AssertSubscriber.create()),
           () -> publisher2.subscribe(AssertSubscriber.create()));
 
-      Assertions.assertThat(rule.connection.getSent())
+      assertThat(rule.connection.getSent())
           .extracting(FrameHeaderCodec::streamId)
           .containsExactly(i, i + 2);
       rule.connection.getSent().forEach(bb -> bb.release());
@@ -1180,11 +1179,11 @@ public class RSocketRequesterTest {
         }
       }
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+      assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
       rule.connection.getSent().clear();
 
-      Assertions.assertThat(payload1.refCnt()).isZero();
-      Assertions.assertThat(payload2.refCnt()).isZero();
+      assertThat(payload1.refCnt()).isZero();
+      assertThat(payload2.refCnt()).isZero();
     }
   }
 
@@ -1199,13 +1198,13 @@ public class RSocketRequesterTest {
     rule.connection.addToReceivedBuffer(
         ErrorFrameCodec.encode(rule.alloc(), 1, new RuntimeException("test")));
 
-    Assertions.assertThat(rule.connection.getSent())
+    assertThat(rule.connection.getSent())
         .hasSize(1)
         .first()
         .matches(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_RESPONSE)
         .matches(ByteBuf::release);
 
-    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+    assertThat(rule.socket.isDisposed()).isFalse();
 
     rule.assertHasNoLeaks();
   }
@@ -1382,9 +1381,9 @@ public class RSocketRequesterTest {
             assertSubscriber.request(1);
           });
 
-      Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
+      assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
 
-      Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+      assertThat(rule.socket.isDisposed()).isFalse();
 
       assertSubscriber.values().forEach(ReferenceCountUtil::safeRelease);
       assertSubscriber.assertNoError();
@@ -1412,7 +1411,9 @@ public class RSocketRequesterTest {
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {
-      assertThat("Unexpected frames sent.", connection.getSent(), hasSize(greaterThanOrEqualTo(1)));
+      assertThat(connection.getSent().size())
+          .describedAs("Unexpected frames sent.")
+          .isGreaterThanOrEqualTo(1);
       List<FrameType> framesFound = new ArrayList<>();
       for (ByteBuf frame : connection.getSent()) {
         FrameType frameType = frameType(frame);

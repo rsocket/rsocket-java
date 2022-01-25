@@ -16,8 +16,7 @@
 
 package io.rsocket.test.util;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -116,6 +115,8 @@ public class MockRSocket implements RSocket {
   }
 
   private static void assertCount(int expected, String type, AtomicInteger counter) {
-    assertThat("Unexpected invocations for " + type + '.', counter.get(), is(expected));
+    assertThat(counter.get())
+        .describedAs("Unexpected invocations for " + type + '.')
+        .isEqualTo(expected);
   }
 }

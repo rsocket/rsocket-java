@@ -40,8 +40,6 @@ dependencies {
     testRuntimeOnly 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
-    testImplementation 'org.hamcrest:hamcrest-library'
-
     jcstressImplementation(project(":rsocket-test"))
     jcstressImplementation "ch.qos.logback:logback-classic"
 }
