@@ -24,6 +24,10 @@ dependencies {
     implementation project(':rsocket-transport-local')
     implementation project(':rsocket-transport-netty')
 
+    implementation "io.micrometer:micrometer-api"
+    implementation "io.micrometer:micrometer-tracing"
+    implementation project(":rsocket-micrometer")
+
     implementation 'com.netflix.concurrency-limits:concurrency-limits-core'
 
     runtimeOnly 'ch.qos.logback:logback-classic'
@@ -33,6 +37,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'io.projectreactor:reactor-test'
+    testImplementation "io.micrometer:micrometer-tracing-integration-test"
 
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }

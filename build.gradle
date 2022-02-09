@@ -42,7 +42,8 @@ subprojects {
     ext['slf4j.version'] = '1.7.36'
     ext['jmh.version'] = '1.33'
     ext['junit.version'] = '5.8.1'
-    ext['micrometer.version'] = '1.8.4'
+    ext['micrometer.version'] = '1.10.0-SNAPSHOT'
+    ext['micrometer-tracing.version'] = '1.0.0-SNAPSHOT'
     ext['assertj.version'] = '3.22.0'
     ext['netflix.limits.version'] = '0.3.6'
     ext['bouncycastle-bcpkix.version'] = '1.70'
@@ -76,7 +77,9 @@ subprojects {
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
             dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
             dependency "org.bouncycastle:bcpkix-jdk15on:${ext['bouncycastle-bcpkix.version']}"
-            dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
+            dependency "io.micrometer:micrometer-api:${ext['micrometer.version']}"
+            dependency "io.micrometer:micrometer-tracing:${ext['micrometer-tracing.version']}"
+            dependency "io.micrometer:micrometer-tracing-integration-test:${ext['micrometer-tracing.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
             dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
@@ -117,6 +120,7 @@ subprojects {
         if (version.endsWith('SNAPSHOT') || project.hasProperty('versionSuffix')) {
             maven { url 'https://repo.spring.io/libs-snapshot' }
             maven { url 'https://oss.jfrog.org/artifactory/oss-snapshot-local' }
+            mavenLocal()
         }
     }
 
@@ -256,4 +260,31 @@ description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream S
 
 repositories {
     mavenCentral()
+
+    maven { url 'https://repo.spring.io/snapshot' }
+    mavenLocal()
+}
+
+configurations {
+    adoc
+}
+
+dependencies {
+    adoc "io.micrometer:micrometer-docs-generator-spans:1.0.0-SNAPSHOT"
+    adoc "io.micrometer:micrometer-docs-generator-metrics:1.0.0-SNAPSHOT"
+}
+
+task generateObservabilityDocs(dependsOn: ["generateObservabilityMetricsDocs", "generateObservabilitySpansDocs"]) {
+}
+
+task generateObservabilityMetricsDocs(type: JavaExec) {
+    mainClass = "io.micrometer.docs.metrics.DocsFromSources"
+    classpath configurations.adoc
+    args project.rootDir.getAbsolutePath(), ".*", project.rootProject.buildDir.getAbsolutePath()
+}
+
+task generateObservabilitySpansDocs(type: JavaExec) {
+    mainClass = "io.micrometer.docs.spans.DocsFromSources"
+    classpath configurations.adoc
+    args project.rootDir.getAbsolutePath(), ".*", project.rootProject.buildDir.getAbsolutePath()
 }

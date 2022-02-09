@@ -22,10 +22,10 @@ import static org.mockito.Mockito.RETURNS_SMART_NULLS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.api.instrument.Counter;
+import io.micrometer.api.instrument.Tag;
+import io.micrometer.api.instrument.Timer;
+import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.DefaultPayload;
