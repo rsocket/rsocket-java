@@ -117,7 +117,7 @@ public final class WebsocketServerTransport
               return response.sendWebsocket(
                   (in, out) ->
                       acceptor
-                          .apply(new WebsocketDuplexConnection((Connection) in))
+                          .apply(new WebsocketDuplexConnection("server", (Connection) in))
                           .then(out.neverComplete()),
                   specBuilder.build());
             })

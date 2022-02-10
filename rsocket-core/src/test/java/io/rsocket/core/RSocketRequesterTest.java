@@ -1453,8 +1453,14 @@ public class RSocketRequesterTest {
   }
 
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
+
+    protected Sinks.Empty<Void> thisClosedSink;
+    protected Sinks.Empty<Void> otherClosedSink;
+
     @Override
     protected RSocketRequester newRSocket() {
+      this.thisClosedSink = Sinks.empty();
+      this.otherClosedSink = Sinks.empty();
       return new RSocketRequester(
           connection,
           PayloadDecoder.ZERO_COPY,
@@ -1466,7 +1472,9 @@ public class RSocketRequesterTest {
           Integer.MAX_VALUE,
           null,
           (__) -> null,
-          null);
+          null,
+          thisClosedSink,
+          otherClosedSink.asMono().and(thisClosedSink.asMono()));
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

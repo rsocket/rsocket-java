@@ -619,13 +619,8 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
 
     t = this.last;
     if (t != null) {
-      try {
-        this.last = null;
-        return t;
-      } finally {
-
-        clearAndFinalize(this);
-      }
+      this.last = null;
+      return t;
     }
 
     return null;

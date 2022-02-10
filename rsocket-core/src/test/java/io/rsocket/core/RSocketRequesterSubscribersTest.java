@@ -44,6 +44,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.test.util.RaceTestUtils;
 
 class RSocketRequesterSubscribersTest {
@@ -60,11 +61,15 @@ class RSocketRequesterSubscribersTest {
   private LeaksTrackingByteBufAllocator allocator;
   private RSocket rSocketRequester;
   private TestDuplexConnection connection;
+  protected Sinks.Empty<Void> thisClosedSink;
+  protected Sinks.Empty<Void> otherClosedSink;
 
   @BeforeEach
   void setUp() {
     allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     connection = new TestDuplexConnection(allocator);
+    this.thisClosedSink = Sinks.empty();
+    this.otherClosedSink = Sinks.empty();
     rSocketRequester =
         new RSocketRequester(
             connection,
@@ -77,7 +82,9 @@ class RSocketRequesterSubscribersTest {
             0,
             null,
             __ -> null,
-            null);
+            null,
+            thisClosedSink,
+            otherClosedSink.asMono().and(thisClosedSink.asMono()));
   }
 
   @ParameterizedTest

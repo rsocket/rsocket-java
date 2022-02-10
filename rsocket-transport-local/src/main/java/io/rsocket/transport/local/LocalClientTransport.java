@@ -79,10 +79,10 @@ public final class LocalClientTransport implements ClientTransport {
 
           Sinks.One<Object> inSink = Sinks.one();
           Sinks.One<Object> outSink = Sinks.one();
-          UnboundedProcessor in = new UnboundedProcessor(() -> inSink.tryEmitValue(inSink));
-          UnboundedProcessor out = new UnboundedProcessor(() -> outSink.tryEmitValue(outSink));
+          UnboundedProcessor in = new UnboundedProcessor(inSink::tryEmitEmpty);
+          UnboundedProcessor out = new UnboundedProcessor(outSink::tryEmitEmpty);
 
-          Mono<Void> onClose = inSink.asMono().zipWith(outSink.asMono()).then();
+          Mono<Void> onClose = inSink.asMono().and(outSink.asMono());
 
           server.apply(new LocalDuplexConnection(name, allocator, out, in, onClose)).subscribe();
 

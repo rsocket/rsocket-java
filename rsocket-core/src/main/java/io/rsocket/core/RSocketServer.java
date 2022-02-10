@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 
 /**
  * The main class for starting an RSocket server.
@@ -437,6 +438,9 @@ public final class RSocketServer {
             requesterLeaseTracker = null;
           }
 
+          final Sinks.Empty<Void> requesterOnAllClosedSink = Sinks.unsafe().empty();
+          final Sinks.Empty<Void> responderOnAllClosedSink = Sinks.unsafe().empty();
+
           RSocket rSocketRequester =
               new RSocketRequester(
                   multiplexer.asServerConnection(),
@@ -449,7 +453,10 @@ public final class RSocketServer {
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
                   interceptors::initRequesterRequestInterceptor,
-                  requesterLeaseTracker);
+                  requesterLeaseTracker,
+                  requesterOnAllClosedSink,
+                  Mono.whenDelayError(
+                      responderOnAllClosedSink.asMono(), requesterOnAllClosedSink.asMono()));
 
           RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 
@@ -481,7 +488,8 @@ public final class RSocketServer {
                                 ? rSocket ->
                                     interceptors.initResponderRequestInterceptor(
                                         rSocket, (RequestInterceptor) leases.sender)
-                                : interceptors::initResponderRequestInterceptor);
+                                : interceptors::initResponderRequestInterceptor,
+                            responderOnAllClosedSink);
                   })
               .doFinally(signalType -> setupPayload.release())
               .then();

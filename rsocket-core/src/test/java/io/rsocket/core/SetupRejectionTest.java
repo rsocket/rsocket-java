@@ -69,6 +69,8 @@ public class SetupRejectionTest {
     LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     TestDuplexConnection conn = new TestDuplexConnection(allocator);
+    Sinks.Empty<Void> onThisSideClosedSink = Sinks.empty();
+
     RSocketRequester rSocket =
         new RSocketRequester(
             conn,
@@ -81,7 +83,9 @@ public class SetupRejectionTest {
             0,
             null,
             __ -> null,
-            null);
+            null,
+            onThisSideClosedSink,
+            onThisSideClosedSink.asMono());
 
     String errorMsg = "error";
 
@@ -107,6 +111,7 @@ public class SetupRejectionTest {
     LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     TestDuplexConnection conn = new TestDuplexConnection(allocator);
+    Sinks.Empty<Void> onThisSideClosedSink = Sinks.empty();
     RSocketRequester rSocket =
         new RSocketRequester(
             conn,
@@ -119,7 +124,9 @@ public class SetupRejectionTest {
             0,
             null,
             __ -> null,
-            null);
+            null,
+            onThisSideClosedSink,
+            onThisSideClosedSink.asMono());
 
     conn.addToReceivedBuffer(
         ErrorFrameCodec.encode(ByteBufAllocator.DEFAULT, 0, new RejectedSetupException("error")));

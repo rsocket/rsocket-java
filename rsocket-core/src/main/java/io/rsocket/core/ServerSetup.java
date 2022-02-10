@@ -79,7 +79,7 @@ abstract class ServerSetup {
         sendError(duplexConnection, new UnsupportedSetupException("resume not supported"));
         return duplexConnection.onClose();
       } else {
-        return then.apply(new DefaultKeepAliveHandler(duplexConnection), duplexConnection);
+        return then.apply(new DefaultKeepAliveHandler(), duplexConnection);
       }
     }
 
@@ -141,7 +141,7 @@ abstract class ServerSetup {
                 resumableDuplexConnection, serverRSocketSession, serverRSocketSession),
             resumableDuplexConnection);
       } else {
-        return then.apply(new DefaultKeepAliveHandler(duplexConnection), duplexConnection);
+        return then.apply(new DefaultKeepAliveHandler(), duplexConnection);
       }
     }
 

@@ -67,8 +67,8 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     this.source = source;
     this.isClient = isClient;
 
-    this.serverReceiver = new InternalDuplexConnection(this, source);
-    this.clientReceiver = new InternalDuplexConnection(this, source);
+    this.serverReceiver = new InternalDuplexConnection(Type.SERVER, this, source);
+    this.clientReceiver = new InternalDuplexConnection(Type.CLIENT, this, source);
     this.serverConnection = registry.initConnection(Type.SERVER, serverReceiver);
     this.clientConnection = registry.initConnection(Type.CLIENT, clientReceiver);
   }
@@ -195,8 +195,33 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     }
   }
 
+  @Override
+  public String toString() {
+    return "ClientServerInputMultiplexer{"
+        + "serverReceiver="
+        + serverReceiver
+        + ", clientReceiver="
+        + clientReceiver
+        + ", serverConnection="
+        + serverConnection
+        + ", clientConnection="
+        + clientConnection
+        + ", source="
+        + source
+        + ", isClient="
+        + isClient
+        + ", s="
+        + s
+        + ", t="
+        + t
+        + ", state="
+        + state
+        + '}';
+  }
+
   private static class InternalDuplexConnection extends Flux<ByteBuf>
       implements Subscription, DuplexConnection {
+    private final Type type;
     private final ClientServerInputMultiplexer clientServerInputMultiplexer;
     private final DuplexConnection source;
 
@@ -207,7 +232,10 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     CoreSubscriber<? super ByteBuf> actual;
 
     public InternalDuplexConnection(
-        ClientServerInputMultiplexer clientServerInputMultiplexer, DuplexConnection source) {
+        Type type,
+        ClientServerInputMultiplexer clientServerInputMultiplexer,
+        DuplexConnection source) {
+      this.type = type;
       this.clientServerInputMultiplexer = clientServerInputMultiplexer;
       this.source = source;
     }
@@ -303,6 +331,18 @@ class ClientServerInputMultiplexer implements CoreSubscriber<ByteBuf>, Closeable
     @Override
     public double availability() {
       return source.availability();
+    }
+
+    @Override
+    public String toString() {
+      return "InternalDuplexConnection{"
+          + "type="
+          + type
+          + ", source="
+          + source
+          + ", state="
+          + state
+          + '}';
     }
   }
 }

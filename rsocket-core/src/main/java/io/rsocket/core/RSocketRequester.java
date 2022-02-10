@@ -66,8 +66,10 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
           RSocketRequester.class, Throwable.class, "terminationError");
 
   @Nullable private final RequesterLeaseTracker requesterLeaseTracker;
+
+  private final Sinks.Empty<Void> onThisSideClosedSink;
+  private final Mono<Void> onAllClosed;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
-  private final Sinks.Empty<Void> onClose;
 
   RSocketRequester(
       DuplexConnection connection,
@@ -80,7 +82,9 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       Function<RSocket, RequestInterceptor> requestInterceptorFunction,
-      @Nullable RequesterLeaseTracker requesterLeaseTracker) {
+      @Nullable RequesterLeaseTracker requesterLeaseTracker,
+      Sinks.Empty<Void> onThisSideClosedSink,
+      Mono<Void> onAllClosed) {
     super(
         mtu,
         maxFrameLength,
@@ -91,10 +95,11 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
         requestInterceptorFunction);
 
     this.requesterLeaseTracker = requesterLeaseTracker;
-    this.onClose = Sinks.empty();
+    this.onThisSideClosedSink = onThisSideClosedSink;
+    this.onAllClosed = onAllClosed;
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
-    connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
+    connection.onClose().subscribe(null, this::tryShutdown, this::tryShutdown);
 
     connection.receive().subscribe(this::handleIncomingFrames, e -> {});
 
@@ -188,7 +193,11 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public void dispose() {
-    tryShutdown();
+    if (terminationError != null) {
+      return;
+    }
+
+    getDuplexConnection().sendErrorAndClose(new ConnectionErrorException("Disposed"));
   }
 
   @Override
@@ -198,7 +207,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
 
   @Override
   public Mono<Void> onClose() {
-    return onClose.asMono();
+    return onAllClosed;
   }
 
   private void handleIncomingFrames(ByteBuf frame) {
@@ -305,8 +314,31 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
                 String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis())));
   }
 
-  private void tryTerminateOnConnectionError(Throwable e) {
-    tryTerminate(() -> e);
+  private void tryShutdown(Throwable e) {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("trying to close requester " + getDuplexConnection());
+    }
+    if (terminationError == null) {
+      if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
+        terminate(CLOSED_CHANNEL_EXCEPTION);
+      } else {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug(
+              "trying to close requester failed because of "
+                  + terminationError
+                  + " "
+                  + getDuplexConnection());
+        }
+      }
+    } else {
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.info(
+            "trying to close requester failed because of "
+                + terminationError
+                + " "
+                + getDuplexConnection());
+      }
+    }
   }
 
   private void tryTerminateOnZeroError(ByteBuf errorFrame) {
@@ -314,27 +346,67 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
   }
 
   private void tryTerminate(Supplier<Throwable> errorSupplier) {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("trying to close requester " + getDuplexConnection());
+    }
     if (terminationError == null) {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
         terminate(e);
+      } else {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug(
+              "trying to close requester failed because of "
+                  + terminationError
+                  + " "
+                  + getDuplexConnection());
+        }
+      }
+    } else {
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug(
+            "trying to close requester failed because of "
+                + terminationError
+                + " "
+                + getDuplexConnection());
       }
     }
   }
 
   private void tryShutdown() {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("trying to close requester " + getDuplexConnection());
+    }
     if (terminationError == null) {
       if (TERMINATION_ERROR.compareAndSet(this, null, CLOSED_CHANNEL_EXCEPTION)) {
         terminate(CLOSED_CHANNEL_EXCEPTION);
+      } else {
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug(
+              "trying to close requester failed because of "
+                  + terminationError
+                  + " "
+                  + getDuplexConnection());
+        }
+      }
+    } else {
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug(
+            "trying to close requester failed because of "
+                + terminationError
+                + " "
+                + getDuplexConnection());
       }
     }
   }
 
   private void terminate(Throwable e) {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("closing requester " + getDuplexConnection() + " due to " + e);
+    }
     if (keepAliveFramesAcceptor != null) {
       keepAliveFramesAcceptor.dispose();
     }
-    getDuplexConnection().dispose();
     final RequestInterceptor requestInterceptor = getRequestInterceptor();
     if (requestInterceptor != null) {
       requestInterceptor.dispose();
@@ -361,9 +433,12 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     }
 
     if (e == CLOSED_CHANNEL_EXCEPTION) {
-      onClose.tryEmitEmpty();
+      onThisSideClosedSink.tryEmitEmpty();
     } else {
-      onClose.tryEmitError(e);
+      onThisSideClosedSink.tryEmitError(e);
+    }
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("requester closed " + getDuplexConnection());
     }
   }
 }

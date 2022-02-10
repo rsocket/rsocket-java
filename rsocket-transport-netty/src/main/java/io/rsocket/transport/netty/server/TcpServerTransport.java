@@ -114,7 +114,7 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
             c -> {
               c.addHandlerLast(new RSocketLengthCodec(maxFrameLength));
               acceptor
-                  .apply(new TcpDuplexConnection(c))
+                  .apply(new TcpDuplexConnection("server", c))
                   .then(Mono.<Void>never())
                   .subscribe(c.disposeSubscriber());
             })

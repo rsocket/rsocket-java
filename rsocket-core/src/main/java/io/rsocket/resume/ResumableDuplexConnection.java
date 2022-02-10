@@ -322,6 +322,26 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     return FrameHeaderCodec.streamId(frame) != 0;
   }
 
+  @Override
+  public String toString() {
+    return "ResumableDuplexConnection{"
+        + "side='"
+        + side
+        + '\''
+        + ", session='"
+        + session
+        + '\''
+        + ", remoteAddress="
+        + remoteAddress
+        + ", state="
+        + state
+        + ", activeConnection="
+        + activeConnection
+        + ", connectionIndex="
+        + connectionIndex
+        + '}';
+  }
+
   private static final class DisposedConnection implements DuplexConnection {
 
     static final DisposedConnection INSTANCE = new DisposedConnection();

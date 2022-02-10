@@ -118,7 +118,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
    * the {@link InMemoryResumableFramesStore#drain(long)} method.
    */
   static final long MAX_WORK_IN_PROGRESS =
-      0b0000_0000_0000_0000_0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111L;
+      0b0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
 
   public InMemoryResumableFramesStore(String side, ByteBuf session, int cacheSizeBytes) {
     this.side = side;
@@ -374,7 +374,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       return;
     }
 
-    drain(previousState | DISPOSED_FLAG);
+    drain((previousState + 1) | DISPOSED_FLAG);
   }
 
   void clearCache() {
@@ -557,12 +557,13 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      if (isWorkInProgress(previousState)
-          || (!isConnected(previousState) && !hasPendingConnection(previousState))) {
+      if (isWorkInProgress(previousState)) {
         return;
       }
 
-      parent.drain(previousState + 1);
+      if (isConnected(previousState) || hasPendingConnection(previousState)) {
+        parent.drain((previousState + 1) | HAS_FRAME_FLAG);
+      }
     }
 
     @Override
@@ -587,7 +588,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      parent.drain(previousState | TERMINATED_FLAG);
+      parent.drain((previousState + 1) | TERMINATED_FLAG);
     }
 
     @Override
@@ -609,7 +610,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      parent.drain(previousState | TERMINATED_FLAG);
+      parent.drain((previousState + 1) | TERMINATED_FLAG);
     }
 
     @Override
