@@ -22,20 +22,19 @@ import io.rsocket.metadata.CompositeMetadata;
 
 final class CompositeMetadataUtils {
 
-	private CompositeMetadataUtils() {
-		throw new IllegalStateException("Can't instantiate a utility class");
-	}
+  private CompositeMetadataUtils() {
+    throw new IllegalStateException("Can't instantiate a utility class");
+  }
 
-	@Nullable
-	static ByteBuf extract(ByteBuf metadata, String key) {
-		final CompositeMetadata compositeMetadata = new CompositeMetadata(metadata, false);
-		for (CompositeMetadata.Entry entry : compositeMetadata) {
-			final String entryKey = entry.getMimeType();
-			if (key.equals(entryKey)) {
-				return entry.getContent();
-			}
-		}
-		return null;
-	}
-
+  @Nullable
+  static ByteBuf extract(ByteBuf metadata, String key) {
+    final CompositeMetadata compositeMetadata = new CompositeMetadata(metadata, false);
+    for (CompositeMetadata.Entry entry : compositeMetadata) {
+      final String entryKey = entry.getMimeType();
+      if (key.equals(entryKey)) {
+        return entry.getContent();
+      }
+    }
+    return null;
+  }
 }

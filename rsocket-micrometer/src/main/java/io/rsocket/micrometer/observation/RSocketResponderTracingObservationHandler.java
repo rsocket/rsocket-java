@@ -16,9 +16,6 @@
 
 package io.rsocket.micrometer.observation;
 
-import java.util.HashSet;
-import java.util.Iterator;
-
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
@@ -34,108 +31,121 @@ import io.rsocket.metadata.RoutingMetadata;
 import io.rsocket.metadata.TracingMetadata;
 import io.rsocket.metadata.TracingMetadataCodec;
 import io.rsocket.metadata.WellKnownMimeType;
+import java.util.HashSet;
+import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RSocketResponderTracingObservationHandler implements TracingObservationHandler<RSocketContext> {
+public class RSocketResponderTracingObservationHandler
+    implements TracingObservationHandler<RSocketContext> {
 
-	private static final Logger log = LoggerFactory.getLogger(RSocketResponderTracingObservationHandler.class);
+  private static final Logger log =
+      LoggerFactory.getLogger(RSocketResponderTracingObservationHandler.class);
 
-	private final Propagator propagator;
+  private final Propagator propagator;
 
-	private final Propagator.Getter<ByteBuf> getter;
+  private final Propagator.Getter<ByteBuf> getter;
 
-	private final Tracer tracer;
+  private final Tracer tracer;
 
-	private final boolean isZipkinPropagationEnabled;
+  private final boolean isZipkinPropagationEnabled;
 
-	public RSocketResponderTracingObservationHandler(Tracer tracer,  Propagator propagator, Propagator.Getter<ByteBuf> getter,
-			boolean isZipkinPropagationEnabled) {
-		this.tracer = tracer;
-		this.propagator = propagator;
-		this.getter = getter;
-		this.isZipkinPropagationEnabled = isZipkinPropagationEnabled;
-	}
+  public RSocketResponderTracingObservationHandler(
+      Tracer tracer,
+      Propagator propagator,
+      Propagator.Getter<ByteBuf> getter,
+      boolean isZipkinPropagationEnabled) {
+    this.tracer = tracer;
+    this.propagator = propagator;
+    this.getter = getter;
+    this.isZipkinPropagationEnabled = isZipkinPropagationEnabled;
+  }
 
-	@Override
-	public void onStart(RSocketContext context) {
-		Span handle = consumerSpanBuilder(context.payload, context.metadata, context.frameType);
-		CompositeByteBuf bufs = PayloadUtils.cleanTracingMetadata(context.payload, new HashSet<>(propagator.fields()));
-		context.modifiedPayload = PayloadUtils.payload(context.payload, bufs);
-		getTracingContext(context).setSpan(handle);
-	}
+  @Override
+  public void onStart(RSocketContext context) {
+    Span handle = consumerSpanBuilder(context.payload, context.metadata, context.frameType);
+    CompositeByteBuf bufs =
+        PayloadUtils.cleanTracingMetadata(context.payload, new HashSet<>(propagator.fields()));
+    context.modifiedPayload = PayloadUtils.payload(context.payload, bufs);
+    getTracingContext(context).setSpan(handle);
+  }
 
-	@Override
-	public void onError(RSocketContext context) {
-		context.getError().ifPresent(throwable -> getRequiredSpan(context).error(throwable));
-	}
+  @Override
+  public void onError(RSocketContext context) {
+    context.getError().ifPresent(throwable -> getRequiredSpan(context).error(throwable));
+  }
 
-	@Override
-	public void onStop(RSocketContext context) {
-		Span span = getRequiredSpan(context);
-		tagSpan(context, span);
-		span.end();
-	}
+  @Override
+  public void onStop(RSocketContext context) {
+    Span span = getRequiredSpan(context);
+    tagSpan(context, span);
+    span.end();
+  }
 
-	@Override
-	public boolean supportsContext(Observation.Context context) {
-		return context instanceof RSocketContext && ((RSocketContext) context).side == RSocketContext.Side.RESPONDER;
-	}
+  @Override
+  public boolean supportsContext(Observation.Context context) {
+    return context instanceof RSocketContext
+        && ((RSocketContext) context).side == RSocketContext.Side.RESPONDER;
+  }
 
-	@Override
-	public Tracer getTracer() {
-		return this.tracer;
-	}
+  @Override
+  public Tracer getTracer() {
+    return this.tracer;
+  }
 
-	private Span consumerSpanBuilder(Payload payload, ByteBuf headers, FrameType requestType) {
-		Span.Builder consumerSpanBuilder = consumerSpanBuilder(payload, headers);
-		log.debug("Extracted result from headers {}", consumerSpanBuilder);
-		String name = RSocketObservation.RSOCKET_RESPONDER.getName("handle");
-		if (payload.hasMetadata()) {
-			try {
-				final ByteBuf extract = CompositeMetadataUtils.extract(headers,
-						WellKnownMimeType.MESSAGE_RSOCKET_ROUTING.getString());
-				if (extract != null) {
-					final RoutingMetadata routingMetadata = new RoutingMetadata(extract);
-					final Iterator<String> iterator = routingMetadata.iterator();
-					name = RSocketObservation.RSOCKET_RESPONDER.getName(requestType.name() + " " + iterator.next());
-				}
-			}
-			catch (Exception e) {
+  private Span consumerSpanBuilder(Payload payload, ByteBuf headers, FrameType requestType) {
+    Span.Builder consumerSpanBuilder = consumerSpanBuilder(payload, headers);
+    log.debug("Extracted result from headers {}", consumerSpanBuilder);
+    String name = RSocketObservation.RSOCKET_RESPONDER.getName("handle");
+    if (payload.hasMetadata()) {
+      try {
+        final ByteBuf extract =
+            CompositeMetadataUtils.extract(
+                headers, WellKnownMimeType.MESSAGE_RSOCKET_ROUTING.getString());
+        if (extract != null) {
+          final RoutingMetadata routingMetadata = new RoutingMetadata(extract);
+          final Iterator<String> iterator = routingMetadata.iterator();
+          name =
+              RSocketObservation.RSOCKET_RESPONDER.getName(
+                  requestType.name() + " " + iterator.next());
+        }
+      } catch (Exception e) {
 
-			}
-		}
-		return consumerSpanBuilder.kind(Span.Kind.CONSUMER).name(name)
-				.start();
-	}
+      }
+    }
+    return consumerSpanBuilder.kind(Span.Kind.CONSUMER).name(name).start();
+  }
 
-	private Span.Builder consumerSpanBuilder(Payload payload, ByteBuf headers) {
-		if (this.isZipkinPropagationEnabled && payload.hasMetadata()) {
-			try {
-				ByteBuf extract = CompositeMetadataUtils.extract(headers,
-						WellKnownMimeType.MESSAGE_RSOCKET_TRACING_ZIPKIN.getString());
-				if (extract != null) {
-					TracingMetadata tracingMetadata = TracingMetadataCodec.decode(extract);
-					Span.Builder builder = this.tracer.spanBuilder();
-					String traceId = EncodingUtils.fromLong(tracingMetadata.traceId());
-					long traceIdHigh = tracingMetadata.traceIdHigh();
-					if (traceIdHigh != 0L) {
-						// ExtendedTraceId
-						traceId = EncodingUtils.fromLong(traceIdHigh) + traceId;
-					}
-					TraceContext.Builder parentBuilder = this.tracer.traceContextBuilder()
-							.sampled(tracingMetadata.isDebug() || tracingMetadata.isSampled()).traceId(traceId)
-							.spanId(EncodingUtils.fromLong(tracingMetadata.spanId()))
-							.parentId(EncodingUtils.fromLong(tracingMetadata.parentId()));
-					return builder.setParent(parentBuilder.build());
-				} else {
-					return this.propagator.extract(headers, this.getter);
-				}
-			}
-			catch (Exception e) {
+  private Span.Builder consumerSpanBuilder(Payload payload, ByteBuf headers) {
+    if (this.isZipkinPropagationEnabled && payload.hasMetadata()) {
+      try {
+        ByteBuf extract =
+            CompositeMetadataUtils.extract(
+                headers, WellKnownMimeType.MESSAGE_RSOCKET_TRACING_ZIPKIN.getString());
+        if (extract != null) {
+          TracingMetadata tracingMetadata = TracingMetadataCodec.decode(extract);
+          Span.Builder builder = this.tracer.spanBuilder();
+          String traceId = EncodingUtils.fromLong(tracingMetadata.traceId());
+          long traceIdHigh = tracingMetadata.traceIdHigh();
+          if (traceIdHigh != 0L) {
+            // ExtendedTraceId
+            traceId = EncodingUtils.fromLong(traceIdHigh) + traceId;
+          }
+          TraceContext.Builder parentBuilder =
+              this.tracer
+                  .traceContextBuilder()
+                  .sampled(tracingMetadata.isDebug() || tracingMetadata.isSampled())
+                  .traceId(traceId)
+                  .spanId(EncodingUtils.fromLong(tracingMetadata.spanId()))
+                  .parentId(EncodingUtils.fromLong(tracingMetadata.parentId()));
+          return builder.setParent(parentBuilder.build());
+        } else {
+          return this.propagator.extract(headers, this.getter);
+        }
+      } catch (Exception e) {
 
-			}
-		}
-		return this.propagator.extract(headers, this.getter);
-	}
+      }
+    }
+    return this.propagator.extract(headers, this.getter);
+  }
 }

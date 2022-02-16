@@ -16,6 +16,7 @@
 
 package io.rsocket.integration.observation;
 
+import java.time.Duration;
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -23,8 +24,6 @@ import java.util.function.BiConsumer;
 import io.micrometer.api.instrument.MeterRegistry;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
 import io.rsocket.Payload;
@@ -38,21 +37,17 @@ import io.rsocket.micrometer.observation.ObservationResponderRSocketProxy;
 import io.rsocket.micrometer.observation.RSocketRequesterTracingObservationHandler;
 import io.rsocket.micrometer.observation.RSocketResponderTracingObservationHandler;
 import io.rsocket.plugins.RSocketInterceptor;
-import io.rsocket.test.TestSubscriber;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ObservationIntegrationTest extends SampleTestRunner {
   private static final MeterRegistry registry = new SimpleMeterRegistry()
@@ -98,11 +93,10 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   }
 
   private void testStream() {
-    Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
-    client.requestStream(DefaultPayload.create("start")).subscribe(subscriber);
+    counter.set(0);
+    client.requestStream(DefaultPayload.create("start")).blockLast();
 
-    verify(subscriber).onSubscribe(any());
-    verifyNoMoreInteractions(subscriber);
+    assertThat(counter).as("Server did not see the request.").hasValue(1);
   }
 
   private void testRequestChannel() {
@@ -114,66 +108,61 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private void testFireAndForget() {
     counter.set(0);
     client.fireAndForget(DefaultPayload.create("start")).subscribe();
-    //TODO: This assertion fails
-//    assertThat(counter).as("Server did not see the request.").hasValue(1);
+    Awaitility.await()
+              .atMost(Duration.ofSeconds(5))
+              .until(() -> counter.get() == 1);
+    assertThat(counter).as("Server did not see the request.").hasValue(1);
   }
 
   @Override
-  public BiConsumer<Tracer, MeterRegistry> yourCode() {
+  public SampleTestRunnerConsumer yourCode() {
     return (tracer, meterRegistry) -> {
-
       counter = new AtomicInteger();
       server =
-              RSocketServer.create(
-                              (setup, sendingSocket) -> {
-                                sendingSocket
-                                        .onClose()
-                                        .subscribe();
+          RSocketServer.create(
+                  (setup, sendingSocket) -> {
+                    sendingSocket.onClose().subscribe();
 
-                                return Mono.just(
-                                        new RSocket() {
-                                          @Override
-                                          public Mono<Payload> requestResponse(Payload payload) {
-                                            counter.incrementAndGet();
-                                            return Mono.just(DefaultPayload.create("RESPONSE", "METADATA"));
-                                          }
+                    return Mono.just(
+                        new RSocket() {
+                          @Override
+                          public Mono<Payload> requestResponse(Payload payload) {
+                            payload.release();
+                            counter.incrementAndGet();
+                            return Mono.just(DefaultPayload.create("RESPONSE", "METADATA"));
+                          }
 
-                                          @Override
-                                          public Flux<Payload> requestStream(Payload payload) {
-                                            counter.incrementAndGet();
-                                            return Flux.range(1, 10_000)
-                                                    .map(i -> DefaultPayload.create("data -> " + i));
-                                          }
+                          @Override
+                          public Flux<Payload> requestStream(Payload payload) {
+                            payload.release();
+                            counter.incrementAndGet();
+                            return Flux.range(1, 10_000)
+                                .map(i -> DefaultPayload.create("data -> " + i));
+                          }
 
-                                          @Override
-                                          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-                                            counter.incrementAndGet();
-                                            return Flux.from(payloads);
-                                          }
+                          @Override
+                          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                            counter.incrementAndGet();
+                            return Flux.from(payloads);
+                          }
 
-                                          @Override
-                                          public Mono<Void> fireAndForget(Payload payload) {
-                                            counter.incrementAndGet();
-                                            return Mono.empty();
-                                          }
-                                        });
-                              })
-                      .interceptors(
-                              registry ->
-                                      registry
-                                              .forResponder(responderInterceptor))
-                      .bind(TcpServerTransport.create("localhost", 0))
-                      .block();
+                          @Override
+                          public Mono<Void> fireAndForget(Payload payload) {
+                            payload.release();
+                            counter.incrementAndGet();
+                            return Mono.empty();
+                          }
+                        });
+                  })
+              .interceptors(registry -> registry.forResponder(responderInterceptor))
+              .bind(TcpServerTransport.create("localhost", 0))
+              .block();
 
       client =
-              RSocketConnector.create()
-                      .interceptors(
-                              registry ->
-                                      registry
-                                              .forRequester(requesterInterceptor))
-                      .connect(TcpClientTransport.create(server.address()))
-                      .block();
-
+          RSocketConnector.create()
+              .interceptors(registry -> registry.forRequester(requesterInterceptor))
+              .connect(TcpClientTransport.create(server.address()))
+              .block();
 
       testRequest();
 

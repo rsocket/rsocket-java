@@ -20,28 +20,28 @@ import io.micrometer.api.instrument.observation.Observation;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
-import reactor.util.context.ContextView;
 
 class RSocketContext extends Observation.Context {
 
-	final Payload payload;
+  final Payload payload;
 
-	final ByteBuf metadata;
+  final ByteBuf metadata;
 
-	final FrameType frameType;
+  final FrameType frameType;
 
-	final Side side;
+  final Side side;
 
-	Payload modifiedPayload;
+  Payload modifiedPayload;
 
-	RSocketContext(Payload payload, ByteBuf metadata, FrameType frameType, Side side) {
-		this.payload = payload;
-		this.metadata = metadata;
-		this.frameType = frameType;
-		this.side = side;
-	}
+  RSocketContext(Payload payload, ByteBuf metadata, FrameType frameType, Side side) {
+    this.payload = payload;
+    this.metadata = metadata;
+    this.frameType = frameType;
+    this.side = side;
+  }
 
-	enum Side {
-		REQUESTER, RESPONDER
-	}
+  enum Side {
+    REQUESTER,
+    RESPONDER
+  }
 }

@@ -23,15 +23,14 @@ import io.rsocket.metadata.CompositeMetadata;
 
 public class ByteBufGetter implements Propagator.Getter<ByteBuf> {
 
-	@Override
-	public String get(ByteBuf carrier, String key) {
-		final CompositeMetadata compositeMetadata = new CompositeMetadata(carrier, false);
-		for (CompositeMetadata.Entry entry : compositeMetadata) {
-			if (key.equals(entry.getMimeType())) {
-				return entry.getContent().toString(CharsetUtil.UTF_8);
-			}
-		}
-		return null;
-	}
-
+  @Override
+  public String get(ByteBuf carrier, String key) {
+    final CompositeMetadata compositeMetadata = new CompositeMetadata(carrier, false);
+    for (CompositeMetadata.Entry entry : compositeMetadata) {
+      if (key.equals(entry.getMimeType())) {
+        return entry.getContent().toString(CharsetUtil.UTF_8);
+      }
+    }
+    return null;
+  }
 }

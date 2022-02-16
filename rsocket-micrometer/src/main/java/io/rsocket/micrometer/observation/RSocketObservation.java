@@ -21,231 +21,201 @@ import io.micrometer.api.instrument.docs.TagKey;
 
 enum RSocketObservation implements DocumentedObservation {
 
-	/**
-	 * Observation created on the RSocket responder side.
-	 */
-	RSOCKET_RESPONDER {
-		@Override
-		public String getName() {
-			return "%s";
-		}
-	},
+  /** Observation created on the RSocket responder side. */
+  RSOCKET_RESPONDER {
+    @Override
+    public String getName() {
+      return "%s";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket requester side for Fire and Forget frame type.
-	 */
-	RSOCKET_REQUESTER_FNF {
-		@Override
-		public String getName() {
-			return "rsocket.fnf";
-		}
+  /** Observation created on the RSocket requester side for Fire and Forget frame type. */
+  RSOCKET_REQUESTER_FNF {
+    @Override
+    public String getName() {
+      return "rsocket.fnf";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return RequesterTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return RequesterTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket responder side for Fire and Forget frame type.
-	 */
-	RSOCKET_RESPONDER_FNF {
-		@Override
-		public String getName() {
-			return "rsocket.fnf";
-		}
+  /** Observation created on the RSocket responder side for Fire and Forget frame type. */
+  RSOCKET_RESPONDER_FNF {
+    @Override
+    public String getName() {
+      return "rsocket.fnf";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return ResponderTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return ResponderTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket requester side for Request Response frame type.
-	 */
-	RSOCKET_REQUESTER_REQUEST_RESPONSE {
-		@Override
-		public String getName() {
-			return "rsocket.request";
-		}
+  /** Observation created on the RSocket requester side for Request Response frame type. */
+  RSOCKET_REQUESTER_REQUEST_RESPONSE {
+    @Override
+    public String getName() {
+      return "rsocket.request";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return RequesterTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return RequesterTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket responder side for Request Response frame type.
-	 */
-	RSOCKET_RESPONDER_REQUEST_RESPONSE {
-		@Override
-		public String getName() {
-			return "rsocket.response";
-		}
+  /** Observation created on the RSocket responder side for Request Response frame type. */
+  RSOCKET_RESPONDER_REQUEST_RESPONSE {
+    @Override
+    public String getName() {
+      return "rsocket.response";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return ResponderTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return ResponderTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket requester side for Request Stream frame type.
-	 */
-	RSOCKET_REQUESTER_REQUEST_STREAM {
-		@Override
-		public String getName() {
-			return "rsocket.stream";
-		}
+  /** Observation created on the RSocket requester side for Request Stream frame type. */
+  RSOCKET_REQUESTER_REQUEST_STREAM {
+    @Override
+    public String getName() {
+      return "rsocket.stream";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return RequesterTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return RequesterTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket responder side for Request Stream frame type.
-	 */
-	RSOCKET_RESPONDER_REQUEST_STREAM {
-		@Override
-		public String getName() {
-			return "rsocket.stream";
-		}
+  /** Observation created on the RSocket responder side for Request Stream frame type. */
+  RSOCKET_RESPONDER_REQUEST_STREAM {
+    @Override
+    public String getName() {
+      return "rsocket.stream";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return ResponderTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return ResponderTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket requester side for Request Channel frame type.
-	 */
-	RSOCKET_REQUESTER_REQUEST_CHANNEL {
-		@Override
-		public String getName() {
-			return "rsocket.channel";
-		}
+  /** Observation created on the RSocket requester side for Request Channel frame type. */
+  RSOCKET_REQUESTER_REQUEST_CHANNEL {
+    @Override
+    public String getName() {
+      return "rsocket.channel";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return RequesterTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return RequesterTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	},
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  },
 
-	/**
-	 * Observation created on the RSocket responder side for Request Channel frame type.
-	 */
-	RSOCKET_RESPONDER_REQUEST_CHANNEL {
-		@Override
-		public String getName() {
-			return "rsocket.channel";
-		}
+  /** Observation created on the RSocket responder side for Request Channel frame type. */
+  RSOCKET_RESPONDER_REQUEST_CHANNEL {
+    @Override
+    public String getName() {
+      return "rsocket.channel";
+    }
 
-		@Override
-		public TagKey[] getLowCardinalityTagKeys() {
-			return ResponderTags.values();
-		}
+    @Override
+    public TagKey[] getLowCardinalityTagKeys() {
+      return ResponderTags.values();
+    }
 
-		@Override
-		public String getPrefix() {
-			return "rsocket.";
-		}
-	};
+    @Override
+    public String getPrefix() {
+      return "rsocket.";
+    }
+  };
 
-	enum RequesterTags implements TagKey {
+  enum RequesterTags implements TagKey {
 
-		/**
-		 * Name of the RSocket route.
-		 */
-		ROUTE {
-			@Override
-			public String getKey() {
-				return "rsocket.route";
-			}
-		},
+    /** Name of the RSocket route. */
+    ROUTE {
+      @Override
+      public String getKey() {
+        return "rsocket.route";
+      }
+    },
 
-		/**
-		 * Name of the RSocket request type.
-		 */
-		REQUEST_TYPE {
-			@Override
-			public String getKey() {
-				return "rsocket.request-type";
-			}
-		},
+    /** Name of the RSocket request type. */
+    REQUEST_TYPE {
+      @Override
+      public String getKey() {
+        return "rsocket.request-type";
+      }
+    },
 
-		/**
-		 * Name of the RSocket content type.
-		 */
-		CONTENT_TYPE {
-			@Override
-			public String getKey() {
-				return "rsocket.content-type";
-			}
-		}
+    /** Name of the RSocket content type. */
+    CONTENT_TYPE {
+      @Override
+      public String getKey() {
+        return "rsocket.content-type";
+      }
+    }
+  }
 
-	}
+  enum ResponderTags implements TagKey {
 
-	enum ResponderTags implements TagKey {
+    /** Name of the RSocket route. */
+    ROUTE {
+      @Override
+      public String getKey() {
+        return "rsocket.route";
+      }
+    },
 
-		/**
-		 * Name of the RSocket route.
-		 */
-		ROUTE {
-			@Override
-			public String getKey() {
-				return "rsocket.route";
-			}
-		},
-
-		/**
-		 * Name of the RSocket request type.
-		 */
-		REQUEST_TYPE {
-			@Override
-			public String getKey() {
-				return "rsocket.request-type";
-			}
-		}
-	}
-
+    /** Name of the RSocket request type. */
+    REQUEST_TYPE {
+      @Override
+      public String getKey() {
+        return "rsocket.request-type";
+      }
+    }
+  }
 }

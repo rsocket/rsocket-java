@@ -24,11 +24,10 @@ import io.rsocket.metadata.CompositeMetadataCodec;
 
 public class ByteBufSetter implements Propagator.Setter<CompositeByteBuf> {
 
-	@Override
-	public void set(CompositeByteBuf carrier, String key, String value) {
-		final ByteBufAllocator alloc = carrier.alloc();
-		CompositeMetadataCodec.encodeAndAddMetadataWithCompression(carrier, alloc, key,
-				ByteBufUtil.writeUtf8(alloc, value));
-	}
-
+  @Override
+  public void set(CompositeByteBuf carrier, String key, String value) {
+    final ByteBufAllocator alloc = carrier.alloc();
+    CompositeMetadataCodec.encodeAndAddMetadataWithCompression(
+        carrier, alloc, key, ByteBufUtil.writeUtf8(alloc, value));
+  }
 }

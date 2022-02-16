@@ -27,6 +27,7 @@ dependencies {
     implementation "io.micrometer:micrometer-api"
     implementation "io.micrometer:micrometer-tracing"
     implementation project(":rsocket-micrometer")
+    testImplementation 'org.awaitility:awaitility'
 
     implementation 'com.netflix.concurrency-limits:concurrency-limits-core'
 
