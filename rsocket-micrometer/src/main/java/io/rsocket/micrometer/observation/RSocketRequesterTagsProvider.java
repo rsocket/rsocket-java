@@ -17,35 +17,17 @@
 package io.rsocket.micrometer.observation;
 
 import io.micrometer.api.instrument.observation.Observation;
-import io.micrometer.api.lang.Nullable;
-import io.netty.buffer.ByteBuf;
-import io.rsocket.Payload;
-import io.rsocket.frame.FrameType;
 
-class RSocketContext extends Observation.Context {
+/**
+ * {@link Observation.TagsProvider} for RSocket requester {@link RSocketContext}.
+ *
+ * @author Marcin Grzejszczak
+ * @since 2.0.0
+ */
+public interface RSocketRequesterTagsProvider extends Observation.TagsProvider<RSocketContext> {
 
-  final Payload payload;
-
-  final ByteBuf metadata;
-
-  final FrameType frameType;
-
-  final String route;
-
-  final Side side;
-
-  Payload modifiedPayload;
-
-  RSocketContext(Payload payload, ByteBuf metadata, FrameType frameType, @Nullable String route, Side side) {
-    this.payload = payload;
-    this.metadata = metadata;
-    this.frameType = frameType;
-    this.route = route;
-    this.side = side;
-  }
-
-  enum Side {
-    REQUESTER,
-    RESPONDER
-  }
+	@Override
+	default boolean supportsContext(Observation.Context context) {
+		return context instanceof RSocketContext && ((RSocketContext) context).side == RSocketContext.Side.REQUESTER;
+	}
 }

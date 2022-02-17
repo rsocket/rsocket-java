@@ -39,9 +39,11 @@ import reactor.core.publisher.Mono;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationResponderRSocketProxy extends RSocketProxy {
+public class ObservationResponderRSocketProxy extends RSocketProxy implements Observation.TagsProviderAware<RSocketResponderTagsProvider> {
 
   private final ObservationRegistry observationRegistry;
+
+  private RSocketResponderTagsProvider tagsProvider = new DefaultRSocketResponderTagsProvider();
 
   public ObservationResponderRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -51,43 +53,39 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     // called on Netty EventLoop
-    // there can't be trace context in thread local here
+    // there can't be observation in thread local here
+    ByteBuf sliceMetadata = payload.sliceMetadata();
+    String route = route(payload, sliceMetadata);
     RSocketContext rSocketContext =
         new RSocketContext(
-            payload, payload.sliceMetadata(), FrameType.REQUEST_FNF, RSocketContext.Side.RESPONDER);
+            payload, payload.sliceMetadata(), FrameType.REQUEST_FNF, route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
-        Observation.start(
-                RSocketObservation.RSOCKET_RESPONDER_FNF.getName(),
-                rSocketContext,
-                this.observationRegistry)
-            .lowCardinalityTag(
-                RSocketObservation.ResponderTags.REQUEST_TYPE.getKey(),
-                FrameType.REQUEST_FNF.name());
-    addRouteRelatedElements(
-        newObservation, FrameType.REQUEST_FNF, route(payload, payload.sliceMetadata()));
+            startObservation(RSocketObservation.RSOCKET_RESPONDER_FNF.getName(), rSocketContext);
     return super.fireAndForget(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
   }
 
+  private Observation startObservation(String name, RSocketContext rSocketContext) {
+    return Observation.start(
+                    name,
+                    rSocketContext,
+                    this.observationRegistry)
+            .tagsProvider(this.tagsProvider);
+  }
+
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
+    ByteBuf sliceMetadata = payload.sliceMetadata();
+    String route = route(payload, sliceMetadata);
     RSocketContext rSocketContext =
         new RSocketContext(
             payload,
             payload.sliceMetadata(),
             FrameType.REQUEST_RESPONSE,
-            RSocketContext.Side.RESPONDER);
+                route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
-        Observation.start(
-                RSocketObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE.getName(),
-                rSocketContext,
-                this.observationRegistry)
-            .lowCardinalityTag(
-                RSocketObservation.ResponderTags.REQUEST_TYPE.getKey(),
-                FrameType.REQUEST_RESPONSE.name());
-    addRouteRelatedElements(
-        newObservation, FrameType.REQUEST_RESPONSE, route(payload, payload.sliceMetadata()));
+            startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE.getName(), rSocketContext);
     return super.requestResponse(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -95,22 +93,17 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
+    ByteBuf sliceMetadata = payload.sliceMetadata();
+    String route = route(payload, sliceMetadata);
     RSocketContext rSocketContext =
         new RSocketContext(
             payload,
-            payload.sliceMetadata(),
+                sliceMetadata,
             FrameType.REQUEST_STREAM,
-            RSocketContext.Side.RESPONDER);
+                route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
-        Observation.start(
-                RSocketObservation.RSOCKET_RESPONDER_REQUEST_STREAM.getName(),
-                rSocketContext,
-                this.observationRegistry)
-            .lowCardinalityTag(
-                RSocketObservation.ResponderTags.REQUEST_TYPE.getKey(),
-                FrameType.REQUEST_STREAM.name());
-    addRouteRelatedElements(
-        newObservation, FrameType.REQUEST_STREAM, route(payload, payload.sliceMetadata()));
+            startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_STREAM.getName(),
+                rSocketContext);
     return super.requestStream(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -123,25 +116,19 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             (firstSignal, flux) -> {
               final Payload firstPayload = firstSignal.get();
               if (firstPayload != null) {
+                ByteBuf sliceMetadata = firstPayload.sliceMetadata();
+                String route = route(firstPayload, sliceMetadata);
                 RSocketContext rSocketContext =
                     new RSocketContext(
                         firstPayload,
                         firstPayload.sliceMetadata(),
-                        FrameType.REQUEST_CHANNEL,
+                        FrameType.REQUEST_CHANNEL, route,
                         RSocketContext.Side.RESPONDER);
                 Observation newObservation =
-                    Observation.start(
-                            RSocketObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL.getName(),
-                            rSocketContext,
-                            this.observationRegistry)
-                        .lowCardinalityTag(
-                            RSocketObservation.ResponderTags.REQUEST_TYPE.getKey(),
-                            FrameType.REQUEST_CHANNEL.name());
-                ;
-                addRouteRelatedElements(
-                    newObservation,
-                    FrameType.REQUEST_CHANNEL,
-                    route(firstPayload, firstPayload.sliceMetadata()));
+                        startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL.getName(), rSocketContext);
+                if (StringUtils.isNotBlank(route)) {
+                  newObservation.contextualName(rSocketContext.frameType.name() + " " + route);
+                }
                 return super.requestChannel(flux.skip(1).startWith(rSocketContext.modifiedPayload))
                     .doOnError(newObservation::error)
                     .doFinally(signalType -> newObservation.stop());
@@ -168,11 +155,8 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
     return null;
   }
 
-  private void addRouteRelatedElements(Observation observation, FrameType frameType, String route) {
-    if (StringUtils.isBlank(route)) {
-      return;
-    }
-    observation.contextualName(frameType.name() + " " + route);
-    observation.lowCardinalityTag(Tag.of(RSocketObservation.ResponderTags.ROUTE.getKey(), route));
+  @Override
+  public void setTagsProvider(RSocketResponderTagsProvider tagsProvider) {
+    this.tagsProvider = tagsProvider;
   }
 }

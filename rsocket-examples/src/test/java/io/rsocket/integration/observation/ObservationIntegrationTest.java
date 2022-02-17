@@ -18,14 +18,23 @@ package io.rsocket.integration.observation;
 
 import java.time.Duration;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import io.micrometer.api.instrument.MeterRegistry;
+import io.micrometer.api.instrument.Tag;
+import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.tck.MeterRegistryAssert;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.exporter.FinishedSpan;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
+import io.micrometer.tracing.test.simple.SpansAssert;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
@@ -116,7 +125,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
 
   @Override
   public SampleTestRunnerConsumer yourCode() {
-    return (tracer, meterRegistry) -> {
+    return (bb, meterRegistry) -> {
       counter = new AtomicInteger();
       server =
           RSocketServer.create(
@@ -171,6 +180,39 @@ public class ObservationIntegrationTest extends SampleTestRunner {
       testRequestChannel();
 
       testFireAndForget();
+
+      // @formatter:off
+      SpansAssert.assertThat(bb.getFinishedSpans())
+              .haveSameTraceId()
+              // "request_*" + "handle" x 4
+              .hasNumberOfSpansEqualTo(8)
+              .hasNumberOfSpansWithNameEqualTo("handle", 4)
+                .forAllSpansWithNameEqualTo("handle", span -> span.hasTagWithKey("rsocket.request-type"))
+              .hasASpanWithNameIgnoreCase("request_stream")
+                .thenASpanWithNameEqualToIgnoreCase("request_stream")
+                .hasTag("rsocket.request-type", "REQUEST_STREAM")
+                .backToSpans()
+              .hasASpanWithNameIgnoreCase("request_channel")
+                .thenASpanWithNameEqualToIgnoreCase("request_channel")
+                .hasTag("rsocket.request-type", "REQUEST_CHANNEL")
+                .backToSpans()
+              .hasASpanWithNameIgnoreCase("request_fnf")
+                .thenASpanWithNameEqualToIgnoreCase("request_fnf")
+                .hasTag("rsocket.request-type", "REQUEST_FNF")
+                .backToSpans()
+              .hasASpanWithNameIgnoreCase("request_response")
+                .thenASpanWithNameEqualToIgnoreCase("request_response")
+                .hasTag("rsocket.request-type", "REQUEST_RESPONSE");
+
+      MeterRegistryAssert.assertThat(registry)
+              .hasTimerWithNameAndTags("rsocket.response", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
+              .hasTimerWithNameAndTags("rsocket.fnf", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_FNF")))
+              .hasTimerWithNameAndTags("rsocket.request", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
+              .hasTimerWithNameAndTags("rsocket.channel", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_CHANNEL")))
+              .hasTimerWithNameAndTags("rsocket.stream", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_STREAM")));
+      // @formatter:on
     };
+
   }
+
 }

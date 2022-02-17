@@ -38,6 +38,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'io.projectreactor:reactor-test'
+    testImplementation "io.micrometer:micrometer-test"
     testImplementation "io.micrometer:micrometer-tracing-integration-test"
 
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'

@@ -42,9 +42,11 @@ import reactor.util.context.ContextView;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationRequesterRSocketProxy extends RSocketProxy {
+public class ObservationRequesterRSocketProxy extends RSocketProxy implements Observation.TagsProviderAware<RSocketRequesterTagsProvider> {
 
   private final ObservationRegistry observationRegistry;
+
+  private RSocketRequesterTagsProvider tagsProvider = new DefaultRSocketRequesterTagsProvider();
 
   public ObservationRequesterRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -107,15 +109,14 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
       Payload payload,
       FrameType frameType,
       DocumentedObservation obs) {
+    String route = route(payload);
     RSocketContext rSocketContext =
         new RSocketContext(
-            payload, payload.sliceMetadata(), frameType, RSocketContext.Side.REQUESTER);
+            payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
     Observation observation =
         Observation.start(obs.getName(), rSocketContext, observationRegistry)
-            .lowCardinalityTag(
-                RSocketObservation.RequesterTags.REQUEST_TYPE.getKey(), frameType.name());
-    // TODO: Add low cardinality tag for content-type
-    addRouteRelatedElements(payload, frameType, observation);
+                .tagsProvider(this.tagsProvider);
+    setContextualName(frameType, route, observation);
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
       newPayload = rSocketContext.modifiedPayload;
@@ -185,14 +186,14 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
       DocumentedObservation obs) {
     return Flux.deferContextual(
         contextView -> {
+          String route = route(payload);
           RSocketContext rSocketContext =
               new RSocketContext(
-                  payload, payload.sliceMetadata(), frameType, RSocketContext.Side.REQUESTER);
+                  payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
           Observation newObservation =
               Observation.start(obs.getName(), rSocketContext, this.observationRegistry)
-                  .lowCardinalityTag(
-                      RSocketObservation.ResponderTags.REQUEST_TYPE.getKey(), frameType.name());
-          addRouteRelatedElements(payload, frameType, newObservation);
+                      .tagsProvider(this.tagsProvider);
+          setContextualName(frameType, route, newObservation);
           return input
               .apply(rSocketContext.modifiedPayload)
               .doOnError(newObservation::error)
@@ -200,15 +201,16 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
         });
   }
 
-  private void addRouteRelatedElements(
-      Payload payload, FrameType frameType, Observation newObservation) {
-    String route = route(payload);
+  private void setContextualName(FrameType frameType, String route, Observation newObservation) {
     if (StringUtils.isNotBlank(route)) {
       newObservation.contextualName(frameType.name() + " " + route);
-      newObservation.lowCardinalityTag(
-          Tag.of(RSocketObservation.RequesterTags.ROUTE.getKey(), route));
     } else {
       newObservation.contextualName(frameType.name());
     }
+  }
+
+  @Override
+  public void setTagsProvider(RSocketRequesterTagsProvider tagsProvider) {
+    this.tagsProvider = tagsProvider;
   }
 }
