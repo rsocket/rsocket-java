@@ -22,7 +22,7 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
 
-class RSocketContext extends Observation.Context {
+public class RSocketContext extends Observation.Context {
 
   final Payload payload;
 
@@ -44,8 +44,32 @@ class RSocketContext extends Observation.Context {
     this.side = side;
   }
 
-  enum Side {
+  public enum Side {
     REQUESTER,
     RESPONDER
+  }
+
+  public Payload getPayload() {
+    return payload;
+  }
+
+  public ByteBuf getMetadata() {
+    return metadata;
+  }
+
+  public FrameType getFrameType() {
+    return frameType;
+  }
+
+  public String getRoute() {
+    return route;
+  }
+
+  public Side getSide() {
+    return side;
+  }
+
+  public Payload getModifiedPayload() {
+    return modifiedPayload;
   }
 }
