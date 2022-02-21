@@ -16,7 +16,6 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.Tag;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.observation.ObservationRegistry;
 import io.micrometer.api.instrument.util.StringUtils;
@@ -39,7 +38,8 @@ import reactor.core.publisher.Mono;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationResponderRSocketProxy extends RSocketProxy implements Observation.TagsProviderAware<RSocketResponderTagsProvider> {
+public class ObservationResponderRSocketProxy extends RSocketProxy
+    implements Observation.TagsProviderAware<RSocketResponderTagsProvider> {
 
   private final ObservationRegistry observationRegistry;
 
@@ -58,20 +58,21 @@ public class ObservationResponderRSocketProxy extends RSocketProxy implements Ob
     String route = route(payload, sliceMetadata);
     RSocketContext rSocketContext =
         new RSocketContext(
-            payload, payload.sliceMetadata(), FrameType.REQUEST_FNF, route, RSocketContext.Side.RESPONDER);
+            payload,
+            payload.sliceMetadata(),
+            FrameType.REQUEST_FNF,
+            route,
+            RSocketContext.Side.RESPONDER);
     Observation newObservation =
-            startObservation(RSocketObservation.RSOCKET_RESPONDER_FNF.getName(), rSocketContext);
+        startObservation(RSocketObservation.RSOCKET_RESPONDER_FNF.getName(), rSocketContext);
     return super.fireAndForget(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
   }
 
   private Observation startObservation(String name, RSocketContext rSocketContext) {
-    return Observation.start(
-                    name,
-                    rSocketContext,
-                    this.observationRegistry)
-            .tagsProvider(this.tagsProvider);
+    return Observation.start(name, rSocketContext, this.observationRegistry)
+        .tagsProvider(this.tagsProvider);
   }
 
   @Override
@@ -83,9 +84,11 @@ public class ObservationResponderRSocketProxy extends RSocketProxy implements Ob
             payload,
             payload.sliceMetadata(),
             FrameType.REQUEST_RESPONSE,
-                route, RSocketContext.Side.RESPONDER);
+            route,
+            RSocketContext.Side.RESPONDER);
     Observation newObservation =
-            startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE.getName(), rSocketContext);
+        startObservation(
+            RSocketObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE.getName(), rSocketContext);
     return super.requestResponse(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -97,13 +100,10 @@ public class ObservationResponderRSocketProxy extends RSocketProxy implements Ob
     String route = route(payload, sliceMetadata);
     RSocketContext rSocketContext =
         new RSocketContext(
-            payload,
-                sliceMetadata,
-            FrameType.REQUEST_STREAM,
-                route, RSocketContext.Side.RESPONDER);
+            payload, sliceMetadata, FrameType.REQUEST_STREAM, route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
-            startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_STREAM.getName(),
-                rSocketContext);
+        startObservation(
+            RSocketObservation.RSOCKET_RESPONDER_REQUEST_STREAM.getName(), rSocketContext);
     return super.requestStream(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -122,10 +122,13 @@ public class ObservationResponderRSocketProxy extends RSocketProxy implements Ob
                     new RSocketContext(
                         firstPayload,
                         firstPayload.sliceMetadata(),
-                        FrameType.REQUEST_CHANNEL, route,
+                        FrameType.REQUEST_CHANNEL,
+                        route,
                         RSocketContext.Side.RESPONDER);
                 Observation newObservation =
-                        startObservation(RSocketObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL.getName(), rSocketContext);
+                    startObservation(
+                        RSocketObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL.getName(),
+                        rSocketContext);
                 if (StringUtils.isNotBlank(route)) {
                   newObservation.contextualName(rSocketContext.frameType.name() + " " + route);
                 }

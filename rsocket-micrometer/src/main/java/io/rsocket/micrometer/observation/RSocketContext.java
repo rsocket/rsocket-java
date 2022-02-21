@@ -36,7 +36,8 @@ public class RSocketContext extends Observation.Context {
 
   Payload modifiedPayload;
 
-  RSocketContext(Payload payload, ByteBuf metadata, FrameType frameType, @Nullable String route, Side side) {
+  RSocketContext(
+      Payload payload, ByteBuf metadata, FrameType frameType, @Nullable String route, Side side) {
     this.payload = payload;
     this.metadata = metadata;
     this.frameType = frameType;

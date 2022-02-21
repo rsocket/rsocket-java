@@ -28,17 +28,17 @@ import io.micrometer.api.instrument.util.StringUtils;
  */
 public class DefaultRSocketRequesterTagsProvider implements RSocketRequesterTagsProvider {
 
-	@Override
-	public Tags getLowCardinalityTags(RSocketContext context) {
-		Tags tags = Tags.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
-		if (StringUtils.isNotBlank(context.route)) {
-			tags = tags.and(RSocketObservation.ResponderTags.ROUTE.of(context.route));
-		}
-		return tags;
-	}
+  @Override
+  public Tags getLowCardinalityTags(RSocketContext context) {
+    Tags tags = Tags.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
+    if (StringUtils.isNotBlank(context.route)) {
+      tags = tags.and(RSocketObservation.ResponderTags.ROUTE.of(context.route));
+    }
+    return tags;
+  }
 
-	@Override
-	public boolean supportsContext(Observation.Context context) {
-		return context instanceof RSocketContext;
-	}
+  @Override
+  public boolean supportsContext(Observation.Context context) {
+    return context instanceof RSocketContext;
+  }
 }

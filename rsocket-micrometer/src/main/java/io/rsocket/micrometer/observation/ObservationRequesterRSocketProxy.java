@@ -16,7 +16,6 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.Tag;
 import io.micrometer.api.instrument.docs.DocumentedObservation;
 import io.micrometer.api.instrument.observation.Observation;
 import io.micrometer.api.instrument.observation.ObservationRegistry;
@@ -42,7 +41,8 @@ import reactor.util.context.ContextView;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationRequesterRSocketProxy extends RSocketProxy implements Observation.TagsProviderAware<RSocketRequesterTagsProvider> {
+public class ObservationRequesterRSocketProxy extends RSocketProxy
+    implements Observation.TagsProviderAware<RSocketRequesterTagsProvider> {
 
   private final ObservationRegistry observationRegistry;
 
@@ -115,7 +115,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy implements Ob
             payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
     Observation observation =
         Observation.start(obs.getName(), rSocketContext, observationRegistry)
-                .tagsProvider(this.tagsProvider);
+            .tagsProvider(this.tagsProvider);
     setContextualName(frameType, route, observation);
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
@@ -189,10 +189,14 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy implements Ob
           String route = route(payload);
           RSocketContext rSocketContext =
               new RSocketContext(
-                  payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
+                  payload,
+                  payload.sliceMetadata(),
+                  frameType,
+                  route,
+                  RSocketContext.Side.REQUESTER);
           Observation newObservation =
               Observation.start(obs.getName(), rSocketContext, this.observationRegistry)
-                      .tagsProvider(this.tagsProvider);
+                  .tagsProvider(this.tagsProvider);
           setContextualName(frameType, route, newObservation);
           return input
               .apply(rSocketContext.modifiedPayload)

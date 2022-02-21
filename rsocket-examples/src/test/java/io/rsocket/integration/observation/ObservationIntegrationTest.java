@@ -16,12 +16,7 @@
 
 package io.rsocket.integration.observation;
 
-import java.time.Duration;
-import java.util.Deque;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.api.instrument.MeterRegistry;
 import io.micrometer.api.instrument.Tag;
@@ -29,9 +24,6 @@ import io.micrometer.api.instrument.Tags;
 import io.micrometer.api.instrument.observation.ObservationHandler;
 import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.tck.MeterRegistryAssert;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
-import io.micrometer.tracing.exporter.FinishedSpan;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
 import io.micrometer.tracing.test.simple.SpansAssert;
@@ -50,17 +42,19 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.time.Duration;
+import java.util.Deque;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 public class ObservationIntegrationTest extends SampleTestRunner {
-  private static final MeterRegistry registry = new SimpleMeterRegistry()
-          .withTimerObservationHandler();
+  private static final MeterRegistry registry =
+      new SimpleMeterRegistry().withTimerObservationHandler();
 
   private final RSocketInterceptor requesterInterceptor;
   private final RSocketInterceptor responderInterceptor;
@@ -68,12 +62,10 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   ObservationIntegrationTest() {
     super(SampleRunnerConfig.builder().build(), registry);
     requesterInterceptor =
-            reactiveSocket ->
-                    new ObservationRequesterRSocketProxy(reactiveSocket, registry);
+        reactiveSocket -> new ObservationRequesterRSocketProxy(reactiveSocket, registry);
 
     responderInterceptor =
-            reactiveSocket ->
-                    new ObservationResponderRSocketProxy(reactiveSocket, registry);
+        reactiveSocket -> new ObservationResponderRSocketProxy(reactiveSocket, registry);
   }
 
   private CloseableChannel server;
@@ -83,8 +75,18 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   @Override
   public BiConsumer<BuildingBlocks, Deque<ObservationHandler>> customizeObservationHandlers() {
     return (buildingBlocks, observationHandlers) -> {
-      observationHandlers.addFirst(new RSocketRequesterTracingObservationHandler(buildingBlocks.getTracer(), buildingBlocks.getPropagator(), new ByteBufSetter(), false));
-      observationHandlers.addFirst(new RSocketResponderTracingObservationHandler(buildingBlocks.getTracer(), buildingBlocks.getPropagator(), new ByteBufGetter(), false));
+      observationHandlers.addFirst(
+          new RSocketRequesterTracingObservationHandler(
+              buildingBlocks.getTracer(),
+              buildingBlocks.getPropagator(),
+              new ByteBufSetter(),
+              false));
+      observationHandlers.addFirst(
+          new RSocketResponderTracingObservationHandler(
+              buildingBlocks.getTracer(),
+              buildingBlocks.getPropagator(),
+              new ByteBufGetter(),
+              false));
     };
   }
 
@@ -117,9 +119,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private void testFireAndForget() {
     counter.set(0);
     client.fireAndForget(DefaultPayload.create("start")).subscribe();
-    Awaitility.await()
-              .atMost(Duration.ofSeconds(5))
-              .until(() -> counter.get() == 1);
+    Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> counter.get() == 1);
     assertThat(counter).as("Server did not see the request.").hasValue(1);
   }
 
@@ -183,36 +183,44 @@ public class ObservationIntegrationTest extends SampleTestRunner {
 
       // @formatter:off
       SpansAssert.assertThat(bb.getFinishedSpans())
-              .haveSameTraceId()
-              // "request_*" + "handle" x 4
-              .hasNumberOfSpansEqualTo(8)
-              .hasNumberOfSpansWithNameEqualTo("handle", 4)
-                .forAllSpansWithNameEqualTo("handle", span -> span.hasTagWithKey("rsocket.request-type"))
-              .hasASpanWithNameIgnoreCase("request_stream")
-                .thenASpanWithNameEqualToIgnoreCase("request_stream")
-                .hasTag("rsocket.request-type", "REQUEST_STREAM")
-                .backToSpans()
-              .hasASpanWithNameIgnoreCase("request_channel")
-                .thenASpanWithNameEqualToIgnoreCase("request_channel")
-                .hasTag("rsocket.request-type", "REQUEST_CHANNEL")
-                .backToSpans()
-              .hasASpanWithNameIgnoreCase("request_fnf")
-                .thenASpanWithNameEqualToIgnoreCase("request_fnf")
-                .hasTag("rsocket.request-type", "REQUEST_FNF")
-                .backToSpans()
-              .hasASpanWithNameIgnoreCase("request_response")
-                .thenASpanWithNameEqualToIgnoreCase("request_response")
-                .hasTag("rsocket.request-type", "REQUEST_RESPONSE");
+          .haveSameTraceId()
+          // "request_*" + "handle" x 4
+          .hasNumberOfSpansEqualTo(8)
+          .hasNumberOfSpansWithNameEqualTo("handle", 4)
+          .forAllSpansWithNameEqualTo("handle", span -> span.hasTagWithKey("rsocket.request-type"))
+          .hasASpanWithNameIgnoreCase("request_stream")
+          .thenASpanWithNameEqualToIgnoreCase("request_stream")
+          .hasTag("rsocket.request-type", "REQUEST_STREAM")
+          .backToSpans()
+          .hasASpanWithNameIgnoreCase("request_channel")
+          .thenASpanWithNameEqualToIgnoreCase("request_channel")
+          .hasTag("rsocket.request-type", "REQUEST_CHANNEL")
+          .backToSpans()
+          .hasASpanWithNameIgnoreCase("request_fnf")
+          .thenASpanWithNameEqualToIgnoreCase("request_fnf")
+          .hasTag("rsocket.request-type", "REQUEST_FNF")
+          .backToSpans()
+          .hasASpanWithNameIgnoreCase("request_response")
+          .thenASpanWithNameEqualToIgnoreCase("request_response")
+          .hasTag("rsocket.request-type", "REQUEST_RESPONSE");
 
       MeterRegistryAssert.assertThat(registry)
-              .hasTimerWithNameAndTags("rsocket.response", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
-              .hasTimerWithNameAndTags("rsocket.fnf", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_FNF")))
-              .hasTimerWithNameAndTags("rsocket.request", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
-              .hasTimerWithNameAndTags("rsocket.channel", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_CHANNEL")))
-              .hasTimerWithNameAndTags("rsocket.stream", Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_STREAM")));
+          .hasTimerWithNameAndTags(
+              "rsocket.response",
+              Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
+          .hasTimerWithNameAndTags(
+              "rsocket.fnf",
+              Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_FNF")))
+          .hasTimerWithNameAndTags(
+              "rsocket.request",
+              Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_RESPONSE")))
+          .hasTimerWithNameAndTags(
+              "rsocket.channel",
+              Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_CHANNEL")))
+          .hasTimerWithNameAndTags(
+              "rsocket.stream",
+              Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_STREAM")));
       // @formatter:on
     };
-
   }
-
 }

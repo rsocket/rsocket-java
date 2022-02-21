@@ -26,8 +26,9 @@ import io.micrometer.api.instrument.observation.Observation;
  */
 public interface RSocketResponderTagsProvider extends Observation.TagsProvider<RSocketContext> {
 
-	@Override
-	default boolean supportsContext(Observation.Context context) {
-		return context instanceof RSocketContext && ((RSocketContext) context).side == RSocketContext.Side.RESPONDER;
-	}
+  @Override
+  default boolean supportsContext(Observation.Context context) {
+    return context instanceof RSocketContext
+        && ((RSocketContext) context).side == RSocketContext.Side.RESPONDER;
+  }
 }
