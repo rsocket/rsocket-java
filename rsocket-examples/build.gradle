@@ -25,7 +25,7 @@ dependencies {
     implementation project(':rsocket-transport-netty')
 
     implementation "io.micrometer:micrometer-api"
-    implementation "io.micrometer:micrometer-tracing"
+    implementation "io.micrometer:micrometer-tracing-api"
     implementation project(":rsocket-micrometer")
     testImplementation 'org.awaitility:awaitility'
 
