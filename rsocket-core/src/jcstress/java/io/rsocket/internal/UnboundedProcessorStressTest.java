@@ -13,8 +13,13 @@ import org.openjdk.jcstress.infra.results.LLLL_Result;
 import org.openjdk.jcstress.infra.results.LLL_Result;
 import org.openjdk.jcstress.infra.results.L_Result;
 import reactor.core.Fuseable;
+import reactor.core.publisher.Hooks;
 
 public abstract class UnboundedProcessorStressTest {
+
+  static {
+    Hooks.onErrorDropped(t -> {});
+  }
 
   final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
 
@@ -91,7 +96,6 @@ public abstract class UnboundedProcessorStressTest {
 
     @Actor
     public void request() {
-      stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
@@ -221,7 +225,6 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
-      stressSubscriber.request(1);
     }
 
     @Actor
@@ -325,6 +328,110 @@ public abstract class UnboundedProcessorStressTest {
     public void subscribeAndRequest() {
       unboundedProcessor.subscribe(stressSubscriber);
       stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+    }
+
+    @Actor
+    public void dispose() {
+      unboundedProcessor.dispose();
+    }
+
+    @Actor
+    public void next1() {
+      unboundedProcessor.onNext(byteBuf1);
+      unboundedProcessor.onNextPrioritized(byteBuf2);
+    }
+
+    @Actor
+    public void next2() {
+      unboundedProcessor.onNextPrioritized(byteBuf3);
+      unboundedProcessor.onNext(byteBuf4);
+    }
+
+    @Actor
+    public void complete() {
+      unboundedProcessor.onComplete();
+    }
+
+    @Actor
+    public void error() {
+      unboundedProcessor.onError(testException);
+    }
+
+    @Arbiter
+    public void arbiter(LLL_Result r) {
+      r.r1 = stressSubscriber.onNextCalls;
+      r.r2 =
+          stressSubscriber.onCompleteCalls
+              + stressSubscriber.onErrorCalls * 2
+              + stressSubscriber.droppedErrors.size() * 3;
+
+      if (stressSubscriber.onCompleteCalls > 0 && stressSubscriber.onErrorCalls > 0) {
+        throw new RuntimeException("boom");
+      }
+
+      stressSubscriber.values.forEach(ByteBuf::release);
+
+      r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+    }
+  }
+
+  @JCStressTest
+  @Outcome(
+      id = {
+        "0, 1, 0",
+        "1, 1, 0",
+        "2, 1, 0",
+        "3, 1, 0",
+        "4, 1, 0",
+
+        // dropped error scenarios
+        "0, 4, 0",
+        "1, 4, 0",
+        "2, 4, 0",
+        "3, 4, 0",
+        "4, 4, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onComplete() before dispose() || onError()")
+  @Outcome(
+      id = {
+        "0, 2, 0", "1, 2, 0", "2, 2, 0", "3, 2, 0", "4, 2, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onError() before dispose() || onComplete()")
+  @Outcome(
+      id = {
+        "0, 2, 0",
+        "1, 2, 0",
+        "2, 2, 0",
+        "3, 2, 0",
+        "4, 2, 0",
+        // dropped error
+        "0, 5, 0",
+        "1, 5, 0",
+        "2, 5, 0",
+        "3, 5, 0",
+        "4, 5, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "dispose() before onError() || onComplete()")
+  @State
+  public static class Smoke24StressTest extends UnboundedProcessorStressTest {
+
+    static final RuntimeException testException = new RuntimeException("test");
+
+    final StressSubscriber<ByteBuf> stressSubscriber = new StressSubscriber<>(0, Fuseable.NONE);
+    final ByteBuf byteBuf1 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(1);
+    final ByteBuf byteBuf2 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(2);
+    final ByteBuf byteBuf3 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    final ByteBuf byteBuf4 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(4);
+
+    @Actor
+    public void subscribeAndRequest() {
+      unboundedProcessor.subscribe(stressSubscriber);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
@@ -581,6 +688,197 @@ public abstract class UnboundedProcessorStressTest {
     @Actor
     public void error() {
       unboundedProcessor.onError(testException);
+    }
+
+    @Arbiter
+    public void arbiter(LLL_Result r) {
+      r.r1 = stressSubscriber.onNextCalls;
+      r.r2 =
+          stressSubscriber.onCompleteCalls
+              + stressSubscriber.onErrorCalls * 2
+              + stressSubscriber.droppedErrors.size() * 3;
+
+      stressSubscriber.values.forEach(ByteBuf::release);
+
+      r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+    }
+  }
+
+  @JCStressTest
+  @Outcome(
+      id = {
+        "0, 1, 0", "1, 1, 0", "2, 1, 0", "3, 1, 0", "4, 1, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onComplete()")
+  @Outcome(
+      id = {
+        "0, 0, 0",
+        "1, 0, 0",
+        "2, 0, 0",
+        "3, 0, 0",
+        "4, 0, 0",
+        // interleave with error or complete happened first but dispose suppressed them
+        "0, 3, 0",
+        "1, 3, 0",
+        "2, 3, 0",
+        "3, 3, 0",
+        "4, 3, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "cancel() before or interleave with onComplete()")
+  @State
+  public static class Smoke30StressTest extends UnboundedProcessorStressTest {
+
+    final StressSubscriber<ByteBuf> stressSubscriber = new StressSubscriber<>(0, Fuseable.NONE);
+    final ByteBuf byteBuf1 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(1);
+    final ByteBuf byteBuf2 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(2);
+    final ByteBuf byteBuf3 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    final ByteBuf byteBuf4 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(4);
+
+    {
+      unboundedProcessor.subscribe(stressSubscriber);
+    }
+
+    @Actor
+    public void subscribeAndRequest() {
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+    }
+
+    @Actor
+    public void cancel() {
+      stressSubscriber.cancel();
+    }
+
+    @Actor
+    public void next1() {
+      unboundedProcessor.onNext(byteBuf1);
+      unboundedProcessor.onNextPrioritized(byteBuf2);
+    }
+
+    @Actor
+    public void next2() {
+      unboundedProcessor.onNextPrioritized(byteBuf3);
+      unboundedProcessor.onNext(byteBuf4);
+    }
+
+    @Actor
+    public void complete() {
+      unboundedProcessor.onComplete();
+    }
+
+    @Arbiter
+    public void arbiter(LLL_Result r) {
+      r.r1 = stressSubscriber.onNextCalls;
+      r.r2 =
+          stressSubscriber.onCompleteCalls
+              + stressSubscriber.onErrorCalls * 2
+              + stressSubscriber.droppedErrors.size() * 3;
+
+      stressSubscriber.values.forEach(ByteBuf::release);
+
+      r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+    }
+  }
+
+  @JCStressTest
+  @Outcome(
+      id = {
+        "0, 1, 0", "1, 1, 0", "2, 1, 0", "3, 1, 0", "4, 1, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onComplete()")
+  @State
+  public static class Smoke31StressTest extends UnboundedProcessorStressTest {
+
+    final StressSubscriber<ByteBuf> stressSubscriber = new StressSubscriber<>(0, Fuseable.NONE);
+    final ByteBuf byteBuf1 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(1);
+    final ByteBuf byteBuf2 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(2);
+    final ByteBuf byteBuf3 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    final ByteBuf byteBuf4 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(4);
+
+    {
+      unboundedProcessor.subscribe(stressSubscriber);
+    }
+
+    @Actor
+    public void subscribeAndRequest() {
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+      stressSubscriber.request(1);
+    }
+
+    @Actor
+    public void next1() {
+      unboundedProcessor.onNext(byteBuf1);
+      unboundedProcessor.onNextPrioritized(byteBuf2);
+    }
+
+    @Actor
+    public void next2() {
+      unboundedProcessor.onNextPrioritized(byteBuf3);
+      unboundedProcessor.onNext(byteBuf4);
+    }
+
+    @Actor
+    public void complete() {
+      unboundedProcessor.onComplete();
+    }
+
+    @Arbiter
+    public void arbiter(LLL_Result r) {
+      r.r1 = stressSubscriber.onNextCalls;
+      r.r2 =
+          stressSubscriber.onCompleteCalls
+              + stressSubscriber.onErrorCalls * 2
+              + stressSubscriber.droppedErrors.size() * 3;
+
+      stressSubscriber.values.forEach(ByteBuf::release);
+
+      r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+    }
+  }
+
+  @JCStressTest
+  @Outcome(
+      id = {
+        "0, 1, 0", "1, 1, 0", "2, 1, 0", "3, 1, 0", "4, 1, 0",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onComplete()")
+  @State
+  public static class Smoke32StressTest extends UnboundedProcessorStressTest {
+
+    final StressSubscriber<ByteBuf> stressSubscriber =
+        new StressSubscriber<>(Long.MAX_VALUE, Fuseable.NONE);
+    final ByteBuf byteBuf1 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(1);
+    final ByteBuf byteBuf2 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(2);
+    final ByteBuf byteBuf3 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    final ByteBuf byteBuf4 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(4);
+
+    {
+      unboundedProcessor.subscribe(stressSubscriber);
+    }
+
+    @Actor
+    public void next1() {
+      unboundedProcessor.onNext(byteBuf1);
+      unboundedProcessor.onNextPrioritized(byteBuf2);
+    }
+
+    @Actor
+    public void next2() {
+      unboundedProcessor.onNextPrioritized(byteBuf3);
+      unboundedProcessor.onNext(byteBuf4);
+    }
+
+    @Actor
+    public void complete() {
+      unboundedProcessor.onComplete();
     }
 
     @Arbiter
@@ -997,7 +1295,6 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
-      stressSubscriber.request(1);
     }
 
     @Actor
@@ -1126,7 +1423,6 @@ public abstract class UnboundedProcessorStressTest {
     @Actor
     public void subscribeAndRequest() {
       unboundedProcessor.subscribe(stressSubscriber);
-      stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);
       stressSubscriber.request(1);

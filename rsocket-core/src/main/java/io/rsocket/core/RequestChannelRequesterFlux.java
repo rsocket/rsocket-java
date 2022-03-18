@@ -48,6 +48,7 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
+import reactor.util.context.ContextView;
 
 final class RequestChannelRequesterFlux extends Flux<Payload>
     implements RequesterFrameHandler,
@@ -763,7 +764,8 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     if (isSubscribedOrTerminated(state)) {
       Context cachedContext = this.cachedContext;
       if (cachedContext == null) {
-        cachedContext = this.inboundSubscriber.currentContext().putAll(DISCARD_CONTEXT);
+        cachedContext =
+            this.inboundSubscriber.currentContext().putAll((ContextView) DISCARD_CONTEXT);
         this.cachedContext = cachedContext;
       }
       return cachedContext;

@@ -24,10 +24,7 @@ abstract class BaseWebsocketServerTransport<
   private static final ChannelHandler pongHandler = new PongHandler();
 
   static Function<HttpServer, HttpServer> serverConfigurer =
-      server ->
-          server.tcpConfiguration(
-              tcpServer ->
-                  tcpServer.doOnConnection(connection -> connection.addHandlerLast(pongHandler)));
+      server -> server.doOnConnection(connection -> connection.addHandlerLast(pongHandler));
 
   final WebsocketServerSpec.Builder specBuilder =
       WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK);

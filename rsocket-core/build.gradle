@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,11 +42,12 @@ dependencies {
 
     jcstressImplementation(project(":rsocket-test"))
     jcstressImplementation "ch.qos.logback:logback-classic"
+    jcstressImplementation 'io.projectreactor:reactor-test'
 }
 
 jcstress {
     mode = 'quick' //quick, default, tough
-    jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.7"
+    jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.15"
 }
 
 jar {

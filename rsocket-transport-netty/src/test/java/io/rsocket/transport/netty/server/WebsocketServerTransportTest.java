@@ -41,7 +41,7 @@ final class WebsocketServerTransportTest {
     ArgumentCaptor<BiFunction> httpHandlerCaptor = ArgumentCaptor.forClass(BiFunction.class);
     HttpServer server = Mockito.spy(HttpServer.create());
     Mockito.doAnswer(a -> server).when(server).handle(httpHandlerCaptor.capture());
-    Mockito.doAnswer(a -> server).when(server).tcpConfiguration(any());
+    Mockito.doAnswer(a -> server).when(server).doOnConnection(any());
     Mockito.doAnswer(a -> Mono.empty()).when(server).bind();
 
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(server);
