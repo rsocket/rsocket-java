@@ -26,10 +26,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.stream.Stream;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
+import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.Fuseable;
 import reactor.core.Scannable;
-import reactor.core.publisher.FluxProcessor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
@@ -40,8 +41,12 @@ import reactor.util.context.Context;
  *
  * <p>The implementation keeps the order of signals.
  */
-public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
-    implements Fuseable.QueueSubscription<ByteBuf>, Fuseable {
+public final class UnboundedProcessor extends Flux<ByteBuf>
+    implements Scannable,
+        Disposable,
+        CoreSubscriber<ByteBuf>,
+        Fuseable.QueueSubscription<ByteBuf>,
+        Fuseable {
 
   final Queue<ByteBuf> queue;
   final Queue<ByteBuf> priorityQueue;
@@ -99,11 +104,6 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
   }
 
   @Override
-  public int getBufferSize() {
-    return Integer.MAX_VALUE;
-  }
-
-  @Override
   public Stream<Scannable> inners() {
     return hasDownstreams() ? Stream.of(Scannable.from(this.actual)) : Stream.empty();
   }
@@ -118,7 +118,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
       return isCancelled(state) || isDisposed(state);
     }
 
-    return super.scanUnsafe(key);
+    return null;
   }
 
   public void onNextPrioritized(ByteBuf t) {
@@ -622,30 +622,7 @@ public final class UnboundedProcessor extends FluxProcessor<ByteBuf, ByteBuf>
     return isFinalized(this.state);
   }
 
-  @Override
-  public boolean isTerminated() {
-    return this.done || isTerminated(this.state);
-  }
-
-  @Override
-  @Nullable
-  public Throwable getError() {
-    //noinspection unused
-    final long state = this.state;
-    if (this.done) {
-      return this.error;
-    } else {
-      return null;
-    }
-  }
-
-  @Override
-  public long downstreamCount() {
-    return hasDownstreams() ? 1L : 0L;
-  }
-
-  @Override
-  public boolean hasDownstreams() {
+  boolean hasDownstreams() {
     final long state = this.state;
     return !isTerminated(state) && isSubscriberReady(state);
   }

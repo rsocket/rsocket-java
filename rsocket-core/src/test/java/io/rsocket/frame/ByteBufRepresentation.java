@@ -18,9 +18,18 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.IllegalReferenceCountException;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.presentation.StandardRepresentation;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-public final class ByteBufRepresentation extends StandardRepresentation {
+public final class ByteBufRepresentation extends StandardRepresentation
+    implements BeforeAllCallback {
+
+  @Override
+  public void beforeAll(ExtensionContext context) {
+    Assertions.useRepresentation(this);
+  }
 
   @Override
   protected String fallbackToStringOf(Object object) {

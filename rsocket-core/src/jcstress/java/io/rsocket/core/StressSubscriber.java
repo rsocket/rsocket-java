@@ -224,6 +224,11 @@ public class StressSubscriber<T> implements CoreSubscriber<T> {
     } else {
       GUARD.compareAndSet(this, Operation.ON_ERROR, null);
     }
+
+    if (done) {
+      throw new IllegalStateException("Already done");
+    }
+
     error = throwable;
     done = true;
     q.offer(throwable);
@@ -241,6 +246,10 @@ public class StressSubscriber<T> implements CoreSubscriber<T> {
     } else {
       GUARD.compareAndSet(this, Operation.ON_COMPLETE, null);
     }
+    if (done) {
+      throw new IllegalStateException("Already done");
+    }
+
     done = true;
     ON_COMPLETE_CALLS.incrementAndGet(this);
 

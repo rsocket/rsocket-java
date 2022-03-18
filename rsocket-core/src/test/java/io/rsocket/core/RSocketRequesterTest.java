@@ -1265,7 +1265,7 @@ public class RSocketRequesterTest {
         .then(() -> rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0])))
         .assertNext(
             responsePayload -> {
-              PayloadAssert.assertThat(requestPayload).isEqualTo(metadataOnlyPayload).hasNoLeaks();
+              PayloadAssert.assertThat(responsePayload).isEqualTo(metadataOnlyPayload).hasNoLeaks();
               metadataOnlyPayload.release();
             })
         .thenCancel()
