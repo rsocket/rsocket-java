@@ -262,7 +262,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
     framesSaverDisposable.dispose();
     activeReceivingSubscriber.dispose();
-    savableFramesSender.dispose();
+    savableFramesSender.onComplete();
     onConnectionClosedSink.tryEmitComplete();
 
     if (e != null) {
