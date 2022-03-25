@@ -16,6 +16,8 @@
 
 package io.rsocket.test;
 
+import static java.util.stream.Collectors.toList;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
@@ -40,11 +42,23 @@ import java.io.InputStreamReader;
 import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -52,6 +66,7 @@ import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
@@ -93,9 +108,18 @@ public interface TransportTest {
     }
   }
 
+  @BeforeEach
+  default void setup() {
+    Schedulers.addExecutorServiceDecorator(
+        "awaitable", new AwaitableScheduledExecutorServiceDecoratorFunction());
+  }
+
   @AfterEach
   default void close() {
-
+    final AwaitableScheduledExecutorServiceDecoratorFunction awaitable =
+        (AwaitableScheduledExecutorServiceDecoratorFunction)
+            Schedulers.removeExecutorServiceDecorator("awaitable");
+    awaitable.awaitAll();
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
@@ -855,6 +879,185 @@ public interface TransportTest {
       public void clear() {
         throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
       }
+    }
+  }
+
+  class AwaitingScheduledExecutorService implements ScheduledExecutorService {
+
+    final ScheduledExecutorService delegate;
+
+    @SuppressWarnings("rawtypes")
+    final Set<Object> activeTasks = ConcurrentHashMap.newKeySet(256);
+
+    public AwaitingScheduledExecutorService(ScheduledExecutorService delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void shutdown() {
+      delegate.shutdown();
+    }
+
+    @Override
+    public List<Runnable> shutdownNow() {
+      return delegate.shutdownNow();
+    }
+
+    @Override
+    public boolean isShutdown() {
+      return delegate.isShutdown();
+    }
+
+    @Override
+    public boolean isTerminated() {
+      return delegate.isTerminated();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+      return delegate.awaitTermination(timeout, unit);
+    }
+
+    @Override
+    public <T> Future<T> submit(Callable<T> task) {
+      return delegate.submit(wrap(task));
+    }
+
+    @Override
+    public <T> Future<T> submit(Runnable task, T result) {
+      return delegate.submit(wrap(task), result);
+    }
+
+    @Override
+    public Future<?> submit(Runnable task) {
+      return delegate.submit(wrap(task));
+    }
+
+    @Override
+    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+        throws InterruptedException {
+      return delegate.invokeAll(wrapAll(tasks));
+    }
+
+    @Override
+    public <T> List<Future<T>> invokeAll(
+        Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
+        throws InterruptedException {
+      return delegate.invokeAll(wrapAll(tasks), timeout, unit);
+    }
+
+    @Override
+    public <T> T invokeAny(Collection<? extends Callable<T>> tasks)
+        throws InterruptedException, ExecutionException {
+      return delegate.invokeAny(wrapAll(tasks));
+    }
+
+    @Override
+    public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException {
+      return delegate.invokeAny(wrapAll(tasks), timeout, unit);
+    }
+
+    @Override
+    public void execute(Runnable command) {
+      delegate.execute(wrap(command));
+    }
+
+    @Override
+    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+      return delegate.schedule(wrap(command), delay, unit);
+    }
+
+    @Override
+    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+      return delegate.schedule(wrap(callable), delay, unit);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleAtFixedRate(
+        Runnable command, long initialDelay, long period, TimeUnit unit) {
+      return delegate.scheduleAtFixedRate(wrap(command), initialDelay, period, unit);
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleWithFixedDelay(
+        Runnable command, long initialDelay, long delay, TimeUnit unit) {
+      return delegate.scheduleWithFixedDelay(wrap(command), initialDelay, delay, unit);
+    }
+
+    private Runnable wrap(Runnable task) {
+      return new RunnableTask(task);
+    }
+
+    private <T> Callable<T> wrap(Callable<T> task) {
+      return new CallableTask<>(task);
+    }
+
+    private <T> Collection<? extends Callable<T>> wrapAll(Collection<? extends Callable<T>> tasks) {
+      return tasks.stream().map(this::wrap).collect(toList());
+    }
+
+    public void awaitCompletion() {
+      while (!activeTasks.isEmpty()) {
+        LockSupport.parkNanos(1000);
+      }
+    }
+
+    interface Task {}
+
+    class RunnableTask implements Task, Runnable {
+
+      private final Runnable delegate;
+
+      RunnableTask(Runnable delegate) {
+        this.delegate = delegate;
+        activeTasks.add(this);
+      }
+
+      @Override
+      public void run() {
+        try {
+          delegate.run();
+        } finally {
+          activeTasks.remove(this);
+        }
+      }
+    }
+
+    class CallableTask<T> implements Task, Callable<T> {
+      final Callable<T> delegate;
+
+      CallableTask(Callable<T> delegate) {
+        this.delegate = delegate;
+        activeTasks.add(this);
+      }
+
+      @Override
+      public T call() throws Exception {
+        try {
+          return delegate.call();
+        } finally {
+          activeTasks.remove(this);
+        }
+      }
+    }
+  }
+
+  class AwaitableScheduledExecutorServiceDecoratorFunction
+      implements BiFunction<Scheduler, ScheduledExecutorService, ScheduledExecutorService> {
+
+    final Set<AwaitingScheduledExecutorService> workers = ConcurrentHashMap.newKeySet();
+
+    @Override
+    public ScheduledExecutorService apply(Scheduler scheduler, ScheduledExecutorService service) {
+      final AwaitingScheduledExecutorService awaitingScheduledExecutorService =
+          new AwaitingScheduledExecutorService(service);
+      workers.add(awaitingScheduledExecutorService);
+      return awaitingScheduledExecutorService;
+    }
+
+    public void awaitAll() {
+      workers.forEach(AwaitingScheduledExecutorService::awaitCompletion);
     }
   }
 }
