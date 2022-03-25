@@ -158,6 +158,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
 
   @Override
   public void onNext(ByteBuf t) {
+    t.touch("UnboundedProcessor.onNext");
     if (this.done || this.cancelled) {
       release(t);
       return;
@@ -310,6 +311,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
           break;
         }
 
+        t.touch("UnboundedProcessor.drain");
         a.onNext(t);
 
         e++;
