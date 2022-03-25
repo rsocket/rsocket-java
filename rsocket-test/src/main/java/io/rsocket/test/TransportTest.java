@@ -95,6 +95,7 @@ public interface TransportTest {
 
   @AfterEach
   default void close() {
+
     getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
     getTransportPair().awaitClosed();
