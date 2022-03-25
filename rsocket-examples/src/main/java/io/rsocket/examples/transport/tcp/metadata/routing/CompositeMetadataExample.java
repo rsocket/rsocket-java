@@ -49,8 +49,9 @@ public class CompositeMetadataExample {
 
                   logger.info("Received RequestResponse[route={}]", route);
 
+                  payload.release();
+
                   if ("my.test.route".equals(route)) {
-                    payload.release();
                     return Mono.just(ByteBufPayload.create("Hello From My Test Route"));
                   }
 
