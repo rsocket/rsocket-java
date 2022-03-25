@@ -33,6 +33,7 @@ import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -81,7 +82,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -169,7 +169,7 @@ public class RSocketRequesterTest {
   public void testHandleSetupException() {
     rule.connection.addToReceivedBuffer(
         ErrorFrameCodec.encode(rule.alloc(), 0, new RejectedSetupException("boom")));
-    Assertions.assertThatThrownBy(() -> rule.socket.onClose().block())
+    assertThatThrownBy(() -> rule.socket.onClose().block())
         .isInstanceOf(RejectedSetupException.class);
     rule.assertHasNoLeaks();
   }
@@ -371,6 +371,65 @@ public class RSocketRequesterTest {
                   .verify();
               rule.assertHasNoLeaks();
             });
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {128, 256, FRAME_LENGTH_MASK})
+  public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation1(
+      int maxFrameLength) {
+    rule.setMaxFrameLength(maxFrameLength);
+    prepareCalls()
+        .forEach(
+            generator -> {
+              byte[] metadata = new byte[maxFrameLength];
+              byte[] data = new byte[maxFrameLength];
+              ThreadLocalRandom.current().nextBytes(metadata);
+              ThreadLocalRandom.current().nextBytes(data);
+
+              assertThatThrownBy(
+                      () -> {
+                        final Publisher<?> source =
+                            generator.apply(rule.socket, DefaultPayload.create(data, metadata));
+
+                        if (source instanceof Mono) {
+                          ((Mono<?>) source).block();
+                        } else {
+                          ((Flux) source).blockLast();
+                        }
+                      })
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessage(String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength));
+
+              rule.assertHasNoLeaks();
+            });
+  }
+
+  @Test
+  public void shouldRejectCallOfNoMetadataPayload() {
+    final ByteBuf data = rule.allocator.buffer(10);
+    final Payload payload = ByteBufPayload.create(data);
+    StepVerifier.create(rule.socket.metadataPush(payload))
+        .expectSubscription()
+        .expectErrorSatisfies(
+            t ->
+                assertThat(t)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Metadata push should have metadata field present"))
+        .verify();
+    PayloadAssert.assertThat(payload).isReleased();
+    rule.assertHasNoLeaks();
+  }
+
+  @Test
+  public void shouldRejectCallOfNoMetadataPayloadBlocking() {
+    final ByteBuf data = rule.allocator.buffer(10);
+    final Payload payload = ByteBufPayload.create(data);
+
+    assertThatThrownBy(() -> rule.socket.metadataPush(payload).block())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Metadata push should have metadata field present");
+    PayloadAssert.assertThat(payload).isReleased();
+    rule.assertHasNoLeaks();
   }
 
   static Stream<BiFunction<RSocket, Payload, Publisher<?>>> prepareCalls() {
