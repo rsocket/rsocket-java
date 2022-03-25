@@ -88,6 +88,7 @@ final class LocalDuplexConnection implements DuplexConnection {
 
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
+    frame.touch("send frame " + this.address);
     if (streamId == 0) {
       out.onNextPrioritized(frame);
     } else {
@@ -98,6 +99,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, 0, e);
+    errorFrame.touch("send frame " + this.address);
     out.onNext(errorFrame);
     dispose();
   }
@@ -137,6 +139,7 @@ final class LocalDuplexConnection implements DuplexConnection {
     @Override
     public void onNext(ByteBuf buf) {
       try {
+        buf.touch("receive frame " + this.parent.address);
         actual.onNext(buf);
       } finally {
         buf.release();

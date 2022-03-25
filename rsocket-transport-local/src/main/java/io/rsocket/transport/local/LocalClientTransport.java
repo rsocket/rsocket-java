@@ -84,10 +84,12 @@ public final class LocalClientTransport implements ClientTransport {
 
           Mono<Void> onClose = inSink.asMono().zipWith(outSink.asMono()).then();
 
-          server.apply(new LocalDuplexConnection(name, allocator, out, in, onClose)).subscribe();
+          server
+              .apply(new LocalDuplexConnection(name + "-server", allocator, out, in, onClose))
+              .subscribe();
 
           return Mono.<DuplexConnection>just(
-              new LocalDuplexConnection(name, allocator, in, out, onClose));
+              new LocalDuplexConnection(name + "-client", allocator, in, out, onClose));
         });
   }
 }

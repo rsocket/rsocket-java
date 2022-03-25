@@ -18,6 +18,8 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
@@ -210,6 +212,13 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
                 onClose.tryEmitError(cause);
               }
             });
+  }
+
+  public static void main(String[] args) {
+    final ByteBuf bytes =
+        Unpooled.wrappedBuffer(
+            ByteBufUtil.decodeHexDump("00 00 00 00 2c 00 00 00 00 04".replaceAll(" ", "")));
+    System.out.println(FrameHeaderCodec.frameType(bytes));
   }
 
   @Override
