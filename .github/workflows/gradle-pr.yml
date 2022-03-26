@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        jdk: [ 1.8, 11, 16 ]
+        jdk: [ 1.8, 11, 17 ]
       fail-fast: false
 
     steps:
@@ -36,7 +36,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        jdk: [ 1.8, 11, 16 ]
+        jdk: [ 1.8, 11, 17 ]
       fail-fast: false
 
     steps:
@@ -63,7 +63,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        jdk: [ 1.8, 11, 16 ]
+        jdk: [ 1.8, 11, 17 ]
       fail-fast: false
 
     steps:
@@ -90,7 +90,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        jdk: [ 1.8, 11, 16 ]
+        jdk: [ 1.8, 11, 17 ]
       fail-fast: false
 
     steps:
