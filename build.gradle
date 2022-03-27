@@ -171,7 +171,7 @@ subprojects {
                 }
             }
 
-            forkEvery = 1
+//            forkEvery = 1
 
             if (isCiServer) {
                 def stdout = new LinkedList<TestOutputEvent>()
