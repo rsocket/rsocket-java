@@ -9,7 +9,9 @@ import io.netty.util.ResourceLeakDetector;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
@@ -62,10 +64,11 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
   public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
     try {
-      Set<ByteBuf> unreleased = new HashSet<>();
+      final Object placeholder = new Object();
+      Map<ByteBuf, Object> unreleased = new IdentityHashMap<>();
       for (ByteBuf bb : tracker) {
         if (bb.refCnt() != 0) {
-          unreleased.add(bb);
+          unreleased.put(bb, placeholder);
         }
       }
 
@@ -76,11 +79,13 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
         boolean hasUnreleased;
         while (System.currentTimeMillis() <= endTimeInMillis) {
           hasUnreleased = false;
-          for (ByteBuf bb : unreleased) {
+          final Iterator<ByteBuf> iterator = unreleased.keySet().iterator();
+          while (iterator.hasNext()) {
+            final ByteBuf bb = iterator.next();
             if (bb.refCnt() != 0) {
               hasUnreleased = true;
             } else {
-              unreleased.remove(bb);
+              iterator.remove();
             }
           }
 
@@ -99,7 +104,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
         }
       }
 
-      Assertions.assertThat(unreleased)
+      Assertions.assertThat(unreleased.keySet())
           .allMatch(
               bb -> {
                 final boolean checkResult = bb.refCnt() == 0;
