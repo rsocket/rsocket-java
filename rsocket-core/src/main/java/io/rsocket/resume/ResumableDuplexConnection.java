@@ -219,7 +219,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   public static void main(String[] args) {
     final ByteBuf bytes =
         Unpooled.wrappedBuffer(
-            ByteBufUtil.decodeHexDump("00 00 00 00 2c 00 00 00 00 04".replaceAll(" ", "")));
+            ByteBufUtil.decodeHexDump(
+                "00 00 00 00 0c 80 00 00 00 00 00 00 00 00".replaceAll(" ", "")));
     System.out.println(FrameHeaderCodec.frameType(bytes));
   }
 

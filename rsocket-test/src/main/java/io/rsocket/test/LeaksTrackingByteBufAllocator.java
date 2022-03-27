@@ -8,17 +8,21 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.ResourceLeakDetector;
 import java.lang.reflect.Field;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Additional Utils which allows to decorate a ByteBufAllocator and track/assertOnLeaks all created
  * ByteBuffs
  */
 public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
+
+  static final Logger logger = LoggerFactory.getLogger(LeaksTrackingByteBufAllocator.class);
 
   /**
    * Allows to instrument any given the instance of ByteBufAllocator
@@ -58,7 +62,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
   public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
     try {
-      ArrayList<ByteBuf> unreleased = new ArrayList<>();
+      Set<ByteBuf> unreleased = new HashSet<>();
       for (ByteBuf bb : tracker) {
         if (bb.refCnt() != 0) {
           unreleased.add(bb);
@@ -75,7 +79,8 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           for (ByteBuf bb : unreleased) {
             if (bb.refCnt() != 0) {
               hasUnreleased = true;
-              break;
+            } else {
+              unreleased.remove(bb);
             }
           }
 
@@ -83,10 +88,12 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
             return this;
           }
 
-          System.out.println(tag + " await buffers to be released");
+          logger.warn(tag + " await buffers to be released");
           for (int i = 0; i < 100; i++) {
             System.gc();
+            new Object();
             parkNanos(1000);
+            new Object();
             System.gc();
           }
         }
@@ -99,7 +106,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
                 if (!checkResult) {
                   try {
-                    System.out.println(tag + " " + resolveTrackingInfo(bb));
+                    logger.warn(tag + " " + resolveTrackingInfo(bb));
                   } catch (Exception e) {
                     e.printStackTrace();
                   }
