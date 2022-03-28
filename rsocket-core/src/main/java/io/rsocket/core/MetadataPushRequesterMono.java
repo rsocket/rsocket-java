@@ -120,6 +120,11 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
     return block();
   }
 
+  /**
+   * This method is deliberately non-blocking regardless it is named as `.block`. The main intent to
+   * keep this method along with the {@link #subscribe()} is to eliminate redundancy which comes
+   * with a default block method implementation.
+   */
   @Override
   @Nullable
   public Void block() {
