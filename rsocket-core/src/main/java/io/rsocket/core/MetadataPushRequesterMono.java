@@ -120,6 +120,11 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
     return block();
   }
 
+  /**
+   * This method is deliberately non-blocking regardless it is named as `.block`. The main intent to
+   * keep this method along with the {@link #subscribe()} is to eliminate redundancy which comes
+   * with a default block method implementation.
+   */
   @Override
   @Nullable
   public Void block() {
@@ -133,15 +138,16 @@ final class MetadataPushRequesterMono extends Mono<Void> implements Scannable {
     try {
       final boolean hasMetadata = p.hasMetadata();
       metadata = p.metadata();
-      if (hasMetadata) {
+      if (!hasMetadata) {
         lazyTerminate(STATE, this);
         p.release();
-        throw new IllegalArgumentException("Metadata push does not support metadata field");
+        throw new IllegalArgumentException("Metadata push should have metadata field present");
       }
       if (!isValidMetadata(this.maxFrameLength, metadata)) {
         lazyTerminate(STATE, this);
         p.release();
-        throw new IllegalArgumentException("Too Big Payload size");
+        throw new IllegalArgumentException(
+            String.format(INVALID_PAYLOAD_ERROR_MESSAGE, this.maxFrameLength));
       }
     } catch (IllegalReferenceCountException e) {
       lazyTerminate(STATE, this);
