@@ -192,7 +192,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             t -> {
               framesSaverDisposable.dispose();
               activeReceivingSubscriber.dispose();
-              savableFramesSender.dispose();
+              savableFramesSender.onComplete();
+              savableFramesSender.cancel();
               onConnectionClosedSink.tryEmitComplete();
 
               onClose.tryEmitError(t);
@@ -200,7 +201,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             () -> {
               framesSaverDisposable.dispose();
               activeReceivingSubscriber.dispose();
-              savableFramesSender.dispose();
+              savableFramesSender.onComplete();
+              savableFramesSender.cancel();
               onConnectionClosedSink.tryEmitComplete();
 
               final Throwable cause = rSocketErrorException.getCause();
@@ -253,7 +255,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
     framesSaverDisposable.dispose();
     activeReceivingSubscriber.dispose();
-    savableFramesSender.dispose();
+    savableFramesSender.onComplete();
+    savableFramesSender.cancel();
     onConnectionClosedSink.tryEmitComplete();
 
     if (e != null) {
