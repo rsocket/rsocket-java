@@ -1,7 +1,5 @@
 package io.rsocket.test;
 
-import static java.util.concurrent.locks.LockSupport.parkNanos;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
@@ -15,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,33 +73,28 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
       final Duration awaitZeroRefCntDuration = this.awaitZeroRefCntDuration;
       if (!unreleased.isEmpty() && !awaitZeroRefCntDuration.isZero()) {
-        final long startTime = System.currentTimeMillis();
-        final long endTimeInMillis = startTime + awaitZeroRefCntDuration.toMillis();
-        boolean hasUnreleased;
-        while (System.currentTimeMillis() <= endTimeInMillis) {
-          hasUnreleased = false;
-          final Iterator<ByteBuf> iterator = unreleased.keySet().iterator();
-          while (iterator.hasNext()) {
-            final ByteBuf bb = iterator.next();
-            if (bb.refCnt() != 0) {
-              hasUnreleased = true;
-            } else {
-              iterator.remove();
-            }
-          }
 
-          if (!hasUnreleased) {
-            return this;
-          }
+        try {
+          Awaitility.await("Buffers to be released")
+              .atMost(awaitZeroRefCntDuration)
+              .until(
+                  () -> {
+                    boolean hasUnreleased = false;
+                    final Iterator<ByteBuf> iterator = unreleased.keySet().iterator();
+                    while (iterator.hasNext()) {
+                      final ByteBuf bb = iterator.next();
+                      if (bb.refCnt() != 0) {
+                        hasUnreleased = true;
+                      } else {
+                        iterator.remove();
+                      }
+                    }
 
-          logger.warn(tag + " await buffers to be released");
-          for (int i = 0; i < 100; i++) {
-            System.gc();
-            new Object();
-            parkNanos(1000);
-            new Object();
-            System.gc();
-          }
+                    logger.warn(tag + " await " + unreleased.size() + " buffers to be released");
+                    return !hasUnreleased;
+                  });
+        } catch (Throwable t) {
+          // ignore
         }
       }
 

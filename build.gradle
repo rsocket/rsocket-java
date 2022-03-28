@@ -201,7 +201,12 @@ subprojects {
             if (JavaVersion.current().isJava9Compatible()) {
                 println "Java 9+: lowering MaxGCPauseMillis to 20ms in ${project.name} ${name}"
                 println "Java 9+: enabling leak detection [ADVANCED]"
-                jvmArgs = ["-XX:MaxGCPauseMillis=20", "-Dio.netty.leakDetection.level=ADVANCED", "-Dio.netty.leakDetection.samplingInterval=32"]
+                jvmArgs = [
+                        "-XX:MaxGCPauseMillis=20",
+                        "-Dio.netty.leakDetection.level=ADVANCED",
+                        "-Dio.netty.leakDetection.samplingInterval=32",
+                        "-Dio.netty.leakDetection.targetRecords=10"
+                ]
             }
 
             systemProperty("java.awt.headless", "true")
