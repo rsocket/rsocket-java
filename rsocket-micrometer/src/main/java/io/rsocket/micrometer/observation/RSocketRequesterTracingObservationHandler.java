@@ -16,7 +16,7 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.observation.Observation;
+import io.micrometer.observation.Observation;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;

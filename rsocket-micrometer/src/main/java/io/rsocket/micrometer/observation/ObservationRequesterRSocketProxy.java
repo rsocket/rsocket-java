@@ -16,10 +16,10 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.docs.DocumentedObservation;
-import io.micrometer.api.instrument.observation.Observation;
-import io.micrometer.api.instrument.observation.ObservationRegistry;
-import io.micrometer.api.instrument.util.StringUtils;
+import io.micrometer.common.util.StringUtils;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.docs.DocumentedObservation;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -42,11 +42,12 @@ import reactor.util.context.ContextView;
  * @since 3.1.0
  */
 public class ObservationRequesterRSocketProxy extends RSocketProxy
-    implements Observation.TagsProviderAware<RSocketRequesterTagsProvider> {
+    implements Observation.KeyValuesProviderAware<RSocketRequesterKeyValuesProvider> {
 
   private final ObservationRegistry observationRegistry;
 
-  private RSocketRequesterTagsProvider tagsProvider = new DefaultRSocketRequesterTagsProvider();
+  private RSocketRequesterKeyValuesProvider keyValuesProvider =
+      new DefaultRSocketRequesterKeyValuesProvider();
 
   public ObservationRequesterRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -115,7 +116,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
             payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
     Observation observation =
         Observation.start(obs.getName(), rSocketContext, observationRegistry)
-            .tagsProvider(this.tagsProvider);
+            .keyValuesProvider(this.keyValuesProvider);
     setContextualName(frameType, route, observation);
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
@@ -196,7 +197,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
                   RSocketContext.Side.REQUESTER);
           Observation newObservation =
               Observation.start(obs.getName(), rSocketContext, this.observationRegistry)
-                  .tagsProvider(this.tagsProvider);
+                  .keyValuesProvider(this.keyValuesProvider);
           setContextualName(frameType, route, newObservation);
           return input
               .apply(rSocketContext.modifiedPayload)
@@ -214,7 +215,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
   }
 
   @Override
-  public void setTagsProvider(RSocketRequesterTagsProvider tagsProvider) {
-    this.tagsProvider = tagsProvider;
+  public void setKeyValuesProvider(RSocketRequesterKeyValuesProvider provider) {
+    this.keyValuesProvider = provider;
   }
 }

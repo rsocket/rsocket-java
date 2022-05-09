@@ -18,7 +18,7 @@ package io.rsocket.micrometer;
 
 import static io.rsocket.frame.FrameType.*;
 
-import io.micrometer.api.instrument.*;
+import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;

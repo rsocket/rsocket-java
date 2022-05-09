@@ -16,21 +16,22 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.Tags;
-import io.micrometer.api.instrument.observation.Observation;
-import io.micrometer.api.instrument.util.StringUtils;
+import io.micrometer.common.KeyValues;
+import io.micrometer.common.util.StringUtils;
+import io.micrometer.observation.Observation;
 
 /**
- * Default {@link RSocketRequesterTagsProvider} implementation.
+ * Default {@link RSocketRequesterKeyValuesProvider} implementation.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
-public class DefaultRSocketResponderTagsProvider implements RSocketResponderTagsProvider {
+public class DefaultRSocketResponderKeyValuesProvider implements RSocketResponderKeyValuesProvider {
 
   @Override
-  public Tags getLowCardinalityTags(RSocketContext context) {
-    Tags tags = Tags.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
+  public KeyValues getLowCardinalityKeyValues(RSocketContext context) {
+    KeyValues tags =
+        KeyValues.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
     if (StringUtils.isNotBlank(context.route)) {
       tags = tags.and(RSocketObservation.ResponderTags.ROUTE.of(context.route));
     }

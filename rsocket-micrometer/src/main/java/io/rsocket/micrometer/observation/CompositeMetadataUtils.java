@@ -16,7 +16,7 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.lang.Nullable;
+import io.micrometer.core.lang.Nullable;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.metadata.CompositeMetadata;
 

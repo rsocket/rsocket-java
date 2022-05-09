@@ -18,12 +18,14 @@ package io.rsocket.integration.observation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.micrometer.api.instrument.MeterRegistry;
-import io.micrometer.api.instrument.Tag;
-import io.micrometer.api.instrument.Tags;
-import io.micrometer.api.instrument.observation.ObservationHandler;
-import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.observation.TimerObservationHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.tck.MeterRegistryAssert;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.test.SampleTestRunner;
 import io.micrometer.tracing.test.reporter.BuildingBlocks;
 import io.micrometer.tracing.test.simple.SpansAssert;
@@ -53,19 +55,25 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class ObservationIntegrationTest extends SampleTestRunner {
-  private static final MeterRegistry registry =
-      new SimpleMeterRegistry().withTimerObservationHandler();
+  private static final MeterRegistry registry = new SimpleMeterRegistry();
+  private static final ObservationRegistry observationRegistry = ObservationRegistry.create();
+
+  static {
+    observationRegistry
+        .observationConfig()
+        .observationHandler(new TimerObservationHandler(registry));
+  }
 
   private final RSocketInterceptor requesterInterceptor;
   private final RSocketInterceptor responderInterceptor;
 
   ObservationIntegrationTest() {
-    super(SampleRunnerConfig.builder().build(), registry);
+    super(SampleRunnerConfig.builder().build(), observationRegistry, registry);
     requesterInterceptor =
-        reactiveSocket -> new ObservationRequesterRSocketProxy(reactiveSocket, registry);
+        reactiveSocket -> new ObservationRequesterRSocketProxy(reactiveSocket, observationRegistry);
 
     responderInterceptor =
-        reactiveSocket -> new ObservationResponderRSocketProxy(reactiveSocket, registry);
+        reactiveSocket -> new ObservationResponderRSocketProxy(reactiveSocket, observationRegistry);
   }
 
   private CloseableChannel server;

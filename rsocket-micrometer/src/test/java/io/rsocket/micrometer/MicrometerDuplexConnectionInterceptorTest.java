@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.RETURNS_SMART_NULLS;
 import static org.mockito.Mockito.mock;
 
-import io.micrometer.api.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.rsocket.DuplexConnection;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

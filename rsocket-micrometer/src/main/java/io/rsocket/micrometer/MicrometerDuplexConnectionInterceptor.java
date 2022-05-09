@@ -16,9 +16,9 @@
 
 package io.rsocket.micrometer;
 
-import io.micrometer.api.instrument.Meter;
-import io.micrometer.api.instrument.MeterRegistry;
-import io.micrometer.api.instrument.Tag;
+import io.micrometer.core.instrument.Meter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor;

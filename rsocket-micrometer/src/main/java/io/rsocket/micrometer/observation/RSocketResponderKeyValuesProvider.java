@@ -16,19 +16,20 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.observation.Observation;
+import io.micrometer.observation.Observation;
 
 /**
- * {@link Observation.TagsProvider} for RSocket requester {@link RSocketContext}.
+ * {@link Observation.KeyValuesProvider} for RSocket responder {@link RSocketContext}.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
-public interface RSocketRequesterTagsProvider extends Observation.TagsProvider<RSocketContext> {
+public interface RSocketResponderKeyValuesProvider
+    extends Observation.KeyValuesProvider<RSocketContext> {
 
   @Override
   default boolean supportsContext(Observation.Context context) {
     return context instanceof RSocketContext
-        && ((RSocketContext) context).side == RSocketContext.Side.REQUESTER;
+        && ((RSocketContext) context).side == RSocketContext.Side.RESPONDER;
   }
 }

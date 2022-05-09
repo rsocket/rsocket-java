@@ -16,9 +16,9 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.observation.Observation;
-import io.micrometer.api.instrument.observation.ObservationRegistry;
-import io.micrometer.api.instrument.util.StringUtils;
+import io.micrometer.core.instrument.util.StringUtils;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -39,11 +39,12 @@ import reactor.core.publisher.Mono;
  * @since 3.1.0
  */
 public class ObservationResponderRSocketProxy extends RSocketProxy
-    implements Observation.TagsProviderAware<RSocketResponderTagsProvider> {
+    implements Observation.KeyValuesProviderAware<RSocketResponderKeyValuesProvider> {
 
   private final ObservationRegistry observationRegistry;
 
-  private RSocketResponderTagsProvider tagsProvider = new DefaultRSocketResponderTagsProvider();
+  private RSocketResponderKeyValuesProvider keyValuesProvider =
+      new DefaultRSocketResponderKeyValuesProvider();
 
   public ObservationResponderRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -72,7 +73,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
 
   private Observation startObservation(String name, RSocketContext rSocketContext) {
     return Observation.start(name, rSocketContext, this.observationRegistry)
-        .tagsProvider(this.tagsProvider);
+        .keyValuesProvider(this.keyValuesProvider);
   }
 
   @Override
@@ -159,7 +160,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
   }
 
   @Override
-  public void setTagsProvider(RSocketResponderTagsProvider tagsProvider) {
-    this.tagsProvider = tagsProvider;
+  public void setKeyValuesProvider(RSocketResponderKeyValuesProvider provider) {
+    this.keyValuesProvider = provider;
   }
 }

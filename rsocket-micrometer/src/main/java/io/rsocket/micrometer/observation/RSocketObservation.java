@@ -16,8 +16,8 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.docs.DocumentedObservation;
-import io.micrometer.api.instrument.docs.TagKey;
+import io.micrometer.common.docs.KeyName;
+import io.micrometer.observation.docs.DocumentedObservation;
 
 enum RSocketObservation implements DocumentedObservation {
 
@@ -37,7 +37,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return RequesterTags.values();
     }
 
@@ -55,7 +55,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return ResponderTags.values();
     }
 
@@ -73,7 +73,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return RequesterTags.values();
     }
 
@@ -91,7 +91,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return ResponderTags.values();
     }
 
@@ -109,7 +109,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return RequesterTags.values();
     }
 
@@ -127,7 +127,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return ResponderTags.values();
     }
 
@@ -145,7 +145,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return RequesterTags.values();
     }
 
@@ -163,7 +163,7 @@ enum RSocketObservation implements DocumentedObservation {
     }
 
     @Override
-    public TagKey[] getLowCardinalityTagKeys() {
+    public KeyName[] getLowCardinalityKeyNames() {
       return ResponderTags.values();
     }
 
@@ -173,12 +173,12 @@ enum RSocketObservation implements DocumentedObservation {
     }
   };
 
-  enum RequesterTags implements TagKey {
+  enum RequesterTags implements KeyName {
 
     /** Name of the RSocket route. */
     ROUTE {
       @Override
-      public String getKey() {
+      public String getKeyName() {
         return "rsocket.route";
       }
     },
@@ -186,7 +186,7 @@ enum RSocketObservation implements DocumentedObservation {
     /** Name of the RSocket request type. */
     REQUEST_TYPE {
       @Override
-      public String getKey() {
+      public String getKeyName() {
         return "rsocket.request-type";
       }
     },
@@ -194,18 +194,18 @@ enum RSocketObservation implements DocumentedObservation {
     /** Name of the RSocket content type. */
     CONTENT_TYPE {
       @Override
-      public String getKey() {
+      public String getKeyName() {
         return "rsocket.content-type";
       }
     }
   }
 
-  enum ResponderTags implements TagKey {
+  enum ResponderTags implements KeyName {
 
     /** Name of the RSocket route. */
     ROUTE {
       @Override
-      public String getKey() {
+      public String getKeyName() {
         return "rsocket.route";
       }
     },
@@ -213,7 +213,7 @@ enum RSocketObservation implements DocumentedObservation {
     /** Name of the RSocket request type. */
     REQUEST_TYPE {
       @Override
-      public String getKey() {
+      public String getKeyName() {
         return "rsocket.request-type";
       }
     }

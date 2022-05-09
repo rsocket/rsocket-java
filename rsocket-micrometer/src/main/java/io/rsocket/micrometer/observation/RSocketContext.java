@@ -16,8 +16,8 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.api.instrument.observation.Observation;
-import io.micrometer.api.lang.Nullable;
+import io.micrometer.common.lang.Nullable;
+import io.micrometer.observation.Observation;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameType;
