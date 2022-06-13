@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.annotation.Nullable;
@@ -56,6 +57,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   private final RSocket requestHandler;
 
   @Nullable private final ResponderLeaseTracker leaseHandler;
+  private final Disposable framesDisposable;
 
   private volatile Throwable terminationError;
   private static final AtomicReferenceFieldUpdater<RSocketResponder, Throwable> TERMINATION_ERROR =
@@ -84,7 +86,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
 
     this.leaseHandler = leaseHandler;
 
-    connection.receive().subscribe(this::handleFrame, e -> {});
+    framesDisposable = connection.receive().subscribe(this::handleFrame, e -> {});
 
     connection
         .onClose()
@@ -183,6 +185,10 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     }
 
     requestHandler.dispose();
+
+    if (framesDisposable != null) {
+      framesDisposable.dispose();
+    }
   }
 
   private synchronized void cleanUpSendingSubscriptions() {
@@ -452,5 +458,10 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     }
 
     return true;
+  }
+
+  //Visible for testing
+  Disposable getFramesDisposable() {
+    return framesDisposable;
   }
 }

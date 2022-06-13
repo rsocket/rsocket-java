@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -68,6 +69,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
   @Nullable private final RequesterLeaseTracker requesterLeaseTracker;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private final Sinks.Empty<Void> onClose;
+  private final Disposable incomingFramesDisposable;
 
   RSocketRequester(
       DuplexConnection connection,
@@ -96,7 +98,7 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
 
-    connection.receive().subscribe(this::handleIncomingFrames, e -> {});
+    incomingFramesDisposable = connection.receive().subscribe(this::handleIncomingFrames, e -> {});
 
     if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
       KeepAliveSupport keepAliveSupport =
@@ -358,10 +360,19 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       }
     }
 
+    if (incomingFramesDisposable != null) {
+      incomingFramesDisposable.dispose();
+    }
+
     if (e == CLOSED_CHANNEL_EXCEPTION) {
       onClose.tryEmitEmpty();
     } else {
       onClose.tryEmitError(e);
     }
+  }
+
+  //Visible for testing
+  Disposable getIncomingFramesDisposable() {
+    return incomingFramesDisposable;
   }
 }

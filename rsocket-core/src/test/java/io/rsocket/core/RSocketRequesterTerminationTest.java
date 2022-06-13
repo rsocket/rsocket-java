@@ -9,12 +9,15 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class RSocketRequesterTerminationTest {
 
@@ -49,6 +52,17 @@ public class RSocketRequesterTerminationTest {
         .expectError(ClosedChannelException.class)
         .verify(Duration.ofSeconds(5));
   }
+
+    @Test
+    void disposingShouldDisposeOfIncomingFramesDisposable() {
+        RSocketRequester rSocketRequester = rule.socket;
+        assertThat(rSocketRequester.isDisposed()).isFalse();
+
+        rSocketRequester.dispose();
+
+        assertThat(rSocketRequester.isDisposed()).isTrue();
+        assertThat(rSocketRequester.getIncomingFramesDisposable().isDisposed()).isTrue();
+    }
 
   public static Iterable<Function<RSocket, ? extends Publisher<?>>> rsocketInteractions() {
     EmptyPayload payload = EmptyPayload.INSTANCE;

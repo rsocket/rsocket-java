@@ -1179,6 +1179,17 @@ public class RSocketResponderTest {
     rule.assertHasNoLeaks();
   }
 
+    @Test
+    void disposingShouldDisposeOfFramesDisposable() {
+        RSocketResponder rSocketResponder = rule.socket;
+        assertThat(rSocketResponder.isDisposed()).isFalse();
+
+        rSocketResponder.dispose();
+
+        assertThat(rSocketResponder.isDisposed()).isTrue();
+        assertThat(rSocketResponder.getFramesDisposable().isDisposed()).isTrue();
+    }
+
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
 
     private RSocket acceptingSocket;
