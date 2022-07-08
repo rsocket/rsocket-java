@@ -24,6 +24,7 @@ import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.observation.TimerObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.tck.MeterRegistryAssert;
+import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.test.SampleTestRunner;
@@ -81,7 +82,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private AtomicInteger counter;
 
   @Override
-  public BiConsumer<BuildingBlocks, Deque<ObservationHandler>> customizeObservationHandlers() {
+  public BiConsumer<BuildingBlocks, Deque<ObservationHandler<? extends Observation.Context>>> customizeObservationHandlers() {
     return (buildingBlocks, observationHandlers) -> {
       observationHandlers.addFirst(
           new RSocketRequesterTracingObservationHandler(

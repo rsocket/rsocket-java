@@ -19,27 +19,40 @@ package io.rsocket.micrometer.observation;
 import io.micrometer.common.KeyValues;
 import io.micrometer.common.util.StringUtils;
 import io.micrometer.observation.Observation;
+import io.rsocket.frame.FrameType;
 
 /**
- * Default {@link RSocketRequesterKeyValuesProvider} implementation.
+ * Default {@link RSocketRequesterObservationConvention} implementation.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
-public class DefaultRSocketRequesterKeyValuesProvider implements RSocketRequesterKeyValuesProvider {
+public class DefaultRSocketResponderObservationConvention extends DefaultRSocketObservationConvention implements RSocketResponderObservationConvention {
+
+  public DefaultRSocketResponderObservationConvention(RSocketContext rSocketContext) {
+    super(rSocketContext);
+  }
 
   @Override
   public KeyValues getLowCardinalityKeyValues(RSocketContext context) {
-    KeyValues values =
-        KeyValues.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
+    KeyValues tags =
+        KeyValues.of(RSocketDocumentedObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
     if (StringUtils.isNotBlank(context.route)) {
-      values = values.and(RSocketObservation.ResponderTags.ROUTE.of(context.route));
+      tags = tags.and(RSocketDocumentedObservation.ResponderTags.ROUTE.of(context.route));
     }
-    return values;
+    return tags;
   }
 
   @Override
   public boolean supportsContext(Observation.Context context) {
     return context instanceof RSocketContext;
+  }
+
+  @Override
+  public String getName() {
+    if (getRSocketContext().frameType == FrameType.REQUEST_RESPONSE) {
+      return "rsocket.response";
+    }
+    return super.getName();
   }
 }

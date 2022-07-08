@@ -96,7 +96,7 @@ public class RSocketResponderTracingObservationHandler
   private Span consumerSpanBuilder(Payload payload, ByteBuf headers, FrameType requestType) {
     Span.Builder consumerSpanBuilder = consumerSpanBuilder(payload, headers);
     log.debug("Extracted result from headers {}", consumerSpanBuilder);
-    String name = RSocketObservation.RSOCKET_RESPONDER.getName("handle");
+    String name = "handle";
     if (payload.hasMetadata()) {
       try {
         final ByteBuf extract =
@@ -105,9 +105,7 @@ public class RSocketResponderTracingObservationHandler
         if (extract != null) {
           final RoutingMetadata routingMetadata = new RoutingMetadata(extract);
           final Iterator<String> iterator = routingMetadata.iterator();
-          name =
-              RSocketObservation.RSOCKET_RESPONDER.getName(
-                  requestType.name() + " " + iterator.next());
+          name = requestType.name() + " " + iterator.next();
         }
       } catch (Exception e) {
 

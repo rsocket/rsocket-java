@@ -41,13 +41,11 @@ import reactor.util.context.ContextView;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationRequesterRSocketProxy extends RSocketProxy
-    implements Observation.KeyValuesProviderAware<RSocketRequesterKeyValuesProvider> {
+public class ObservationRequesterRSocketProxy extends RSocketProxy {
 
   private final ObservationRegistry observationRegistry;
 
-  private RSocketRequesterKeyValuesProvider keyValuesProvider =
-      new DefaultRSocketRequesterKeyValuesProvider();
+  private RSocketRequesterObservationConvention observationConvention;
 
   public ObservationRequesterRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -60,7 +58,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
         super::fireAndForget,
         payload,
         FrameType.REQUEST_FNF,
-        RSocketObservation.RSOCKET_REQUESTER_FNF);
+        RSocketDocumentedObservation.RSOCKET_REQUESTER_FNF);
   }
 
   @Override
@@ -69,7 +67,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
         super::requestResponse,
         payload,
         FrameType.REQUEST_RESPONSE,
-        RSocketObservation.RSOCKET_REQUESTER_REQUEST_RESPONSE);
+        RSocketDocumentedObservation.RSOCKET_REQUESTER_REQUEST_RESPONSE);
   }
 
   <T> Mono<T> setObservation(
@@ -115,8 +113,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
         new RSocketContext(
             payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
     Observation observation =
-        Observation.start(obs.getName(), rSocketContext, observationRegistry)
-            .keyValuesProvider(this.keyValuesProvider);
+            obs.start(this.observationConvention, new DefaultRSocketRequesterObservationConvention(rSocketContext), rSocketContext, observationRegistry);
     setContextualName(frameType, route, observation);
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
@@ -144,7 +141,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
                 payload,
                 contextView,
                 FrameType.REQUEST_STREAM,
-                RSocketObservation.RSOCKET_REQUESTER_REQUEST_STREAM));
+                RSocketDocumentedObservation.RSOCKET_REQUESTER_REQUEST_STREAM));
   }
 
   @Override
@@ -159,7 +156,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
                     firstPayload,
                     firstSignal.getContextView(),
                     FrameType.REQUEST_CHANNEL,
-                    RSocketObservation.RSOCKET_REQUESTER_REQUEST_CHANNEL);
+                    RSocketDocumentedObservation.RSOCKET_REQUESTER_REQUEST_CHANNEL);
               }
               return flux;
             });
@@ -196,8 +193,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
                   route,
                   RSocketContext.Side.REQUESTER);
           Observation newObservation =
-              Observation.start(obs.getName(), rSocketContext, this.observationRegistry)
-                  .keyValuesProvider(this.keyValuesProvider);
+                  obs.start(this.observationConvention, new DefaultRSocketRequesterObservationConvention(rSocketContext), rSocketContext, this.observationRegistry);
           setContextualName(frameType, route, newObservation);
           return input
               .apply(rSocketContext.modifiedPayload)
@@ -214,8 +210,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy
     }
   }
 
-  @Override
-  public void setKeyValuesProvider(RSocketRequesterKeyValuesProvider provider) {
-    this.keyValuesProvider = provider;
+  public void setObservationConvention(RSocketRequesterObservationConvention convention) {
+    this.observationConvention = convention;
   }
 }

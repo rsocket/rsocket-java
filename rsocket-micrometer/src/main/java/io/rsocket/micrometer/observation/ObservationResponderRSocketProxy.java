@@ -16,7 +16,7 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.core.instrument.util.StringUtils;
+import io.micrometer.common.util.StringUtils;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.netty.buffer.ByteBuf;
@@ -38,13 +38,11 @@ import reactor.core.publisher.Mono;
  * @author Oleh Dokuka
  * @since 3.1.0
  */
-public class ObservationResponderRSocketProxy extends RSocketProxy
-    implements Observation.KeyValuesProviderAware<RSocketResponderKeyValuesProvider> {
+public class ObservationResponderRSocketProxy extends RSocketProxy {
 
   private final ObservationRegistry observationRegistry;
 
-  private RSocketResponderKeyValuesProvider keyValuesProvider =
-      new DefaultRSocketResponderKeyValuesProvider();
+  private RSocketResponderObservationConvention observationConvention;
 
   public ObservationResponderRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
     super(source);
@@ -65,15 +63,14 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
             route,
             RSocketContext.Side.RESPONDER);
     Observation newObservation =
-        startObservation(RSocketObservation.RSOCKET_RESPONDER_FNF.getName(), rSocketContext);
+        startObservation(RSocketDocumentedObservation.RSOCKET_RESPONDER_FNF, rSocketContext);
     return super.fireAndForget(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
   }
 
-  private Observation startObservation(String name, RSocketContext rSocketContext) {
-    return Observation.start(name, rSocketContext, this.observationRegistry)
-        .keyValuesProvider(this.keyValuesProvider);
+  private Observation startObservation(RSocketDocumentedObservation observation, RSocketContext rSocketContext) {
+    return observation.start(this.observationConvention, new DefaultRSocketResponderObservationConvention(rSocketContext), rSocketContext, this.observationRegistry);
   }
 
   @Override
@@ -89,7 +86,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
             RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-            RSocketObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE.getName(), rSocketContext);
+                RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE, rSocketContext);
     return super.requestResponse(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -104,7 +101,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
             payload, sliceMetadata, FrameType.REQUEST_STREAM, route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-            RSocketObservation.RSOCKET_RESPONDER_REQUEST_STREAM.getName(), rSocketContext);
+                RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_STREAM, rSocketContext);
     return super.requestStream(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -128,7 +125,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
                         RSocketContext.Side.RESPONDER);
                 Observation newObservation =
                     startObservation(
-                        RSocketObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL.getName(),
+                            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL,
                         rSocketContext);
                 if (StringUtils.isNotBlank(route)) {
                   newObservation.contextualName(rSocketContext.frameType.name() + " " + route);
@@ -159,8 +156,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy
     return null;
   }
 
-  @Override
-  public void setKeyValuesProvider(RSocketResponderKeyValuesProvider provider) {
-    this.keyValuesProvider = provider;
+  public void setObservationConvention(RSocketResponderObservationConvention convention) {
+    this.observationConvention = convention;
   }
 }

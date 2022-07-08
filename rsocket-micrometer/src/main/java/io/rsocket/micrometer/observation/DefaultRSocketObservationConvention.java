@@ -19,27 +19,34 @@ package io.rsocket.micrometer.observation;
 import io.micrometer.common.KeyValues;
 import io.micrometer.common.util.StringUtils;
 import io.micrometer.observation.Observation;
+import io.rsocket.frame.FrameType;
 
 /**
- * Default {@link RSocketRequesterKeyValuesProvider} implementation.
+ * Default {@link RSocketRequesterObservationConvention} implementation.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
-public class DefaultRSocketResponderKeyValuesProvider implements RSocketResponderKeyValuesProvider {
+class DefaultRSocketObservationConvention {
 
-  @Override
-  public KeyValues getLowCardinalityKeyValues(RSocketContext context) {
-    KeyValues tags =
-        KeyValues.of(RSocketObservation.ResponderTags.REQUEST_TYPE.of(context.frameType.name()));
-    if (StringUtils.isNotBlank(context.route)) {
-      tags = tags.and(RSocketObservation.ResponderTags.ROUTE.of(context.route));
-    }
-    return tags;
+  private final RSocketContext rSocketContext;
+
+  public DefaultRSocketObservationConvention(RSocketContext rSocketContext) {
+    this.rSocketContext = rSocketContext;
   }
 
-  @Override
-  public boolean supportsContext(Observation.Context context) {
-    return context instanceof RSocketContext;
+  String getName() {
+    if (this.rSocketContext.frameType == FrameType.REQUEST_FNF) {
+      return "rsocket.fnf";
+    } else if (this.rSocketContext.frameType == FrameType.REQUEST_STREAM) {
+      return "rsocket.stream";
+    } else if (this.rSocketContext.frameType == FrameType.REQUEST_CHANNEL) {
+      return "rsocket.channel";
+    }
+    return "%s";
+  }
+
+  protected RSocketContext getRSocketContext() {
+    return this.rSocketContext;
   }
 }

@@ -19,13 +19,13 @@ package io.rsocket.micrometer.observation;
 import io.micrometer.observation.Observation;
 
 /**
- * {@link Observation.KeyValuesProvider} for RSocket requester {@link RSocketContext}.
+ * {@link Observation.ObservationConvention} for RSocket requester {@link RSocketContext}.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
-public interface RSocketRequesterKeyValuesProvider
-    extends Observation.KeyValuesProvider<RSocketContext> {
+public interface RSocketRequesterObservationConvention
+    extends Observation.ObservationConvention<RSocketContext> {
 
   @Override
   default boolean supportsContext(Observation.Context context) {
