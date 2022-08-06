@@ -16,9 +16,6 @@
 
 package io.rsocket.micrometer.observation;
 
-import io.micrometer.common.KeyValues;
-import io.micrometer.common.util.StringUtils;
-import io.micrometer.observation.Observation;
 import io.rsocket.frame.FrameType;
 
 /**

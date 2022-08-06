@@ -69,8 +69,13 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
         .doFinally(signalType -> newObservation.stop());
   }
 
-  private Observation startObservation(RSocketDocumentedObservation observation, RSocketContext rSocketContext) {
-    return observation.start(this.observationConvention, new DefaultRSocketResponderObservationConvention(rSocketContext), rSocketContext, this.observationRegistry);
+  private Observation startObservation(
+      RSocketDocumentedObservation observation, RSocketContext rSocketContext) {
+    return observation.start(
+        this.observationConvention,
+        new DefaultRSocketResponderObservationConvention(rSocketContext),
+        rSocketContext,
+        this.observationRegistry);
   }
 
   @Override
@@ -86,7 +91,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-                RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE, rSocketContext);
+            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE, rSocketContext);
     return super.requestResponse(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -101,7 +106,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             payload, sliceMetadata, FrameType.REQUEST_STREAM, route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-                RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_STREAM, rSocketContext);
+            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_STREAM, rSocketContext);
     return super.requestStream(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
         .doFinally(signalType -> newObservation.stop());
@@ -125,7 +130,7 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
                         RSocketContext.Side.RESPONDER);
                 Observation newObservation =
                     startObservation(
-                            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL,
+                        RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL,
                         rSocketContext);
                 if (StringUtils.isNotBlank(route)) {
                   newObservation.contextualName(rSocketContext.frameType.name() + " " + route);

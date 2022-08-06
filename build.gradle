@@ -80,7 +80,7 @@ subprojects {
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "io.micrometer:micrometer-observation:${ext['micrometer.version']}"
             dependency "io.micrometer:micrometer-test:${ext['micrometer.version']}"
-            dependency "io.micrometer:micrometer-tracing-api:${ext['micrometer-tracing.version']}"
+            dependency "io.micrometer:micrometer-tracing:${ext['micrometer-tracing.version']}"
             dependency "io.micrometer:micrometer-tracing-integration-test:${ext['micrometer-tracing.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"

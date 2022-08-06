@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.observation.TimerObservationHandler;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.tck.MeterRegistryAssert;
 import io.micrometer.observation.Observation;
@@ -62,7 +62,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   static {
     observationRegistry
         .observationConfig()
-        .observationHandler(new TimerObservationHandler(registry));
+        .observationHandler(new DefaultMeterObservationHandler(registry));
   }
 
   private final RSocketInterceptor requesterInterceptor;
@@ -82,7 +82,8 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private AtomicInteger counter;
 
   @Override
-  public BiConsumer<BuildingBlocks, Deque<ObservationHandler<? extends Observation.Context>>> customizeObservationHandlers() {
+  public BiConsumer<BuildingBlocks, Deque<ObservationHandler<? extends Observation.Context>>>
+      customizeObservationHandlers() {
     return (buildingBlocks, observationHandlers) -> {
       observationHandlers.addFirst(
           new RSocketRequesterTracingObservationHandler(
@@ -128,7 +129,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private void testFireAndForget() {
     counter.set(0);
     client.fireAndForget(DefaultPayload.create("start")).subscribe();
-    Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> counter.get() == 1);
+    Awaitility.await().atMost(Duration.ofSeconds(50)).until(() -> counter.get() == 1);
     assertThat(counter).as("Server did not see the request.").hasValue(1);
   }
 

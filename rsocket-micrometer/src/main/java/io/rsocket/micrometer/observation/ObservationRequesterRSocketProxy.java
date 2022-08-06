@@ -113,7 +113,11 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
         new RSocketContext(
             payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
     Observation observation =
-            obs.start(this.observationConvention, new DefaultRSocketRequesterObservationConvention(rSocketContext), rSocketContext, observationRegistry);
+        obs.start(
+            this.observationConvention,
+            new DefaultRSocketRequesterObservationConvention(rSocketContext),
+            rSocketContext,
+            observationRegistry);
     setContextualName(frameType, route, observation);
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
@@ -193,7 +197,11 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
                   route,
                   RSocketContext.Side.REQUESTER);
           Observation newObservation =
-                  obs.start(this.observationConvention, new DefaultRSocketRequesterObservationConvention(rSocketContext), rSocketContext, this.observationRegistry);
+              obs.start(
+                  this.observationConvention,
+                  new DefaultRSocketRequesterObservationConvention(rSocketContext),
+                  rSocketContext,
+                  this.observationRegistry);
           setContextualName(frameType, route, newObservation);
           return input
               .apply(rSocketContext.modifiedPayload)

@@ -40,11 +40,14 @@ final class PayloadUtils {
     final CompositeByteBuf metadata = ByteBufAllocator.DEFAULT.compositeBuffer();
     if (payload.hasMetadata()) {
       try {
-        final CompositeMetadata entries = new CompositeMetadata(payload.metadata(), true);
+        final CompositeMetadata entries = new CompositeMetadata(payload.metadata(), false);
         for (Entry entry : entries) {
           if (!fieldsWithDefaultZipkin.contains(entry.getMimeType())) {
             CompositeMetadataCodec.encodeAndAddMetadataWithCompression(
-                metadata, ByteBufAllocator.DEFAULT, entry.getMimeType(), entry.getContent());
+                metadata,
+                ByteBufAllocator.DEFAULT,
+                entry.getMimeType(),
+                entry.getContent().retain());
           }
         }
       } catch (Exception e) {
@@ -58,9 +61,9 @@ final class PayloadUtils {
     final Payload newPayload;
     try {
       if (payload instanceof ByteBufPayload) {
-        newPayload = ByteBufPayload.create(payload.data().retain(), metadata.retain());
+        newPayload = ByteBufPayload.create(payload.data().retain(), metadata);
       } else {
-        newPayload = DefaultPayload.create(payload.data().retain(), metadata.retain());
+        newPayload = DefaultPayload.create(payload.data().retain(), metadata);
       }
     } finally {
       payload.release();
