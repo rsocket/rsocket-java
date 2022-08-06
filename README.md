@@ -17,7 +17,7 @@ Learn more at http://rsocket.io
 
 [![Build Status](https://github.com/rsocket/rsocket-java/actions/workflows/gradle-main.yml/badge.svg?branch=master)](https://github.com/rsocket/rsocket-java/actions/workflows/gradle-main.yml)
 
-⚠️ The `master` branch is now dedicated to development of the `1.1.x` line.
+⚠️ The `master` branch is now dedicated to development of the `1.2.x` line.
 
 Releases and milestones are available via Maven Central.
 
@@ -29,8 +29,8 @@ repositories {
     maven { url 'https://repo.spring.io/milestone' }  // Reactor milestones (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.1'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.1'
+    implementation 'io.rsocket:rsocket-core:1.2.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.2.0-SNAPSHOT'
 }
 ```
 
@@ -44,8 +44,8 @@ repositories {
     maven { url 'https://repo.spring.io/snapshot' }  // Reactor snapshots (if needed)
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.1.2-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.1.2-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.2.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.2.0-SNAPSHOT'
 }
 ```
 
