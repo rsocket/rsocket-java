@@ -185,15 +185,18 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     requestHandler.dispose();
   }
 
-  private synchronized void cleanUpSendingSubscriptions() {
-    final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
-    final Collection<FrameHandler> activeStreamsCopy = new ArrayList<>(activeStreams.values());
+  private void cleanUpSendingSubscriptions() {
+    final Collection<FrameHandler> activeStreamsCopy;
+    synchronized (this) {
+      final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
+      activeStreamsCopy = new ArrayList<>(activeStreams.values());
+    }
+
     for (FrameHandler handler : activeStreamsCopy) {
       if (handler != null) {
         handler.handleCancel();
       }
     }
-    activeStreams.clear();
   }
 
   final void handleFrame(ByteBuf frame) {
