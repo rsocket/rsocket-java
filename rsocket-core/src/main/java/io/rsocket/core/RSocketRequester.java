@@ -345,15 +345,17 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       requesterLeaseTracker.dispose(e);
     }
 
+    final Collection<FrameHandler> activeStreamsCopy;
     synchronized (this) {
       final IntObjectMap<FrameHandler> activeStreams = this.activeStreams;
-      final Collection<FrameHandler> activeStreamsCopy = new ArrayList<>(activeStreams.values());
-      for (FrameHandler handler : activeStreamsCopy) {
-        if (handler != null) {
-          try {
-            handler.handleError(e);
-          } catch (Throwable ignored) {
-          }
+      activeStreamsCopy = new ArrayList<>(activeStreams.values());
+    }
+
+    for (FrameHandler handler : activeStreamsCopy) {
+      if (handler != null) {
+        try {
+          handler.handleError(e);
+        } catch (Throwable ignored) {
         }
       }
     }
