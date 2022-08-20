@@ -22,13 +22,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 public abstract class BaseDuplexConnection implements DuplexConnection {
-  protected Sinks.Empty<Void> onClose = Sinks.empty();
+  protected final Sinks.Empty<Void> onClose = Sinks.empty();
+  protected final UnboundedProcessor sender = new UnboundedProcessor(onClose::tryEmitEmpty);
 
-  protected UnboundedProcessor sender = new UnboundedProcessor();
-
-  public BaseDuplexConnection() {
-    onClose().doFinally(s -> doOnClose()).subscribe();
-  }
+  public BaseDuplexConnection() {}
 
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
@@ -48,7 +45,7 @@ public abstract class BaseDuplexConnection implements DuplexConnection {
 
   @Override
   public final void dispose() {
-    onClose.tryEmitEmpty();
+    doOnClose();
   }
 
   @Override
