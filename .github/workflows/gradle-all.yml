@@ -5,7 +5,7 @@ on:
   # but only for the non master/1.0.x branches
   push:
     branches-ignore:
-      - 1.0.x
+      - 1.1.x
       - master
 
 jobs:
