@@ -2,11 +2,11 @@ name: Main Branches Java CI
 
 on:
   # Trigger the workflow on push
-  # but only for the master/1.0.x branch
+  # but only for the master/1.1.x branch
   push:
     branches:
       - master
-      - 1.0.x
+      - 1.1.x
 
 jobs:
   build:
