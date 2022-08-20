@@ -63,8 +63,8 @@ public class PingClient {
       BiFunction<RSocket, ? super Payload, ? extends Publisher<Payload>> interaction,
       int count,
       final Recorder histogram) {
-    return client
-        .flatMapMany(
+    return Flux.usingWhen(
+            client,
             rsocket ->
                 Flux.range(1, count)
                     .flatMap(
@@ -78,7 +78,11 @@ public class PingClient {
                                     histogram.recordValue(diff);
                                   });
                         },
-                        64))
+                        64),
+            rsocket -> {
+              rsocket.dispose();
+              return rsocket.onClose();
+            })
         .doOnError(Throwable::printStackTrace);
   }
 }
