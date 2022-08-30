@@ -16,6 +16,7 @@
 package io.rsocket.loadbalance;
 
 import io.netty.util.ReferenceCountUtil;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
@@ -28,16 +29,18 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.stream.Collectors;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.util.annotation.Nullable;
 
 class RSocketPool extends ResolvingOperator<Object>
-    implements CoreSubscriber<List<LoadbalanceTarget>> {
+    implements CoreSubscriber<List<LoadbalanceTarget>>, Closeable {
 
   static final AtomicReferenceFieldUpdater<RSocketPool, PooledRSocket[]> ACTIVE_SOCKETS =
       AtomicReferenceFieldUpdater.newUpdater(
@@ -49,6 +52,7 @@ class RSocketPool extends ResolvingOperator<Object>
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
   final RSocketConnector connector;
   final LoadbalanceStrategy loadbalanceStrategy;
+  final Sinks.Empty<Void> onAllClosedSink = Sinks.unsafe().empty();
   volatile PooledRSocket[] activeSockets;
   volatile Subscription s;
 
@@ -65,12 +69,25 @@ class RSocketPool extends ResolvingOperator<Object>
   }
 
   @Override
+  public Mono<Void> onClose() {
+    return onAllClosedSink.asMono();
+  }
+
+  @Override
   protected void doOnDispose() {
     Operators.terminate(S, this);
 
     RSocket[] activeSockets = ACTIVE_SOCKETS.getAndSet(this, TERMINATED);
     for (RSocket rSocket : activeSockets) {
       rSocket.dispose();
+    }
+
+    if (activeSockets.length > 0) {
+      Mono.whenDelayError(
+              Arrays.stream(activeSockets).map(RSocket::onClose).collect(Collectors.toList()))
+          .subscribe(null, onAllClosedSink::tryEmitError, onAllClosedSink::tryEmitEmpty);
+    } else {
+      onAllClosedSink.tryEmitEmpty();
     }
   }
 

@@ -26,6 +26,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.util.context.Context;
 
 /** Default implementation of {@link RSocket} stored in {@link RSocketPool} */
@@ -35,6 +36,7 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
   final RSocketPool parent;
   final Mono<RSocket> rSocketSource;
   final LoadbalanceTarget loadbalanceTarget;
+  final Sinks.Empty<Void> onCloseSink;
 
   volatile Subscription s;
 
@@ -46,6 +48,7 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
     this.parent = parent;
     this.rSocketSource = rSocketSource;
     this.loadbalanceTarget = loadbalanceTarget;
+    this.onCloseSink = Sinks.unsafe().empty();
   }
 
   @Override
@@ -155,6 +158,12 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
         break;
       }
     }
+
+    if (t == ON_DISPOSE) {
+      this.onCloseSink.tryEmitEmpty();
+    } else {
+      this.onCloseSink.tryEmitError(t);
+    }
   }
 
   @Override
@@ -165,6 +174,13 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
   @Override
   protected void doOnDispose() {
     Operators.terminate(S, this);
+
+    final RSocket value = this.value;
+    if (value != null) {
+      value.onClose().subscribe(null, onCloseSink::tryEmitError, onCloseSink::tryEmitEmpty);
+    } else {
+      onCloseSink.tryEmitEmpty();
+    }
   }
 
   @Override
@@ -193,7 +209,12 @@ final class PooledRSocket extends ResolvingOperator<RSocket>
   }
 
   LoadbalanceTarget target() {
-    return loadbalanceTarget;
+    return this.loadbalanceTarget;
+  }
+
+  @Override
+  public Mono<Void> onClose() {
+    return this.onCloseSink.asMono();
   }
 
   @Override

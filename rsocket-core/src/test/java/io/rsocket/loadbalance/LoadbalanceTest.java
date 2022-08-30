@@ -19,6 +19,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RaceTestConstants;
 import io.rsocket.core.RSocketConnector;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.transport.ClientTransport;
@@ -317,6 +318,85 @@ public class LoadbalanceTest {
         .verify(Duration.ofSeconds(2));
 
     Assertions.assertThat(counter.get()).isEqualTo(3);
+  }
+
+  @Test
+  public void shouldNotifyOnCloseWhenAllTheActiveSubscribersAreClosed() {
+    final AtomicInteger counter = new AtomicInteger();
+    final ClientTransport mockTransport = Mockito.mock(ClientTransport.class);
+    final RSocketConnector rSocketConnectorMock = Mockito.mock(RSocketConnector.class);
+
+    Sinks.Empty<Void> onCloseSocket1 = Sinks.empty();
+    Sinks.Empty<Void> onCloseSocket2 = Sinks.empty();
+
+    RSocket socket1 =
+        new RSocket() {
+          @Override
+          public Mono<Void> onClose() {
+            return onCloseSocket1.asMono();
+          }
+
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            return Mono.empty();
+          }
+        };
+    RSocket socket2 =
+        new RSocket() {
+          @Override
+          public Mono<Void> onClose() {
+            return onCloseSocket2.asMono();
+          }
+
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            return Mono.empty();
+          }
+        };
+
+    Mockito.when(rSocketConnectorMock.connect(Mockito.any(ClientTransport.class)))
+        .then(im -> Mono.just(socket1))
+        .then(im -> Mono.just(socket2))
+        .then(im -> Mono.never().doOnCancel(() -> counter.incrementAndGet()));
+
+    final TestPublisher<List<LoadbalanceTarget>> source = TestPublisher.create();
+    final RSocketPool rSocketPool =
+        new RSocketPool(rSocketConnectorMock, source, new RoundRobinLoadbalanceStrategy());
+
+    source.next(
+        Arrays.asList(
+            LoadbalanceTarget.from("1", mockTransport),
+            LoadbalanceTarget.from("2", mockTransport),
+            LoadbalanceTarget.from("3", mockTransport)));
+
+    StepVerifier.create(rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE))
+        .expectSubscription()
+        .expectComplete()
+        .verify(Duration.ofSeconds(2));
+
+    StepVerifier.create(rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE))
+        .expectSubscription()
+        .expectComplete()
+        .verify(Duration.ofSeconds(2));
+
+    rSocketPool.select().fireAndForget(EmptyPayload.INSTANCE).subscribe();
+
+    rSocketPool.dispose();
+
+    AssertSubscriber<Void> onCloseSubscriber =
+        rSocketPool.onClose().subscribeWith(AssertSubscriber.create());
+
+    onCloseSubscriber.assertNotTerminated();
+
+    onCloseSocket1.tryEmitEmpty();
+
+    onCloseSubscriber.assertNotTerminated();
+
+    onCloseSocket2.tryEmitEmpty();
+
+    onCloseSubscriber.assertTerminated().assertComplete();
+
+    Assertions.assertThat(counter.get()).isOne();
   }
 
   static class TestRSocket extends RSocketProxy {

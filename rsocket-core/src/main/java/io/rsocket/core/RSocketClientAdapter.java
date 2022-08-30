@@ -47,6 +47,11 @@ class RSocketClientAdapter implements RSocketClient {
   }
 
   @Override
+  public Mono<Void> onClose() {
+    return rsocket.onClose();
+  }
+
+  @Override
   public Mono<Void> fireAndForget(Mono<Payload> payloadMono) {
     return payloadMono.flatMap(rsocket::fireAndForget);
   }
