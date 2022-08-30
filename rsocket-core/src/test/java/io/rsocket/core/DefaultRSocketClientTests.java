@@ -29,6 +29,7 @@ import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.util.ByteBufPayload;
+import io.rsocket.util.RSocketProxy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -458,6 +459,43 @@ public class DefaultRSocketClientTests {
   }
 
   @Test
+  public void shouldReceiveOnCloseNotificationOnDisposeOriginalSource() {
+    Sinks.Empty<Void> onCloseDelayer = Sinks.empty();
+    ClientSocketRule rule =
+        new ClientSocketRule() {
+          @Override
+          protected RSocket newRSocket() {
+            return new RSocketProxy(super.newRSocket()) {
+              @Override
+              public Mono<Void> onClose() {
+                return super.onClose().and(onCloseDelayer.asMono());
+              }
+            };
+          }
+        };
+    rule.init();
+    AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
+    rule.client.source().subscribe(assertSubscriber);
+    rule.delayer.run();
+    assertSubscriber.assertTerminated().assertValueCount(1);
+
+    rule.client.dispose();
+
+    Assertions.assertThat(rule.client.isDisposed()).isTrue();
+
+    AssertSubscriber<Void> onCloseSubscriber = AssertSubscriber.create();
+
+    rule.client.onClose().subscribe(onCloseSubscriber);
+    onCloseSubscriber.assertNotTerminated();
+
+    onCloseDelayer.tryEmitEmpty();
+
+    onCloseSubscriber.assertTerminated().assertComplete();
+
+    Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+  }
+
+  @Test
   public void shouldDisposeOriginalSourceIfRacing() {
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
@@ -485,7 +523,7 @@ public class DefaultRSocketClientTests {
     }
   }
 
-  public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
+  public static class ClientSocketRule extends AbstractSocketRule<RSocket> {
 
     protected RSocketClient client;
     protected Runnable delayer;
@@ -498,14 +536,16 @@ public class DefaultRSocketClientTests {
       producer = Sinks.one();
       client =
           new DefaultRSocketClient(
-              producer
-                  .asMono()
-                  .doOnCancel(() -> socket.dispose())
-                  .doOnDiscard(Disposable.class, Disposable::dispose));
+              Mono.defer(
+                  () ->
+                      producer
+                          .asMono()
+                          .doOnCancel(() -> socket.dispose())
+                          .doOnDiscard(Disposable.class, Disposable::dispose)));
     }
 
     @Override
-    protected RSocketRequester newRSocket() {
+    protected RSocket newRSocket() {
       return new RSocketRequester(
           connection,
           PayloadDecoder.ZERO_COPY,
