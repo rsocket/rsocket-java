@@ -65,6 +65,8 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   CoreSubscriber<? super Payload> inboundSubscriber;
   CompositeByteBuf frames;
   boolean done;
+  long requested;
+  long produced;
 
   RequestStreamRequesterFlux(Payload payload, RequesterResponderSupport requesterResponderSupport) {
     this.allocator = requesterResponderSupport.getAllocator();
@@ -133,6 +135,8 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     if (!Operators.validate(n)) {
       return;
     }
+
+    this.requested = Operators.addCap(this.requested, n);
 
     final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
     final boolean leaseEnabled = requesterLeaseTracker != null;
@@ -294,6 +298,33 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       p.release();
       return;
     }
+
+    final long produced = this.produced;
+    if (this.requested == produced) {
+      p.release();
+
+      long previousState = markTerminated(STATE, this);
+      if (isTerminated(previousState)) {
+        return;
+      }
+
+      final int streamId = this.streamId;
+      this.requesterResponderSupport.remove(streamId, this);
+
+      final IllegalStateException cause =
+          Exceptions.failWithOverflow("The receiver is overrun by more signals than expected");
+      this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
+
+      final RequestInterceptor requestInterceptor = this.requestInterceptor;
+      if (requestInterceptor != null) {
+        requestInterceptor.onTerminate(streamId, FrameType.REQUEST_STREAM, cause);
+      }
+
+      this.inboundSubscriber.onError(cause);
+      return;
+    }
+
+    this.produced = produced + 1;
 
     this.inboundSubscriber.onNext(p);
   }
