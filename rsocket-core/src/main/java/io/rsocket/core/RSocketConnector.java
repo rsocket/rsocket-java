@@ -590,7 +590,7 @@ public class RSocketConnector {
                                 dataMimeType,
                                 setupPayload);
 
-                        sourceConnection.sendFrame(0, setupFrame.retain());
+                        sourceConnection.sendFrame(0, setupFrame.retainedSlice());
 
                         return clientSetup
                             .init(sourceConnection)
