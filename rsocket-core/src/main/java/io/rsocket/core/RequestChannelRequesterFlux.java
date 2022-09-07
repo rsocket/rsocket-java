@@ -718,7 +718,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
         }
 
         final Throwable cause =
-            Exceptions.failWithOverflow("The receiver is overrun by more signals than expected");
+            Exceptions.failWithOverflow("The number of messages received exceeds the number requested");
         final RequestInterceptor requestInterceptor = this.requestInterceptor;
         if (requestInterceptor != null) {
           requestInterceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, cause);
