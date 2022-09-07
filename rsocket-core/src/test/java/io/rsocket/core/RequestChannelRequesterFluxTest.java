@@ -16,6 +16,7 @@
 package io.rsocket.core;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+import static io.rsocket.frame.FrameType.CANCEL;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -40,6 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -511,6 +513,77 @@ public class RequestChannelRequesterFluxTest {
     activeStreams.assertNoActiveStreams();
     // state machine check
     stateAssert.isTerminated();
+  }
+
+  @Test
+  public void failOnOverflow() {
+    final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+    final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    final TestPublisher<Payload> publisher = TestPublisher.create();
+
+    final RequestChannelRequesterFlux requestChannelRequesterFlux =
+        new RequestChannelRequesterFlux(publisher, activeStreams);
+    final StateAssert<RequestChannelRequesterFlux> stateAssert =
+        StateAssert.assertThat(requestChannelRequesterFlux);
+
+    // state machine check
+
+    stateAssert.isUnsubscribed();
+    activeStreams.assertNoActiveStreams();
+
+    final AssertSubscriber<Payload> assertSubscriber =
+        requestChannelRequesterFlux.subscribeWith(AssertSubscriber.create(0));
+    activeStreams.assertNoActiveStreams();
+
+    // state machine check
+    stateAssert.hasSubscribedFlagOnly();
+
+    assertSubscriber.request(1);
+    stateAssert.hasSubscribedFlag().hasRequestN(1).hasNoFirstFrameSentFlag();
+    activeStreams.assertNoActiveStreams();
+
+    Payload payload1 = TestRequesterResponderSupport.randomPayload(allocator);
+
+    publisher.next(payload1.retain());
+
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(FrameType.REQUEST_CHANNEL)
+        .hasPayload(payload1)
+        .hasRequestN(1)
+        .hasNoLeaks();
+    payload1.release();
+
+    stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+    activeStreams.assertHasStream(1, requestChannelRequesterFlux);
+
+    publisher.assertMaxRequested(1);
+
+    Payload nextPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    requestChannelRequesterFlux.handlePayload(nextPayload);
+
+    Payload unrequestedPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    requestChannelRequesterFlux.handlePayload(unrequestedPayload);
+
+    final ByteBuf cancelFrame = sender.awaitFrame();
+    FrameAssert.assertThat(cancelFrame)
+        .isNotNull()
+        .typeOf(CANCEL)
+        .hasClientSideStreamId()
+        .hasStreamId(1)
+        .hasNoLeaks();
+
+    assertSubscriber
+        .assertValuesWith(p -> PayloadAssert.assertThat(p).isSameAs(nextPayload).hasNoLeaks())
+        .assertError()
+        .assertErrorMessage("The number of messages received exceeds the number requested");
+
+    publisher.assertWasCancelled();
+
+    activeStreams.assertNoActiveStreams();
+    // state machine check
+    stateAssert.isTerminated();
+    Assertions.assertThat(sender.isEmpty()).isTrue();
   }
 
   /*

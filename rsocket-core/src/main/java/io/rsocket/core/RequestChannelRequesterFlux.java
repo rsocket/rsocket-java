@@ -86,6 +86,8 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
   Context cachedContext;
   CoreSubscriber<? super Payload> inboundSubscriber;
   boolean inboundDone;
+  long requested;
+  long produced;
 
   CompositeByteBuf frames;
 
@@ -137,6 +139,8 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
     if (!Operators.validate(n)) {
       return;
     }
+
+    this.requested = Operators.addCap(this.requested, n);
 
     long previousState = addRequestN(STATE, this, n, this.requesterLeaseTracker == null);
     if (isTerminated(previousState)) {
@@ -705,6 +709,27 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
         value.release();
         return;
       }
+
+      final long produced = this.produced;
+      if (this.requested == produced) {
+        value.release();
+        if (!tryCancel()) {
+          return;
+        }
+
+        final Throwable cause =
+            Exceptions.failWithOverflow(
+                "The number of messages received exceeds the number requested");
+        final RequestInterceptor requestInterceptor = this.requestInterceptor;
+        if (requestInterceptor != null) {
+          requestInterceptor.onTerminate(streamId, FrameType.REQUEST_CHANNEL, cause);
+        }
+
+        this.inboundSubscriber.onError(cause);
+        return;
+      }
+
+      this.produced = produced + 1;
 
       this.inboundSubscriber.onNext(value);
     }

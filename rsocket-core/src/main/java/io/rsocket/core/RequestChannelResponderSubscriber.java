@@ -88,6 +88,8 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
   boolean inboundDone;
   boolean outboundDone;
+  long requested;
+  long produced;
 
   public RequestChannelResponderSubscriber(
       int streamId,
@@ -179,6 +181,8 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       return;
     }
 
+    this.requested = Operators.addCap(this.requested, n);
+
     long previousState = StateUtils.addRequestN(STATE, this, n);
     if (isTerminated(previousState)) {
       // full termination can be the result of both sides completion / cancelFrame / remote or local
@@ -196,6 +200,9 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         Payload firstPayload = this.firstPayload;
         if (firstPayload != null) {
           this.firstPayload = null;
+
+          this.produced++;
+
           inboundSubscriber.onNext(firstPayload);
         }
 
@@ -215,6 +222,8 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
         final Payload firstPayload = this.firstPayload;
         this.firstPayload = null;
+
+        this.produced++;
 
         inboundSubscriber.onNext(firstPayload);
         inboundSubscriber.onComplete();
@@ -238,6 +247,9 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     final Payload firstPayload = this.firstPayload;
     this.firstPayload = null;
+
+    this.produced++;
+
     inboundSubscriber.onNext(firstPayload);
 
     previousState = markFirstFrameSent(STATE, this);
@@ -415,6 +427,58 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         p.release();
         return;
       }
+
+      final long produced = this.produced;
+      if (this.requested == produced) {
+        p.release();
+
+        this.inboundDone = true;
+
+        final Throwable cause =
+            Exceptions.failWithOverflow(
+                "The number of messages received exceeds the number requested");
+        boolean wasThrowableAdded = Exceptions.addThrowable(INBOUND_ERROR, this, cause);
+
+        long previousState = markTerminated(STATE, this);
+        if (isTerminated(previousState)) {
+          if (!wasThrowableAdded) {
+            Operators.onErrorDropped(cause, this.inboundSubscriber.currentContext());
+          }
+          return;
+        }
+
+        this.requesterResponderSupport.remove(this.streamId, this);
+
+        this.connection.sendFrame(
+            streamId,
+            ErrorFrameCodec.encode(
+                this.allocator, streamId, new CanceledException(cause.getMessage())));
+
+        if (!isSubscribed(previousState)) {
+          final Payload firstPayload = this.firstPayload;
+          this.firstPayload = null;
+          firstPayload.release();
+        } else if (isFirstFrameSent(previousState) && !isInboundTerminated(previousState)) {
+          Throwable inboundError = Exceptions.terminate(INBOUND_ERROR, this);
+          if (inboundError != TERMINATED) {
+            //noinspection ConstantConditions
+            this.inboundSubscriber.onError(inboundError);
+          }
+        }
+
+        // this is downstream subscription so need to cancel it just in case error signal has not
+        // reached it
+        // needs for disconnected upstream and downstream case
+        this.outboundSubscription.cancel();
+
+        final RequestInterceptor interceptor = requestInterceptor;
+        if (interceptor != null) {
+          interceptor.onTerminate(this.streamId, FrameType.REQUEST_CHANNEL, cause);
+        }
+        return;
+      }
+
+      this.produced = produced + 1;
 
       this.inboundSubscriber.onNext(p);
     }
