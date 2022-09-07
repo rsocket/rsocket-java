@@ -435,7 +435,8 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
         this.inboundDone = true;
 
         final Throwable cause =
-            Exceptions.failWithOverflow("The number of messages received exceeds the number requested");
+            Exceptions.failWithOverflow(
+                "The number of messages received exceeds the number requested");
         boolean wasThrowableAdded = Exceptions.addThrowable(INBOUND_ERROR, this, cause);
 
         long previousState = markTerminated(STATE, this);
