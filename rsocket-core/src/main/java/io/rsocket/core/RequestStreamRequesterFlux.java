@@ -312,7 +312,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       this.requesterResponderSupport.remove(streamId, this);
 
       final IllegalStateException cause =
-          Exceptions.failWithOverflow("The receiver is overrun by more signals than expected");
+          Exceptions.failWithOverflow("The number of messages received exceeds the number requested");
       this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
