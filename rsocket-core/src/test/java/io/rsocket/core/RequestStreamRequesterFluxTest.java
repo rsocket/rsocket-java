@@ -926,7 +926,7 @@ public class RequestStreamRequesterFluxTest {
     final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
     final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
     final TestDuplexConnection sender = activeStreams.getDuplexConnection();
-    ;
+
     final Payload payload = ByteBufPayload.create("");
 
     final RequestStreamRequesterFlux requestStreamRequesterFlux =
@@ -1127,6 +1127,87 @@ public class RequestStreamRequesterFluxTest {
             Assertions.assertThatThrownBy(requestStreamRequesterFlux::blockLast)
                 .hasMessage("test")
                 .isInstanceOf(RuntimeException.class));
+  }
+
+  @Test
+  public void failOnOverflow() {
+    final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+    final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    final Payload payload = TestRequesterResponderSupport.genericPayload(allocator);
+
+    final RequestStreamRequesterFlux requestStreamRequesterFlux =
+        new RequestStreamRequesterFlux(payload, activeStreams);
+    final StateAssert<RequestStreamRequesterFlux> stateAssert =
+        StateAssert.assertThat(requestStreamRequesterFlux);
+
+    // state machine check
+
+    stateAssert.isUnsubscribed();
+    activeStreams.assertNoActiveStreams();
+
+    final AssertSubscriber<Payload> assertSubscriber =
+        requestStreamRequesterFlux.subscribeWith(AssertSubscriber.create(0));
+    Assertions.assertThat(payload.refCnt()).isOne();
+    activeStreams.assertNoActiveStreams();
+    // state machine check
+    stateAssert.hasSubscribedFlagOnly();
+
+    assertSubscriber.request(1);
+
+    Assertions.assertThat(payload.refCnt()).isZero();
+    activeStreams.assertHasStream(1, requestStreamRequesterFlux);
+
+    // state machine check
+    stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+
+    final ByteBuf frame = sender.awaitFrame();
+    FrameAssert.assertThat(frame)
+        .isNotNull()
+        .hasPayloadSize(
+            "testData".getBytes(CharsetUtil.UTF_8).length
+                + "testMetadata".getBytes(CharsetUtil.UTF_8).length)
+        .hasMetadata("testMetadata")
+        .hasData("testData")
+        .hasNoFragmentsFollow()
+        .hasRequestN(1)
+        .typeOf(FrameType.REQUEST_STREAM)
+        .hasClientSideStreamId()
+        .hasStreamId(1)
+        .hasNoLeaks();
+
+    Assertions.assertThat(sender.isEmpty()).isTrue();
+
+    Payload requestedPayload = TestRequesterResponderSupport.randomPayload(allocator);
+    requestStreamRequesterFlux.handlePayload(requestedPayload);
+
+    Payload unrequestedPayload = TestRequesterResponderSupport.randomPayload(allocator);
+    requestStreamRequesterFlux.handlePayload(unrequestedPayload);
+
+    final ByteBuf cancelFrame = sender.awaitFrame();
+    FrameAssert.assertThat(cancelFrame)
+        .isNotNull()
+        .typeOf(FrameType.CANCEL)
+        .hasClientSideStreamId()
+        .hasStreamId(1)
+        .hasNoLeaks();
+
+    assertSubscriber
+        .assertValuesWith(p -> PayloadAssert.assertThat(p).isEqualTo(requestedPayload).hasNoLeaks())
+        .assertError()
+        .assertErrorMessage("The number of messages received exceeds the number requested");
+
+    PayloadAssert.assertThat(requestedPayload).isReleased();
+    PayloadAssert.assertThat(unrequestedPayload).isReleased();
+
+    Assertions.assertThat(payload.refCnt()).isZero();
+    activeStreams.assertNoActiveStreams();
+
+    Assertions.assertThat(sender.isEmpty()).isTrue();
+
+    // state machine check
+    stateAssert.isTerminated();
+    allocator.assertHasNoLeaks();
   }
 
   @Test

@@ -263,6 +263,143 @@ public class RequestChannelResponderSubscriberTest {
     allocator.assertHasNoLeaks();
   }
 
+  @Test
+  public void failOnOverflow() {
+    final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+    final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    final Payload firstPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    final TestPublisher<Payload> publisher = TestPublisher.create();
+
+    final RequestChannelResponderSubscriber requestChannelResponderSubscriber =
+        new RequestChannelResponderSubscriber(1, 1, firstPayload, activeStreams);
+    final StateAssert<RequestChannelResponderSubscriber> stateAssert =
+        StateAssert.assertThat(requestChannelResponderSubscriber);
+    activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
+
+    // state machine check
+    stateAssert.isUnsubscribed().hasRequestN(0);
+    activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
+
+    publisher.subscribe(requestChannelResponderSubscriber);
+    publisher.assertMaxRequested(1);
+    // state machine check
+    stateAssert.isUnsubscribed().hasRequestN(0);
+
+    final AssertSubscriber<Payload> assertSubscriber =
+        requestChannelResponderSubscriber.subscribeWith(AssertSubscriber.create(0));
+    Assertions.assertThat(firstPayload.refCnt()).isOne();
+
+    // state machine check
+    stateAssert.hasSubscribedFlagOnly().hasRequestN(0);
+
+    assertSubscriber.request(1);
+
+    // state machine check
+    stateAssert.hasSubscribedFlag().hasFirstFrameSentFlag().hasRequestN(1);
+
+    // should not send requestN since 1 is remaining
+    Assertions.assertThat(sender.isEmpty()).isTrue();
+
+    assertSubscriber.request(1);
+
+    stateAssert.hasSubscribedFlag().hasRequestN(2).hasFirstFrameSentFlag();
+
+    // should not send requestN since 1 is remaining
+    FrameAssert.assertThat(sender.awaitFrame())
+        .typeOf(REQUEST_N)
+        .hasStreamId(1)
+        .hasRequestN(1)
+        .hasNoLeaks();
+
+    Payload nextPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    requestChannelResponderSubscriber.handlePayload(nextPayload);
+
+    Payload unrequestedPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    requestChannelResponderSubscriber.handlePayload(unrequestedPayload);
+
+    final ByteBuf cancelErrorFrame = sender.awaitFrame();
+    FrameAssert.assertThat(cancelErrorFrame)
+        .isNotNull()
+        .typeOf(ERROR)
+        .hasData("The number of messages received exceeds the number requested")
+        .hasClientSideStreamId()
+        .hasStreamId(1)
+        .hasNoLeaks();
+
+    assertSubscriber
+        .assertValuesWith(
+            p -> PayloadAssert.assertThat(p).isSameAs(firstPayload).hasNoLeaks(),
+            p -> PayloadAssert.assertThat(p).isSameAs(nextPayload).hasNoLeaks())
+        .assertErrorMessage("The number of messages received exceeds the number requested");
+
+    Assertions.assertThat(firstPayload.refCnt()).isZero();
+    Assertions.assertThat(nextPayload.refCnt()).isZero();
+    Assertions.assertThat(unrequestedPayload.refCnt()).isZero();
+    stateAssert.isTerminated();
+    activeStreams.assertNoActiveStreams();
+
+    Assertions.assertThat(sender.isEmpty()).isTrue();
+    allocator.assertHasNoLeaks();
+  }
+
+  @Test
+  public void failOnOverflowBeforeFirstPayloadIsSent() {
+    final TestRequesterResponderSupport activeStreams = TestRequesterResponderSupport.client();
+    final LeaksTrackingByteBufAllocator allocator = activeStreams.getAllocator();
+    final TestDuplexConnection sender = activeStreams.getDuplexConnection();
+    final Payload firstPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    final TestPublisher<Payload> publisher = TestPublisher.create();
+
+    final RequestChannelResponderSubscriber requestChannelResponderSubscriber =
+        new RequestChannelResponderSubscriber(1, 1, firstPayload, activeStreams);
+    final StateAssert<RequestChannelResponderSubscriber> stateAssert =
+        StateAssert.assertThat(requestChannelResponderSubscriber);
+    activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
+
+    // state machine check
+    stateAssert.isUnsubscribed().hasRequestN(0);
+    activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
+
+    publisher.subscribe(requestChannelResponderSubscriber);
+    publisher.assertMaxRequested(1);
+    // state machine check
+    stateAssert.isUnsubscribed().hasRequestN(0);
+
+    final AssertSubscriber<Payload> assertSubscriber =
+        requestChannelResponderSubscriber.subscribeWith(AssertSubscriber.create(0));
+    Assertions.assertThat(firstPayload.refCnt()).isOne();
+
+    // state machine check
+    stateAssert.hasSubscribedFlagOnly().hasRequestN(0);
+
+    Payload unrequestedPayload = TestRequesterResponderSupport.genericPayload(allocator);
+    requestChannelResponderSubscriber.handlePayload(unrequestedPayload);
+
+    final ByteBuf cancelErrorFrame = sender.awaitFrame();
+    FrameAssert.assertThat(cancelErrorFrame)
+        .isNotNull()
+        .typeOf(ERROR)
+        .hasData("The number of messages received exceeds the number requested")
+        .hasClientSideStreamId()
+        .hasStreamId(1)
+        .hasNoLeaks();
+
+    assertSubscriber.request(1);
+
+    assertSubscriber
+        .assertValuesWith(p -> PayloadAssert.assertThat(p).isSameAs(firstPayload).hasNoLeaks())
+        .assertErrorMessage("The number of messages received exceeds the number requested");
+
+    Assertions.assertThat(firstPayload.refCnt()).isZero();
+    Assertions.assertThat(unrequestedPayload.refCnt()).isZero();
+    stateAssert.isTerminated();
+    activeStreams.assertNoActiveStreams();
+
+    Assertions.assertThat(sender.isEmpty()).isTrue();
+    allocator.assertHasNoLeaks();
+  }
+
   /*
    * +--------------------------------+
    * |       Racing Test Cases        |
@@ -664,7 +801,7 @@ public class RequestChannelResponderSubscriberTest {
       ;
       final TestPublisher<Payload> publisher =
           TestPublisher.createNoncompliant(DEFER_CANCELLATION, CLEANUP_ON_TERMINATE);
-      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(1);
+      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(2);
 
       Payload firstPayload = TestRequesterResponderSupport.genericPayload(allocator);
       final RequestChannelResponderSubscriber requestOperator =
@@ -725,8 +862,17 @@ public class RequestChannelResponderSubscriberTest {
           assertSubscriber.assertTerminated().assertError();
         }
 
-        final ByteBuf frame = sender.awaitFrame();
-        FrameAssert.assertThat(frame)
+        final ByteBuf requstFrame = sender.awaitFrame();
+        FrameAssert.assertThat(requstFrame)
+            .isNotNull()
+            .typeOf(REQUEST_N)
+            .hasRequestN(1)
+            .hasClientSideStreamId()
+            .hasStreamId(1)
+            .hasNoLeaks();
+
+        final ByteBuf terminalFrame = sender.awaitFrame();
+        FrameAssert.assertThat(terminalFrame)
             .isNotNull()
             .typeOf(terminationMode.equals("cancel") ? CANCEL : ERROR)
             .hasClientSideStreamId()
