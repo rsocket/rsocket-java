@@ -322,7 +322,7 @@ public class RequestChannelResponderSubscriberTest {
     FrameAssert.assertThat(cancelErrorFrame)
         .isNotNull()
         .typeOf(ERROR)
-        .hasData("The receiver is overrun by more signals than expected")
+        .hasData("The number of messages received exceeds the number requested")
         .hasClientSideStreamId()
         .hasStreamId(1)
         .hasNoLeaks();
@@ -331,7 +331,7 @@ public class RequestChannelResponderSubscriberTest {
         .assertValuesWith(
             p -> PayloadAssert.assertThat(p).isSameAs(firstPayload).hasNoLeaks(),
             p -> PayloadAssert.assertThat(p).isSameAs(nextPayload).hasNoLeaks())
-        .assertErrorMessage("The receiver is overrun by more signals than expected");
+        .assertErrorMessage("The number of messages received exceeds the number requested");
 
     Assertions.assertThat(firstPayload.refCnt()).isZero();
     Assertions.assertThat(nextPayload.refCnt()).isZero();
@@ -380,7 +380,7 @@ public class RequestChannelResponderSubscriberTest {
     FrameAssert.assertThat(cancelErrorFrame)
         .isNotNull()
         .typeOf(ERROR)
-        .hasData("The receiver is overrun by more signals than expected")
+        .hasData("The number of messages received exceeds the number requested")
         .hasClientSideStreamId()
         .hasStreamId(1)
         .hasNoLeaks();
@@ -389,7 +389,7 @@ public class RequestChannelResponderSubscriberTest {
 
     assertSubscriber
         .assertValuesWith(p -> PayloadAssert.assertThat(p).isSameAs(firstPayload).hasNoLeaks())
-        .assertErrorMessage("The receiver is overrun by more signals than expected");
+        .assertErrorMessage("The number of messages received exceeds the number requested");
 
     Assertions.assertThat(firstPayload.refCnt()).isZero();
     Assertions.assertThat(unrequestedPayload.refCnt()).isZero();
@@ -801,7 +801,7 @@ public class RequestChannelResponderSubscriberTest {
       ;
       final TestPublisher<Payload> publisher =
           TestPublisher.createNoncompliant(DEFER_CANCELLATION, CLEANUP_ON_TERMINATE);
-      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(1);
+      final AssertSubscriber<Payload> assertSubscriber = new AssertSubscriber<>(2);
 
       Payload firstPayload = TestRequesterResponderSupport.genericPayload(allocator);
       final RequestChannelResponderSubscriber requestOperator =
@@ -862,8 +862,17 @@ public class RequestChannelResponderSubscriberTest {
           assertSubscriber.assertTerminated().assertError();
         }
 
-        final ByteBuf frame = sender.awaitFrame();
-        FrameAssert.assertThat(frame)
+        final ByteBuf requstFrame = sender.awaitFrame();
+        FrameAssert.assertThat(requstFrame)
+            .isNotNull()
+            .typeOf(REQUEST_N)
+            .hasRequestN(1)
+            .hasClientSideStreamId()
+            .hasStreamId(1)
+            .hasNoLeaks();
+
+        final ByteBuf terminalFrame = sender.awaitFrame();
+        FrameAssert.assertThat(terminalFrame)
             .isNotNull()
             .typeOf(terminationMode.equals("cancel") ? CANCEL : ERROR)
             .hasClientSideStreamId()

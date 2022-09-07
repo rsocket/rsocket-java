@@ -576,7 +576,7 @@ public class RequestChannelRequesterFluxTest {
     assertSubscriber
         .assertValuesWith(p -> PayloadAssert.assertThat(p).isSameAs(nextPayload).hasNoLeaks())
         .assertError()
-        .assertErrorMessage("The receiver is overrun by more signals than expected");
+        .assertErrorMessage("The number of messages received exceeds the number requested");
 
     publisher.assertWasCancelled();
 

@@ -1195,7 +1195,7 @@ public class RequestStreamRequesterFluxTest {
     assertSubscriber
         .assertValuesWith(p -> PayloadAssert.assertThat(p).isEqualTo(requestedPayload).hasNoLeaks())
         .assertError()
-        .assertErrorMessage("The receiver is overrun by more signals than expected");
+        .assertErrorMessage("The number of messages received exceeds the number requested");
 
     PayloadAssert.assertThat(requestedPayload).isReleased();
     PayloadAssert.assertThat(unrequestedPayload).isReleased();
