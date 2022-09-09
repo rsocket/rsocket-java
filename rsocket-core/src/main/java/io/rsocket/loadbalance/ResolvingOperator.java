@@ -327,6 +327,30 @@ class ResolvingOperator<T> implements Disposable {
     // no ops
   }
 
+  public final boolean connect() {
+    for (; ; ) {
+      final BiConsumer<T, Throwable>[] a = this.subscribers;
+
+      if (a == TERMINATED) {
+        return false;
+      }
+
+      if (a == READY) {
+        return true;
+      }
+
+      if (a != EMPTY_UNSUBSCRIBED) {
+        // do nothing if already started
+        return true;
+      }
+
+      if (SUBSCRIBERS.compareAndSet(this, a, EMPTY_SUBSCRIBED)) {
+        this.doSubscribe();
+        return true;
+      }
+    }
+  }
+
   final int add(BiConsumer<T, Throwable> ps) {
     for (; ; ) {
       BiConsumer<T, Throwable>[] a = this.subscribers;

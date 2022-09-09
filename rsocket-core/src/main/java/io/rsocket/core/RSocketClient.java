@@ -77,6 +77,17 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
  */
 public interface RSocketClient extends Closeable {
 
+  /**
+   * Connect to the remote rsocket endpoint, if not yet connected. This method is a shortcut for
+   * {@code RSocketClient#source().subscribe()}.
+   *
+   * @return {@code true} if an attempt to connect was triggered or if already connected, or {@code
+   *     false} if the client is terminated.
+   */
+  default boolean connect() {
+    throw new NotImplementedException();
+  }
+
   default Mono<Void> onClose() {
     return Mono.error(new NotImplementedException());
   }
