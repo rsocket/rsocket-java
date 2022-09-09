@@ -543,6 +543,11 @@ public abstract class ReconnectMonoStressTest {
       reconnectMono.subscribe(stressSubscriber);
     }
 
+    @Actor
+    void connect() {
+      reconnectMono.resolvingInner.connect();
+    }
+
     @Arbiter
     public void arbiter(IIIIII_Result r) {
       r.r1 = stressSubscription.subscribes;
