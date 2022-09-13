@@ -1,0 +1,16 @@
+[
+  {
+    "condition": {
+      "typeReachable": "io.rsocket.transport.netty.RSocketLengthCodec"
+    },
+    "name": "io.rsocket.transport.netty.RSocketLengthCodec",
+    "queryAllPublicMethods": true
+  },
+  {
+    "condition": {
+      "typeReachable": "io.rsocket.transport.netty.server.BaseWebsocketServerTransport$PongHandler"
+    },
+    "name": "io.rsocket.transport.netty.server.BaseWebsocketServerTransport$PongHandler",
+    "queryAllPublicMethods": true
+  }
+]
