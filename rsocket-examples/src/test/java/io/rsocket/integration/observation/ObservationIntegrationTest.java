@@ -69,7 +69,7 @@ public class ObservationIntegrationTest extends SampleTestRunner {
   private final RSocketInterceptor responderInterceptor;
 
   ObservationIntegrationTest() {
-    super(SampleRunnerConfig.builder().build(), observationRegistry, registry);
+    super(SampleRunnerConfig.builder().build());
     requesterInterceptor =
         reactiveSocket -> new ObservationRequesterRSocketProxy(reactiveSocket, observationRegistry);
 
@@ -232,5 +232,15 @@ public class ObservationIntegrationTest extends SampleTestRunner {
               Tags.of(Tag.of("error", "none"), Tag.of("rsocket.request-type", "REQUEST_STREAM")));
       // @formatter:on
     };
+  }
+
+  @Override
+  protected MeterRegistry getMeterRegistry() {
+    return registry;
+  }
+
+  @Override
+  protected ObservationRegistry getObservationRegistry() {
+    return observationRegistry;
   }
 }
