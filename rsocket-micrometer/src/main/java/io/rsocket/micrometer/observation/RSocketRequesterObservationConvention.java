@@ -17,15 +17,16 @@
 package io.rsocket.micrometer.observation;
 
 import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationConvention;
 
 /**
- * {@link Observation.ObservationConvention} for RSocket requester {@link RSocketContext}.
+ * {@link ObservationConvention} for RSocket requester {@link RSocketContext}.
  *
  * @author Marcin Grzejszczak
  * @since 2.0.0
  */
 public interface RSocketRequesterObservationConvention
-    extends Observation.ObservationConvention<RSocketContext> {
+    extends ObservationConvention<RSocketContext> {
 
   @Override
   default boolean supportsContext(Observation.Context context) {

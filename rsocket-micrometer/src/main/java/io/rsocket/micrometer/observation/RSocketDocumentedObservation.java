@@ -18,6 +18,7 @@ package io.rsocket.micrometer.observation;
 
 import io.micrometer.common.docs.KeyName;
 import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationConvention;
 import io.micrometer.observation.docs.DocumentedObservation;
 
 enum RSocketDocumentedObservation implements DocumentedObservation {
@@ -25,7 +26,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket responder side. */
   RSOCKET_RESPONDER {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketResponderObservationConvention.class;
     }
@@ -34,7 +35,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket requester side for Fire and Forget frame type. */
   RSOCKET_REQUESTER_FNF {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketRequesterObservationConvention.class;
     }
@@ -53,7 +54,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket responder side for Fire and Forget frame type. */
   RSOCKET_RESPONDER_FNF {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketResponderObservationConvention.class;
     }
@@ -72,7 +73,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket requester side for Request Response frame type. */
   RSOCKET_REQUESTER_REQUEST_RESPONSE {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketRequesterObservationConvention.class;
     }
@@ -91,7 +92,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket responder side for Request Response frame type. */
   RSOCKET_RESPONDER_REQUEST_RESPONSE {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketResponderObservationConvention.class;
     }
@@ -110,7 +111,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket requester side for Request Stream frame type. */
   RSOCKET_REQUESTER_REQUEST_STREAM {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketRequesterObservationConvention.class;
     }
@@ -129,7 +130,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket responder side for Request Stream frame type. */
   RSOCKET_RESPONDER_REQUEST_STREAM {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketResponderObservationConvention.class;
     }
@@ -148,7 +149,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket requester side for Request Channel frame type. */
   RSOCKET_REQUESTER_REQUEST_CHANNEL {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketRequesterObservationConvention.class;
     }
@@ -167,7 +168,7 @@ enum RSocketDocumentedObservation implements DocumentedObservation {
   /** Observation created on the RSocket responder side for Request Channel frame type. */
   RSOCKET_RESPONDER_REQUEST_CHANNEL {
     @Override
-    public Class<? extends Observation.ObservationConvention<? extends Observation.Context>>
+    public Class<? extends ObservationConvention<? extends Observation.Context>>
         getDefaultConvention() {
       return DefaultRSocketResponderObservationConvention.class;
     }
