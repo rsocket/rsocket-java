@@ -16,8 +16,8 @@
 
 plugins {
     id 'com.github.sherter.google-java-format' version '0.9' apply false
-    id 'me.champeau.jmh' version '0.6.6' apply false
-    id 'io.spring.dependency-management' version '1.0.11.RELEASE' apply false
+    id 'me.champeau.jmh' version '0.6.7' apply false
+    id 'io.spring.dependency-management' version '1.0.13.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
     id 'io.github.reyerizo.gradle.jcstress' version '0.8.13' apply false
     id 'com.github.vlsi.gradle-extensions'  version '1.76' apply false
@@ -33,14 +33,14 @@ subprojects {
     apply plugin: 'com.github.sherter.google-java-format'
     apply plugin: 'com.github.vlsi.gradle-extensions'
 
-    ext['reactor-bom.version'] = '2020.0.17'
+    ext['reactor-bom.version'] = '2020.0.23'
     ext['logback.version'] = '1.2.10'
-    ext['netty-bom.version'] = '4.1.75.Final'
-    ext['netty-boringssl.version'] = '2.0.51.Final'
+    ext['netty-bom.version'] = '4.1.81.Final'
+    ext['netty-boringssl.version'] = '2.0.54.Final'
     ext['hdrhistogram.version'] = '2.1.12'
     ext['mockito.version'] = '4.4.0'
     ext['slf4j.version'] = '1.7.36'
-    ext['jmh.version'] = '1.33'
+    ext['jmh.version'] = '1.35'
     ext['junit.version'] = '5.8.1'
     ext['micrometer.version'] = '1.10.0-SNAPSHOT'
     ext['micrometer-tracing.version'] = '1.0.0-SNAPSHOT'
