@@ -25,6 +25,7 @@ import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
 import java.util.Objects;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 
 /**
@@ -73,6 +74,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public Mono<Void> onClose() {
+    return super.onClose().and(connection.onDispose());
+  }
+
+  @Override
   public Flux<ByteBuf> receive() {
     return connection.inbound().receive();
   }
@@ -83,17 +89,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
     connection
         .outbound()
         .sendObject(new BinaryWebSocketFrame(errorFrame))
-        .then()
-        .subscribe(
-            null,
-            t -> onClose.tryEmitError(t),
-            () -> {
-              final Throwable cause = e.getCause();
-              if (cause == null) {
-                onClose.tryEmitEmpty();
-              } else {
-                onClose.tryEmitError(cause);
-              }
-            });
+        .subscribe(connection.disposeSubscriber());
+    sender.onComplete();
   }
 }

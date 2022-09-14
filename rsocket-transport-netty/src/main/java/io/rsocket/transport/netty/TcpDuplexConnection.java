@@ -26,6 +26,7 @@ import io.rsocket.internal.BaseDuplexConnection;
 import java.net.SocketAddress;
 import java.util.Objects;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
@@ -68,23 +69,18 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public Mono<Void> onClose() {
+    return super.onClose().and(connection.onDispose());
+  }
+
+  @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
     connection
         .outbound()
         .sendObject(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame))
-        .then()
-        .subscribe(
-            null,
-            t -> onClose.tryEmitError(t),
-            () -> {
-              final Throwable cause = e.getCause();
-              if (cause == null) {
-                onClose.tryEmitEmpty();
-              } else {
-                onClose.tryEmitError(cause);
-              }
-            });
+        .subscribe(connection.disposeSubscriber());
+    sender.onComplete();
   }
 
   @Override
