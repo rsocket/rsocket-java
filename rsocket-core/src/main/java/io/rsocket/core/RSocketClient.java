@@ -15,12 +15,13 @@
  */
 package io.rsocket.core;
 
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
  * Contract for performing RSocket requests.
@@ -74,7 +75,22 @@ import reactor.core.publisher.Mono;
  * @since 1.1
  * @see io.rsocket.loadbalance.LoadbalanceRSocketClient
  */
-public interface RSocketClient extends Disposable {
+public interface RSocketClient extends Closeable {
+
+  /**
+   * Connect to the remote rsocket endpoint, if not yet connected. This method is a shortcut for
+   * {@code RSocketClient#source().subscribe()}.
+   *
+   * @return {@code true} if an attempt to connect was triggered or if already connected, or {@code
+   *     false} if the client is terminated.
+   */
+  default boolean connect() {
+    throw new NotImplementedException();
+  }
+
+  default Mono<Void> onClose() {
+    return Mono.error(new NotImplementedException());
+  }
 
   /** Return the underlying source used to obtain a shared {@link RSocket} connection. */
   Mono<RSocket> source();

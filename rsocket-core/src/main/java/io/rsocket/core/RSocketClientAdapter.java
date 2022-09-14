@@ -42,8 +42,18 @@ class RSocketClientAdapter implements RSocketClient {
   }
 
   @Override
+  public boolean connect() {
+    throw new UnsupportedOperationException("Connect does not apply to a server side RSocket");
+  }
+
+  @Override
   public Mono<RSocket> source() {
     return Mono.just(rsocket);
+  }
+
+  @Override
+  public Mono<Void> onClose() {
+    return rsocket.onClose();
   }
 
   @Override

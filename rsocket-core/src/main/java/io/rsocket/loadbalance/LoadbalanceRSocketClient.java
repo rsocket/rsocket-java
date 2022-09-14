@@ -40,6 +40,16 @@ public class LoadbalanceRSocketClient implements RSocketClient {
     this.rSocketPool = rSocketPool;
   }
 
+  @Override
+  public Mono<Void> onClose() {
+    return rSocketPool.onClose();
+  }
+
+  @Override
+  public boolean connect() {
+    return rSocketPool.connect();
+  }
+
   /** Return {@code Mono} that selects an RSocket from the underlying pool. */
   @Override
   public Mono<RSocket> source() {

@@ -517,7 +517,7 @@ public abstract class ReconnectMonoStressTest {
       id = {"1, 0, 1, 0, 1, 2"},
       expect = ACCEPTABLE)
   @State
-  public static class SubscribeBlockRace extends BaseStressTest {
+  public static class SubscribeBlockConnectRace extends BaseStressTest {
 
     String receivedValue;
 
@@ -541,6 +541,11 @@ public abstract class ReconnectMonoStressTest {
     @Actor
     void subscribe() {
       reconnectMono.subscribe(stressSubscriber);
+    }
+
+    @Actor
+    void connect() {
+      reconnectMono.resolvingInner.connect();
     }
 
     @Arbiter

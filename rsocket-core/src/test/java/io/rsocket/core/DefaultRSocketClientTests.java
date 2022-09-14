@@ -28,7 +28,9 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.ByteBufPayload;
+import io.rsocket.util.RSocketProxy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -458,6 +460,125 @@ public class DefaultRSocketClientTests {
   }
 
   @Test
+  public void shouldReceiveOnCloseNotificationOnDisposeOriginalSource() {
+    Sinks.Empty<Void> onCloseDelayer = Sinks.empty();
+    ClientSocketRule rule =
+        new ClientSocketRule() {
+          @Override
+          protected RSocket newRSocket() {
+            return new RSocketProxy(super.newRSocket()) {
+              @Override
+              public Mono<Void> onClose() {
+                return super.onClose().and(onCloseDelayer.asMono());
+              }
+            };
+          }
+        };
+    rule.init();
+    AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
+    rule.client.source().subscribe(assertSubscriber);
+    rule.delayer.run();
+    assertSubscriber.assertTerminated().assertValueCount(1);
+
+    rule.client.dispose();
+
+    Assertions.assertThat(rule.client.isDisposed()).isTrue();
+
+    AssertSubscriber<Void> onCloseSubscriber = AssertSubscriber.create();
+
+    rule.client.onClose().subscribe(onCloseSubscriber);
+    onCloseSubscriber.assertNotTerminated();
+
+    onCloseDelayer.tryEmitEmpty();
+
+    onCloseSubscriber.assertTerminated().assertComplete();
+
+    Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+  }
+
+  @Test
+  public void shouldResolveOnStartSource() {
+    AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
+    Assertions.assertThat(rule.client.connect()).isTrue();
+    rule.client.source().subscribe(assertSubscriber);
+    rule.delayer.run();
+    assertSubscriber.assertTerminated().assertValueCount(1);
+
+    rule.client.dispose();
+
+    Assertions.assertThat(rule.client.isDisposed()).isTrue();
+
+    AssertSubscriber<Void> assertSubscriber1 = AssertSubscriber.create();
+
+    rule.client.onClose().subscribe(assertSubscriber1);
+
+    assertSubscriber1.assertTerminated().assertComplete();
+
+    Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+  }
+
+  @Test
+  public void shouldNotStartIfAlreadyDisposed() {
+    Assertions.assertThat(rule.client.connect()).isTrue();
+    Assertions.assertThat(rule.client.connect()).isTrue();
+    rule.delayer.run();
+
+    rule.client.dispose();
+
+    Assertions.assertThat(rule.client.connect()).isFalse();
+
+    Assertions.assertThat(rule.client.isDisposed()).isTrue();
+
+    AssertSubscriber<Void> assertSubscriber1 = AssertSubscriber.create();
+
+    rule.client.onClose().subscribe(assertSubscriber1);
+
+    assertSubscriber1.assertTerminated().assertComplete();
+
+    Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+  }
+
+  @Test
+  public void shouldBeRestartedIfSourceWasClosed() {
+    AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
+    AssertSubscriber<Void> terminateSubscriber = AssertSubscriber.create();
+
+    Assertions.assertThat(rule.client.connect()).isTrue();
+    rule.client.source().subscribe(assertSubscriber);
+    rule.client.onClose().subscribe(terminateSubscriber);
+
+    rule.delayer.run();
+
+    assertSubscriber.assertTerminated().assertValueCount(1);
+
+    rule.socket.dispose();
+
+    terminateSubscriber.assertNotTerminated();
+    Assertions.assertThat(rule.client.isDisposed()).isFalse();
+
+    rule.connection = new TestDuplexConnection(rule.allocator);
+    rule.socket = rule.newRSocket();
+    rule.producer = Sinks.one();
+
+    AssertSubscriber<RSocket> assertSubscriber2 = AssertSubscriber.create();
+
+    Assertions.assertThat(rule.client.connect()).isTrue();
+    rule.client.source().subscribe(assertSubscriber2);
+
+    rule.delayer.run();
+
+    assertSubscriber2.assertTerminated().assertValueCount(1);
+
+    rule.client.dispose();
+
+    terminateSubscriber.assertTerminated().assertComplete();
+
+    Assertions.assertThat(rule.client.connect()).isFalse();
+
+    Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+  }
+
+  @Test
   public void shouldDisposeOriginalSourceIfRacing() {
     for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
       ClientSocketRule rule = new ClientSocketRule();
@@ -485,7 +606,38 @@ public class DefaultRSocketClientTests {
     }
   }
 
-  public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
+  @Test
+  public void shouldStartOriginalSourceOnceIfRacing() {
+    for (int i = 0; i < RaceTestConstants.REPEATS; i++) {
+      ClientSocketRule rule = new ClientSocketRule();
+
+      rule.init();
+
+      AssertSubscriber<RSocket> assertSubscriber = AssertSubscriber.create();
+
+      RaceTestUtils.race(
+          () -> rule.client.source().subscribe(assertSubscriber), () -> rule.client.connect());
+
+      Assertions.assertThat(rule.producer.currentSubscriberCount()).isOne();
+
+      rule.delayer.run();
+
+      assertSubscriber.assertTerminated();
+
+      rule.client.dispose();
+
+      Assertions.assertThat(rule.client.isDisposed()).isTrue();
+      Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+      AssertSubscriber<Void> assertSubscriber1 = AssertSubscriber.create();
+
+      rule.client.onClose().subscribe(assertSubscriber1);
+
+      assertSubscriber1.assertTerminated().assertComplete();
+    }
+  }
+
+  public static class ClientSocketRule extends AbstractSocketRule<RSocket> {
 
     protected RSocketClient client;
     protected Runnable delayer;
@@ -498,14 +650,16 @@ public class DefaultRSocketClientTests {
       producer = Sinks.one();
       client =
           new DefaultRSocketClient(
-              producer
-                  .asMono()
-                  .doOnCancel(() -> socket.dispose())
-                  .doOnDiscard(Disposable.class, Disposable::dispose));
+              Mono.defer(
+                  () ->
+                      producer
+                          .asMono()
+                          .doOnCancel(() -> socket.dispose())
+                          .doOnDiscard(Disposable.class, Disposable::dispose)));
     }
 
     @Override
-    protected RSocketRequester newRSocket() {
+    protected RSocket newRSocket() {
       return new RSocketRequester(
           connection,
           PayloadDecoder.ZERO_COPY,

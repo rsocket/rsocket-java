@@ -14,8 +14,8 @@ dependencies {
   compileOnly "io.rsocket:rsocket-transport-local:${perfBaselineVersion}"
   compileOnly "io.rsocket:rsocket-transport-netty:${perfBaselineVersion}"
 
-  implementation "org.openjdk.jmh:jmh-core:1.21"
-  annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.21"
+  implementation "org.openjdk.jmh:jmh-core:1.35"
+  annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.35"
 
   current project(':rsocket-core')
   current project(':rsocket-transport-local')

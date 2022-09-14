@@ -39,7 +39,7 @@ public abstract class BaseDuplexConnection implements DuplexConnection {
   protected abstract void doOnClose();
 
   @Override
-  public final Mono<Void> onClose() {
+  public Mono<Void> onClose() {
     return onClose.asMono();
   }
 
