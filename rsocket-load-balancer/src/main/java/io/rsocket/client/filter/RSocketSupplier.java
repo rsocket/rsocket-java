@@ -23,6 +23,7 @@ import io.rsocket.RSocket;
 import io.rsocket.stat.Ewma;
 import io.rsocket.util.Clock;
 import io.rsocket.util.RSocketProxy;
+import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
@@ -147,6 +148,16 @@ public class RSocketSupplier implements Availability, Supplier<Mono<RSocket>>, C
           .metadataPush(payload)
           .doOnError(t -> errorPercentage.insert(0.0))
           .doOnSuccess(v -> updateErrorPercentage(1.0));
+    }
+
+    @Override
+    public SocketAddress localAddress() {
+      return source.localAddress();
+    }
+
+    @Override
+    public SocketAddress remoteAddress() {
+      return source.remoteAddress();
     }
 
     @Override

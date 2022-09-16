@@ -34,6 +34,7 @@ import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.plugins.RequestInterceptor;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -174,6 +175,16 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
     }
 
     return nextStreamId;
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return getDuplexConnection().localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return getDuplexConnection().remoteAddress();
   }
 
   @Override

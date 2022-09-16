@@ -108,6 +108,11 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return address;
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return address;
   }

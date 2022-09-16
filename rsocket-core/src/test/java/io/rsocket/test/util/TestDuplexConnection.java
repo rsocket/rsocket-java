@@ -125,6 +125,11 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return new TestLocalSocketAddress("TestDuplexConnection");
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return new TestLocalSocketAddress("TestDuplexConnection");
   }

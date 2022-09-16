@@ -23,6 +23,7 @@ import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Median;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -516,6 +517,16 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     @Override
     public Mono<Void> metadataPush(Payload payload) {
       return errorVoid;
+    }
+
+    @Override
+    public SocketAddress localAddress() {
+      throw new RuntimeException(NoAvailableRSocketException.INSTANCE);
+    }
+
+    @Override
+    public SocketAddress remoteAddress() {
+      throw new RuntimeException(NoAvailableRSocketException.INSTANCE);
     }
 
     @Override

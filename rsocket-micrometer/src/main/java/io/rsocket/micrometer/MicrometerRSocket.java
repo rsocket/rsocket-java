@@ -29,6 +29,7 @@ import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Sample;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import java.net.SocketAddress;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -93,6 +94,16 @@ final class MicrometerRSocket implements RSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     return delegate.metadataPush(payload).doFinally(metadataPush);
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return delegate.localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return delegate.remoteAddress();
   }
 
   @Override

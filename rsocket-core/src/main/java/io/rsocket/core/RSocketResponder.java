@@ -32,6 +32,7 @@ import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.plugins.RequestInterceptor;
+import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -151,6 +152,16 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     } catch (Throwable t) {
       return Mono.error(t);
     }
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return getDuplexConnection().localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return getDuplexConnection().remoteAddress();
   }
 
   @Override

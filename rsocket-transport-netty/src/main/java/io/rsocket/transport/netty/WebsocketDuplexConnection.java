@@ -64,6 +64,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public SocketAddress localAddress() {
+    return connection.channel().localAddress();
+  }
+
+  @Override
   public SocketAddress remoteAddress() {
     return connection.channel().remoteAddress();
   }

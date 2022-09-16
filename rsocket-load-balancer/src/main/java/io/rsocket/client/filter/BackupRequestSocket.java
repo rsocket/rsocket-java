@@ -21,6 +21,7 @@ import io.rsocket.RSocket;
 import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
+import java.net.SocketAddress;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -82,6 +83,16 @@ public class BackupRequestSocket implements RSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     return child.metadataPush(payload);
+  }
+
+  @Override
+  public SocketAddress localAddress() {
+    return child.localAddress();
+  }
+
+  @Override
+  public SocketAddress remoteAddress() {
+    return child.remoteAddress();
   }
 
   @Override

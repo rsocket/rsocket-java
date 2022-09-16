@@ -76,6 +76,17 @@ public interface DuplexConnection extends Availability, Closeable {
   ByteBufAllocator alloc();
 
   /**
+   * Return the local address that this connection is connected to. The returned {@link
+   * SocketAddress} varies by transport type and should be downcast to obtain more detailed
+   * information. For TCP and WebSocket, the address type is {@link java.net.InetSocketAddress}. For
+   * local transport, it is {@link io.rsocket.transport.local.LocalSocketAddress}.
+   *
+   * @return the address
+   * @since 1.1.1
+   */
+  SocketAddress localAddress();
+
+  /**
    * Return the remote address that this connection is connected to. The returned {@link
    * SocketAddress} varies by transport type and should be downcast to obtain more detailed
    * information. For TCP and WebSocket, the address type is {@link java.net.InetSocketAddress}. For

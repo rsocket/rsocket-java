@@ -19,6 +19,7 @@ package io.rsocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import java.net.SocketAddress;
 
 /**
  * A contract providing different interaction models for <a
@@ -77,6 +78,38 @@ public interface RSocket extends Availability, Closeable {
    */
   default Mono<Void> metadataPush(Payload payload) {
     return RSocketAdapter.metadataPush(payload);
+  }
+
+  /**
+   * Returns the local address where this channel is bound to.  The returned
+   * {@link SocketAddress} is supposed to be down-cast into more concrete
+   * type such as {@link java.net.InetSocketAddress} to retrieve the detailed
+   * information.
+   *
+   * @return the local address of this channel.
+   *         {@code null} if this channel is not bound.
+   * @since 1.1.1
+   */
+  default SocketAddress localAddress() {
+    return null;
+  }
+
+  /**
+   * Returns the remote address where this channel is connected to.  The
+   * returned {@link SocketAddress} is supposed to be down-cast into more
+   * concrete type such as {@link java.net.InetSocketAddress} to retrieve the detailed
+   * information.
+   *
+   * @return the remote address of this channel.
+   *         {@code null} if this channel is not connected.
+   *         If this channel is not connected but it can receive messages
+   *         from arbitrary remote addresses to determine
+   *         the origination of the received message as this method will
+   *         return {@code null}.
+   * @since 1.1.1
+   */
+  default SocketAddress remoteAddress() {
+    return null;
   }
 
   @Override

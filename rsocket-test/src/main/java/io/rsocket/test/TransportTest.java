@@ -691,6 +691,11 @@ public interface TransportTest {
       }
 
       @Override
+      public SocketAddress localAddress() {
+        return duplexConnection.localAddress();
+      }
+
+      @Override
       public SocketAddress remoteAddress() {
         return duplexConnection.remoteAddress();
       }
@@ -766,6 +771,11 @@ public interface TransportTest {
       @Override
       public ByteBufAllocator alloc() {
         return source.alloc();
+      }
+
+      @Override
+      public SocketAddress localAddress() {
+        return source.localAddress();
       }
 
       @Override
