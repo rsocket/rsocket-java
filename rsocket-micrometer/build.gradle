@@ -23,6 +23,7 @@ plugins {
 dependencies {
     api project(':rsocket-core')
     api 'io.micrometer:micrometer-core'
+    api 'io.micrometer:micrometer-tracing'
 
     implementation 'org.slf4j:slf4j-api'
 
