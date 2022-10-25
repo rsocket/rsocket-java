@@ -42,7 +42,8 @@ subprojects {
     ext['slf4j.version'] = '1.7.36'
     ext['jmh.version'] = '1.35'
     ext['junit.version'] = '5.8.1'
-    ext['micrometer.version'] = '1.8.4'
+    ext['micrometer.version'] = '1.10.0-RC1'
+    ext['micrometer-tracing.version'] = '1.0.0-RC1'
     ext['assertj.version'] = '3.22.0'
     ext['netflix.limits.version'] = '0.3.6'
     ext['bouncycastle-bcpkix.version'] = '1.70'
@@ -69,6 +70,8 @@ subprojects {
             mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
             mavenBom "io.netty:netty-bom:${ext['netty-bom.version']}"
             mavenBom "org.junit:junit-bom:${ext['junit.version']}"
+            mavenBom "io.micrometer:micrometer-bom:${ext['micrometer.version']}"
+            mavenBom "io.micrometer:micrometer-tracing-bom:${ext['micrometer-tracing.version']}"
         }
 
         dependencies {
@@ -76,7 +79,6 @@ subprojects {
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
             dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
             dependency "org.bouncycastle:bcpkix-jdk15on:${ext['bouncycastle-bcpkix.version']}"
-            dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
             dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
@@ -103,6 +105,7 @@ subprojects {
             content {
                 includeGroup "io.projectreactor"
                 includeGroup "io.projectreactor.netty"
+                includeGroup "io.micrometer"
             }
         }
 

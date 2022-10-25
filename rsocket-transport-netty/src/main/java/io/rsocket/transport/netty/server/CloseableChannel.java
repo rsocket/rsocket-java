@@ -29,7 +29,7 @@ import reactor.netty.DisposableChannel;
  */
 public final class CloseableChannel implements Closeable {
 
-  /** For 1.0 and 1.1 compatibility: remove when RSocket requires Reactor Netty 1.0+. */
+  /** For forward compatibility: remove when RSocket compiles against Reactor 1.0. */
   private static final Method channelAddressMethod;
 
   static {
@@ -61,7 +61,7 @@ public final class CloseableChannel implements Closeable {
   public InetSocketAddress address() {
     try {
       return (InetSocketAddress) channel.address();
-    } catch (NoSuchMethodError e) {
+    } catch (ClassCastException | NoSuchMethodError e) {
       try {
         return (InetSocketAddress) channelAddressMethod.invoke(this.channel);
       } catch (Exception ex) {
