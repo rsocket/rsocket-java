@@ -32,6 +32,7 @@ import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 import reactor.util.context.ContextView;
 
 /**
@@ -43,13 +44,24 @@ import reactor.util.context.ContextView;
  */
 public class ObservationRequesterRSocketProxy extends RSocketProxy {
 
+  /** Aligned with ObservationThreadLocalAccessor#KEY */
+  private static final String MICROMETER_OBSERVATION_KEY = "micrometer.observation";
+
   private final ObservationRegistry observationRegistry;
 
-  private RSocketRequesterObservationConvention observationConvention;
+  @Nullable private final RSocketRequesterObservationConvention observationConvention;
 
   public ObservationRequesterRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
+    this(source, observationRegistry, null);
+  }
+
+  public ObservationRequesterRSocketProxy(
+      RSocket source,
+      ObservationRegistry observationRegistry,
+      RSocketRequesterObservationConvention observationConvention) {
     super(source);
     this.observationRegistry = observationRegistry;
+    this.observationConvention = observationConvention;
   }
 
   @Override
@@ -76,15 +88,7 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
       FrameType frameType,
       ObservationDocumentation observation) {
     return Mono.deferContextual(
-        contextView -> {
-          if (contextView.hasKey(Observation.class)) {
-            Observation parent = contextView.get(Observation.class);
-            try (Observation.Scope scope = parent.openScope()) {
-              return observe(input, payload, frameType, observation);
-            }
-          }
-          return observe(input, payload, frameType, observation);
-        });
+        contextView -> observe(input, payload, frameType, observation, contextView));
   }
 
   private String route(Payload payload) {
@@ -107,18 +111,22 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
       Function<Payload, Mono<T>> input,
       Payload payload,
       FrameType frameType,
-      ObservationDocumentation obs) {
+      ObservationDocumentation obs,
+      ContextView contextView) {
     String route = route(payload);
     RSocketContext rSocketContext =
         new RSocketContext(
             payload, payload.sliceMetadata(), frameType, route, RSocketContext.Side.REQUESTER);
+    Observation parentObservation = contextView.getOrDefault(MICROMETER_OBSERVATION_KEY, null);
     Observation observation =
-        obs.start(
-            this.observationConvention,
-            new DefaultRSocketRequesterObservationConvention(rSocketContext),
-            () -> rSocketContext,
-            observationRegistry);
+        obs.observation(
+                this.observationConvention,
+                new DefaultRSocketRequesterObservationConvention(rSocketContext),
+                () -> rSocketContext,
+                observationRegistry)
+            .parentObservation(parentObservation);
     setContextualName(frameType, route, observation);
+    observation.start();
     Payload newPayload = payload;
     if (rSocketContext.modifiedPayload != null) {
       newPayload = rSocketContext.modifiedPayload;
@@ -126,26 +134,17 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
     return input
         .apply(newPayload)
         .doOnError(observation::error)
-        .doFinally(signalType -> observation.stop());
-  }
-
-  private Observation observation(ContextView contextView) {
-    if (contextView.hasKey(Observation.class)) {
-      return contextView.get(Observation.class);
-    }
-    return null;
+        .doFinally(signalType -> observation.stop())
+        .contextWrite(context -> context.put(MICROMETER_OBSERVATION_KEY, observation));
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return Flux.deferContextual(
-        contextView ->
-            setObservation(
-                super::requestStream,
-                payload,
-                contextView,
-                FrameType.REQUEST_STREAM,
-                RSocketObservationDocumentation.RSOCKET_REQUESTER_REQUEST_STREAM));
+    return observationFlux(
+        super::requestStream,
+        payload,
+        FrameType.REQUEST_STREAM,
+        RSocketObservationDocumentation.RSOCKET_REQUESTER_REQUEST_STREAM);
   }
 
   @Override
@@ -155,30 +154,14 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
             (firstSignal, flux) -> {
               final Payload firstPayload = firstSignal.get();
               if (firstPayload != null) {
-                return setObservation(
+                return observationFlux(
                     p -> super.requestChannel(flux.skip(1).startWith(p)),
                     firstPayload,
-                    firstSignal.getContextView(),
                     FrameType.REQUEST_CHANNEL,
                     RSocketObservationDocumentation.RSOCKET_REQUESTER_REQUEST_CHANNEL);
               }
               return flux;
             });
-  }
-
-  private Flux<Payload> setObservation(
-      Function<Payload, Flux<Payload>> input,
-      Payload payload,
-      ContextView contextView,
-      FrameType frameType,
-      ObservationDocumentation obs) {
-    Observation parentObservation = observation(contextView);
-    if (parentObservation == null) {
-      return observationFlux(input, payload, frameType, obs);
-    }
-    try (Observation.Scope scope = parentObservation.openScope()) {
-      return observationFlux(input, payload, frameType, obs);
-    }
   }
 
   private Flux<Payload> observationFlux(
@@ -196,17 +179,22 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
                   frameType,
                   route,
                   RSocketContext.Side.REQUESTER);
+          Observation parentObservation =
+              contextView.getOrDefault(MICROMETER_OBSERVATION_KEY, null);
           Observation newObservation =
-              obs.start(
-                  this.observationConvention,
-                  new DefaultRSocketRequesterObservationConvention(rSocketContext),
-                  () -> rSocketContext,
-                  this.observationRegistry);
+              obs.observation(
+                      this.observationConvention,
+                      new DefaultRSocketRequesterObservationConvention(rSocketContext),
+                      () -> rSocketContext,
+                      this.observationRegistry)
+                  .parentObservation(parentObservation);
           setContextualName(frameType, route, newObservation);
+          newObservation.start();
           return input
               .apply(rSocketContext.modifiedPayload)
               .doOnError(newObservation::error)
-              .doFinally(signalType -> newObservation.stop());
+              .doFinally(signalType -> newObservation.stop())
+              .contextWrite(context -> context.put(MICROMETER_OBSERVATION_KEY, newObservation));
         });
   }
 
@@ -216,9 +204,5 @@ public class ObservationRequesterRSocketProxy extends RSocketProxy {
     } else {
       newObservation.contextualName(frameType.name());
     }
-  }
-
-  public void setObservationConvention(RSocketRequesterObservationConvention convention) {
-    this.observationConvention = convention;
   }
 }
