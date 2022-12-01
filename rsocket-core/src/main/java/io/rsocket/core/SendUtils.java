@@ -33,20 +33,25 @@ import io.rsocket.frame.RequestChannelFrameCodec;
 import io.rsocket.frame.RequestFireAndForgetFrameCodec;
 import io.rsocket.frame.RequestResponseFrameCodec;
 import io.rsocket.frame.RequestStreamFrameCodec;
+
+import java.util.Optional;
 import java.util.function.Consumer;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
 
 final class SendUtils {
   private static final Consumer<?> DROPPED_ELEMENTS_CONSUMER =
-      data -> {
-        try {
-          ReferenceCounted referenceCounted = (ReferenceCounted) data;
-          referenceCounted.release();
-        } catch (Throwable e) {
-          // ignored
-        }
-      };
+          data -> Optional.ofNullable(data)
+                  .filter(ReferenceCounted.class::isInstance)
+                  .map(ReferenceCounted.class::cast)
+                  .ifPresent(referenceCounted ->
+                  {
+                    try {
+                      referenceCounted.release();
+                    } catch (Throwable e) {
+                      // ignored
+                    }
+                  });
 
   static final Context DISCARD_CONTEXT = Operators.enableOnDiscard(null, DROPPED_ELEMENTS_CONSUMER);
 

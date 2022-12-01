@@ -22,6 +22,7 @@ import io.rsocket.RSocket;
 import io.rsocket.frame.FrameType;
 import java.util.AbstractMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -46,16 +47,20 @@ import reactor.util.context.Context;
  */
 class DefaultRSocketClient extends ResolvingOperator<RSocket>
     implements CoreSubscriber<RSocket>, CorePublisher<RSocket>, RSocketClient {
-  static final Consumer<ReferenceCounted> DISCARD_ELEMENTS_CONSUMER =
-      referenceCounted -> {
-        if (referenceCounted.refCnt() > 0) {
-          try {
-            referenceCounted.release();
-          } catch (IllegalReferenceCountException e) {
-            // ignored
-          }
-        }
-      };
+  static final Consumer<?> DISCARD_ELEMENTS_CONSUMER =
+          item -> Optional.ofNullable(item)
+                  .filter(ReferenceCounted.class::isInstance)
+                  .map(ReferenceCounted.class::cast)
+                  .ifPresent(referenceCounted ->
+                  {
+                    if (referenceCounted.refCnt() > 0) {
+                      try {
+                        referenceCounted.release();
+                      } catch (IllegalReferenceCountException e) {
+                        // ignored
+                      }
+                    }
+                  });
 
   static final Object ON_DISCARD_KEY;
 

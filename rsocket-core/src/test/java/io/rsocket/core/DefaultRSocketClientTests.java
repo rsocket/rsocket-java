@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -61,6 +62,8 @@ import reactor.test.util.RaceTestUtils;
 import reactor.util.context.Context;
 import reactor.util.context.ContextView;
 import reactor.util.retry.Retry;
+
+import static org.mockito.Mockito.*;
 
 public class DefaultRSocketClientTests {
 
@@ -635,6 +638,25 @@ public class DefaultRSocketClientTests {
 
       assertSubscriber1.assertTerminated().assertComplete();
     }
+  }
+
+
+  @Test
+  void discardElementsConsumerShouldAcceptOtherTypesThanReferenceCounted() {
+    Consumer discardElementsConsumer = DefaultRSocketClient.DISCARD_ELEMENTS_CONSUMER;
+    discardElementsConsumer.accept(new Object());
+  }
+
+  @Test
+  void droppedElementsConsumerReleaseReference() {
+    ReferenceCounted referenceCounted =  mock(ReferenceCounted.class);
+    when(referenceCounted.release()).thenReturn(true);
+    when(referenceCounted.refCnt()).thenReturn(1);
+
+    Consumer discardElementsConsumer = DefaultRSocketClient.DISCARD_ELEMENTS_CONSUMER;
+    discardElementsConsumer.accept(referenceCounted);
+
+    verify(referenceCounted).release();
   }
 
   public static class ClientSocketRule extends AbstractSocketRule<RSocket> {
