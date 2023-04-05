@@ -457,7 +457,7 @@ public class ClientRSocketSessionTest {
           .typeOf(FrameType.ERROR)
           .matches(ReferenceCounted::release);
 
-      resumableDuplexConnection.onClose().as(StepVerifier::create).expectError().verify();
+      resumableDuplexConnection.onClose().as(StepVerifier::create).expectComplete().verify();
 
       transport.alloc().assertHasNoLeaks();
     } finally {
