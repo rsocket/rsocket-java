@@ -17,7 +17,7 @@
 plugins {
     id 'com.github.sherter.google-java-format' version '0.9' apply false
     id 'me.champeau.jmh' version '0.6.7' apply false
-    id 'io.spring.dependency-management' version '1.0.13.RELEASE' apply false
+    id 'io.spring.dependency-management' version '1.0.15.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
     id 'io.github.reyerizo.gradle.jcstress' version '0.8.13' apply false
     id 'com.github.vlsi.gradle-extensions'  version '1.76' apply false
@@ -33,17 +33,17 @@ subprojects {
     apply plugin: 'com.github.sherter.google-java-format'
     apply plugin: 'com.github.vlsi.gradle-extensions'
 
-    ext['reactor-bom.version'] = '2020.0.23'
+    ext['reactor-bom.version'] = '2020.0.31-SNAPSHOT'
     ext['logback.version'] = '1.2.10'
-    ext['netty-bom.version'] = '4.1.81.Final'
-    ext['netty-boringssl.version'] = '2.0.54.Final'
+    ext['netty-bom.version'] = '4.1.90.Final'
+    ext['netty-boringssl.version'] = '2.0.59.Final'
     ext['hdrhistogram.version'] = '2.1.12'
     ext['mockito.version'] = '4.4.0'
     ext['slf4j.version'] = '1.7.36'
     ext['jmh.version'] = '1.35'
     ext['junit.version'] = '5.8.1'
-    ext['micrometer.version'] = '1.10.0-RC1'
-    ext['micrometer-tracing.version'] = '1.0.0-RC1'
+    ext['micrometer.version'] = '1.10.0'
+    ext['micrometer-tracing.version'] = '1.0.0'
     ext['assertj.version'] = '3.22.0'
     ext['netflix.limits.version'] = '0.3.6'
     ext['bouncycastle-bcpkix.version'] = '1.70'
@@ -173,8 +173,6 @@ subprojects {
                     println last
                 }
             }
-
-            forkEvery = 1
 
             if (isCiServer) {
                 def stdout = new LinkedList<TestOutputEvent>()
