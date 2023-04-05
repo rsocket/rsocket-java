@@ -44,11 +44,11 @@ public abstract class AbstractSocketRule<T extends RSocket> {
   }
 
   protected void doInit() {
-    if (socket != null) {
-      socket.dispose();
-    }
     if (connection != null) {
       connection.dispose();
+    }
+    if (socket != null) {
+      socket.dispose();
     }
     connection = new TestDuplexConnection(allocator);
     socket = newRSocket();

@@ -80,8 +80,13 @@ public class WeightedLoadbalanceStrategyTest {
             LoadbalanceTarget.from("1", mockTransport),
             LoadbalanceTarget.from("2", mockTransport)));
 
-    Assertions.assertThat(counter1.get()).isCloseTo(1000, Offset.offset(1));
-    Assertions.assertThat(counter2.get()).isCloseTo(0, Offset.offset(1));
+    Assertions.assertThat(counter1.get())
+        .describedAs("c1=" + counter1.get() + " c2=" + counter2.get())
+        .isCloseTo(
+            RaceTestConstants.REPEATS, Offset.offset(Math.round(RaceTestConstants.REPEATS * 0.1f)));
+    Assertions.assertThat(counter2.get())
+        .describedAs("c1=" + counter1.get() + " c2=" + counter2.get())
+        .isCloseTo(0, Offset.offset(Math.round(RaceTestConstants.REPEATS * 0.1f)));
   }
 
   @Test
@@ -165,8 +170,11 @@ public class WeightedLoadbalanceStrategyTest {
     }
 
     Assertions.assertThat(counter1.get())
-        .isCloseTo(RaceTestConstants.REPEATS * 3, Offset.offset(100));
-    Assertions.assertThat(counter2.get()).isCloseTo(0, Offset.offset(100));
+        .isCloseTo(
+            RaceTestConstants.REPEATS * 3,
+            Offset.offset(Math.round(RaceTestConstants.REPEATS * 3 * 0.1f)));
+    Assertions.assertThat(counter2.get())
+        .isCloseTo(0, Offset.offset(Math.round(RaceTestConstants.REPEATS * 3 * 0.1f)));
 
     rSocket2.updateAvailability(0.0);
 
@@ -177,8 +185,13 @@ public class WeightedLoadbalanceStrategyTest {
     }
 
     Assertions.assertThat(counter1.get())
-        .isCloseTo(RaceTestConstants.REPEATS * 3, Offset.offset(100));
-    Assertions.assertThat(counter2.get()).isCloseTo(RaceTestConstants.REPEATS, Offset.offset(100));
+        .isCloseTo(
+            RaceTestConstants.REPEATS * 3,
+            Offset.offset(Math.round(RaceTestConstants.REPEATS * 4 * 0.1f)));
+    Assertions.assertThat(counter2.get())
+        .isCloseTo(
+            RaceTestConstants.REPEATS,
+            Offset.offset(Math.round(RaceTestConstants.REPEATS * 4 * 0.1f)));
 
     source.next(
         Arrays.asList(
@@ -191,9 +204,13 @@ public class WeightedLoadbalanceStrategyTest {
     }
 
     Assertions.assertThat(counter1.get())
-        .isCloseTo(RaceTestConstants.REPEATS * 3, Offset.offset(100));
+        .isCloseTo(
+            RaceTestConstants.REPEATS * 3,
+            Offset.offset(Math.round(RaceTestConstants.REPEATS * 5 * 0.1f)));
     Assertions.assertThat(counter2.get())
-        .isCloseTo(RaceTestConstants.REPEATS * 2, Offset.offset(100));
+        .isCloseTo(
+            RaceTestConstants.REPEATS * 2,
+            Offset.offset(Math.round(RaceTestConstants.REPEATS * 5 * 0.1f)));
   }
 
   static class WeightedTestRSocket extends BaseWeightedStats implements RSocket {
