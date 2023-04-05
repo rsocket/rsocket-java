@@ -19,9 +19,10 @@ package io.rsocket.transport.local;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import io.rsocket.Closeable;
+import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 final class LocalClientTransportTest {
@@ -31,12 +32,20 @@ final class LocalClientTransportTest {
   void connect() {
     LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
 
-    serverTransport
-        .start(duplexConnection -> Mono.empty())
-        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect())
-        .as(StepVerifier::create)
-        .expectNextCount(1)
-        .verifyComplete();
+    Closeable closeable =
+        serverTransport.start(duplexConnection -> duplexConnection.receive().then()).block();
+
+    try {
+      LocalClientTransport.create(serverTransport.getName())
+          .connect()
+          .doOnNext(d -> d.receive().subscribe())
+          .as(StepVerifier::create)
+          .expectNextCount(1)
+          .verifyComplete();
+    } finally {
+      closeable.dispose();
+      closeable.onClose().block(Duration.ofSeconds(5));
+    }
   }
 
   @DisplayName("generates error if server not started")

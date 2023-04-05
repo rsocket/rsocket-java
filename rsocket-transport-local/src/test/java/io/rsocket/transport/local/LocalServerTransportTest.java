@@ -96,11 +96,16 @@ final class LocalServerTransportTest {
   @DisplayName("starts local server transport")
   @Test
   void start() {
-    LocalServerTransport.createEphemeral()
-        .start(duplexConnection -> Mono.empty())
-        .as(StepVerifier::create)
-        .expectNextCount(1)
-        .verifyComplete();
+    LocalServerTransport ephemeral = LocalServerTransport.createEphemeral();
+    try {
+      ephemeral
+          .start(duplexConnection -> Mono.empty())
+          .as(StepVerifier::create)
+          .expectNextCount(1)
+          .verifyComplete();
+    } finally {
+      LocalServerTransport.dispose(ephemeral.getName());
+    }
   }
 
   @DisplayName("start throws NullPointerException with null acceptor")

@@ -17,12 +17,15 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.Closeable;
+import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -34,7 +37,7 @@ import reactor.util.annotation.Nullable;
  */
 public final class LocalServerTransport implements ServerTransport<Closeable> {
 
-  private static final ConcurrentMap<String, ConnectionAcceptor> registry =
+  private static final ConcurrentMap<String, ServerCloseableAcceptor> registry =
       new ConcurrentHashMap<>();
 
   private final String name;
@@ -72,7 +75,10 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
    */
   public static void dispose(String name) {
     Objects.requireNonNull(name, "name must not be null");
-    registry.remove(name);
+    ServerCloseableAcceptor sca = registry.remove(name);
+    if (sca != null) {
+      sca.dispose();
+    }
   }
 
   /**
@@ -107,34 +113,55 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
     return Mono.create(
         sink -> {
-          ServerCloseable closeable = new ServerCloseable(name, acceptor);
-          if (registry.putIfAbsent(name, acceptor) != null) {
-            throw new IllegalStateException("name already registered: " + name);
+          ServerCloseableAcceptor closeable = new ServerCloseableAcceptor(name, acceptor);
+          if (registry.putIfAbsent(name, closeable) != null) {
+            sink.error(new IllegalStateException("name already registered: " + name));
           }
           sink.success(closeable);
         });
   }
 
-  static class ServerCloseable implements Closeable {
+  @SuppressWarnings({"ReactorTransformationOnMonoVoid", "CallingSubscribeInNonBlockingScope"})
+  static class ServerCloseableAcceptor implements ConnectionAcceptor, Closeable {
 
     private final LocalSocketAddress address;
 
     private final ConnectionAcceptor acceptor;
 
-    private final Sinks.Empty<Void> onClose = Sinks.empty();
+    private final Set<DuplexConnection> activeConnections = ConcurrentHashMap.newKeySet();
 
-    ServerCloseable(String name, ConnectionAcceptor acceptor) {
+    private final Sinks.Empty<Void> onClose = Sinks.unsafe().empty();
+
+    ServerCloseableAcceptor(String name, ConnectionAcceptor acceptor) {
       Objects.requireNonNull(name, "name must not be null");
       this.address = new LocalSocketAddress(name);
       this.acceptor = acceptor;
     }
 
     @Override
+    public Mono<Void> apply(DuplexConnection duplexConnection) {
+      activeConnections.add(duplexConnection);
+      duplexConnection
+          .onClose()
+          .doFinally(__ -> activeConnections.remove(duplexConnection))
+          .subscribe();
+      return acceptor.apply(duplexConnection);
+    }
+
+    @Override
     public void dispose() {
-      if (!registry.remove(address.getName(), acceptor)) {
-        throw new AssertionError();
+      if (!registry.remove(address.getName(), this)) {
+        // already disposed
+        return;
       }
-      onClose.tryEmitEmpty();
+
+      Mono.whenDelayError(
+              activeConnections
+                  .stream()
+                  .peek(DuplexConnection::dispose)
+                  .map(DuplexConnection::onClose)
+                  .collect(Collectors.toList()))
+          .subscribe(null, onClose::tryEmitError, onClose::tryEmitEmpty);
     }
 
     @Override
