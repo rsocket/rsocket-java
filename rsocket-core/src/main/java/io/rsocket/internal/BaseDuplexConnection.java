@@ -30,9 +30,9 @@ public abstract class BaseDuplexConnection implements DuplexConnection {
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     if (streamId == 0) {
-      sender.onNextPrioritized(frame);
+      sender.tryEmitPrioritized(frame);
     } else {
-      sender.onNext(frame);
+      sender.tryEmitNormal(frame);
     }
   }
 

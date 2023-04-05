@@ -48,14 +48,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
 
     connection
-        .channel()
-        .closeFuture()
-        .addListener(
-            future -> {
-              if (!isDisposed()) dispose();
-            });
-
-    connection.outbound().sendObject(sender.map(BinaryWebSocketFrame::new)).then().subscribe();
+        .outbound()
+        .sendObject(sender.map(BinaryWebSocketFrame::new).hide())
+        .then()
+        .doFinally(__ -> connection.dispose())
+        .subscribe();
   }
 
   @Override
@@ -75,7 +72,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return super.onClose().and(connection.onDispose());
+    return Mono.whenDelayError(super.onClose(), connection.onTerminate());
   }
 
   @Override
@@ -86,10 +83,6 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
-    connection
-        .outbound()
-        .sendObject(new BinaryWebSocketFrame(errorFrame))
-        .subscribe(connection.disposeSubscriber());
-    sender.onComplete();
+    sender.tryEmitFinal(errorFrame);
   }
 }

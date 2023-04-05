@@ -43,14 +43,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
 
     connection
-        .channel()
-        .closeFuture()
-        .addListener(
-            future -> {
-              if (!isDisposed()) dispose();
-            });
-
-    connection.outbound().send(sender).then().subscribe();
+        .outbound()
+        .send(sender.hide())
+        .then()
+        .doFinally(__ -> connection.dispose())
+        .subscribe();
   }
 
   @Override
@@ -70,17 +67,13 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return super.onClose().and(connection.onDispose());
+    return Mono.whenDelayError(super.onClose(), connection.onTerminate());
   }
 
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
-    connection
-        .outbound()
-        .sendObject(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame))
-        .subscribe(connection.disposeSubscriber());
-    sender.onComplete();
+    sender.tryEmitFinal(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame));
   }
 
   @Override
