@@ -28,6 +28,8 @@ dependencies {
     implementation 'io.projectreactor:reactor-test'
     implementation 'org.assertj:assertj-core'
     implementation 'org.mockito:mockito-core'
+    implementation 'org.awaitility:awaitility'
+    implementation 'org.slf4j:slf4j-api'
 }
 
 jar {
