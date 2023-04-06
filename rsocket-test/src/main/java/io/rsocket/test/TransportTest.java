@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,12 +46,14 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscription;
@@ -61,9 +63,10 @@ import reactor.core.Disposables;
 import reactor.core.Exceptions;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
@@ -80,7 +83,6 @@ public interface TransportTest {
   Payload LARGE_PAYLOAD = ByteBufPayload.create(LARGE_DATA, LARGE_DATA);
 
   static String read(String resourceName) {
-
     try (BufferedReader br =
         new BufferedReader(
             new InputStreamReader(
@@ -93,38 +95,55 @@ public interface TransportTest {
     }
   }
 
+  @BeforeEach
+  default void setup() {
+    Hooks.onOperatorDebug();
+  }
+
   @AfterEach
   default void close() {
-    getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
-    getTransportPair().dispose();
-    getTransportPair().awaitClosed();
-    RuntimeException throwable =
-        new RuntimeException() {
-          @Override
-          public synchronized Throwable fillInStackTrace() {
-            return this;
-          }
-
-          @Override
-          public String getMessage() {
-            return Arrays.toString(getSuppressed());
-          }
-        };
-
     try {
-      getTransportPair().byteBufAllocator2.assertHasNoLeaks();
-    } catch (Throwable t) {
-      throwable = Exceptions.addSuppressed(throwable, t);
-    }
+      logger.debug("------------------Awaiting communication to finish------------------");
+      getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
+      logger.debug("---------------------Disposing Client And Server--------------------");
+      getTransportPair().dispose();
+      getTransportPair().awaitClosed(getTimeout());
+      logger.debug("------------------------Disposing Schedulers-------------------------");
+      Schedulers.parallel().disposeGracefully().timeout(getTimeout(), Mono.empty()).block();
+      Schedulers.boundedElastic().disposeGracefully().timeout(getTimeout(), Mono.empty()).block();
+      Schedulers.single().disposeGracefully().timeout(getTimeout(), Mono.empty()).block();
+      logger.debug("---------------------------Leaks Checking----------------------------");
+      RuntimeException throwable =
+          new RuntimeException() {
+            @Override
+            public synchronized Throwable fillInStackTrace() {
+              return this;
+            }
 
-    try {
-      getTransportPair().byteBufAllocator1.assertHasNoLeaks();
-    } catch (Throwable t) {
-      throwable = Exceptions.addSuppressed(throwable, t);
-    }
+            @Override
+            public String getMessage() {
+              return Arrays.toString(getSuppressed());
+            }
+          };
 
-    if (throwable.getSuppressed().length > 0) {
-      throw throwable;
+      try {
+        getTransportPair().byteBufAllocator2.assertHasNoLeaks();
+      } catch (Throwable t) {
+        throwable = Exceptions.addSuppressed(throwable, t);
+      }
+
+      try {
+        getTransportPair().byteBufAllocator1.assertHasNoLeaks();
+      } catch (Throwable t) {
+        throwable = Exceptions.addSuppressed(throwable, t);
+      }
+
+      if (throwable.getSuppressed().length > 0) {
+        throw throwable;
+      }
+    } finally {
+      Hooks.resetOnOperatorDebug();
+      Schedulers.resetOnHandleError();
     }
   }
 
@@ -226,7 +245,7 @@ public interface TransportTest {
         .requestChannel(Mono.just(createTestPayload(0)))
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
-        .expectNextCount(1)
+        .thenConsumeWhile(new PayloadPredicate(1))
         .expectComplete()
         .verify(getTimeout());
   }
@@ -241,7 +260,7 @@ public interface TransportTest {
         .doOnNext(Payload::release)
         .limitRate(8)
         .as(StepVerifier::create)
-        .expectNextCount(200_000)
+        .thenConsumeWhile(new PayloadPredicate(200_000))
         .expectComplete()
         .verify(getTimeout());
   }
@@ -255,7 +274,7 @@ public interface TransportTest {
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
-        .expectNextCount(50)
+        .thenConsumeWhile(new PayloadPredicate(50))
         .expectComplete()
         .verify(getTimeout());
   }
@@ -270,7 +289,7 @@ public interface TransportTest {
         .doOnNext(this::assertChannelPayload)
         .doOnNext(Payload::release)
         .as(StepVerifier::create)
-        .expectNextCount(20_000)
+        .thenConsumeWhile(new PayloadPredicate(20_000))
         .expectComplete()
         .verify(getTimeout());
   }
@@ -285,7 +304,7 @@ public interface TransportTest {
         .doOnNext(Payload::release)
         .limitRate(8)
         .as(StepVerifier::create)
-        .expectNextCount(2_000_000)
+        .thenConsumeWhile(new PayloadPredicate(2_000_000))
         .expectComplete()
         .verify(getTimeout());
   }
@@ -301,7 +320,7 @@ public interface TransportTest {
         .requestChannel(payloads)
         .doOnNext(Payload::release)
         .as(publisher -> StepVerifier.create(publisher, 3))
-        .expectNextCount(3)
+        .thenConsumeWhile(new PayloadPredicate(3))
         .expectComplete()
         .verify(getTimeout());
 
@@ -322,9 +341,13 @@ public interface TransportTest {
             });
     final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(12));
 
-    Flux.range(0, 1024)
-        .flatMap(v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(scheduler), 12)
-        .blockLast();
+    try {
+      Flux.range(0, 1024)
+          .flatMap(v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(scheduler), 12)
+          .blockLast();
+    } finally {
+      scheduler.disposeGracefully().block();
+    }
   }
 
   default void check(Flux<Payload> payloads) {
@@ -333,7 +356,7 @@ public interface TransportTest {
         .doOnNext(ReferenceCounted::release)
         .limitRate(8)
         .as(StepVerifier::create)
-        .expectNextCount(256)
+        .thenConsumeWhile(new PayloadPredicate(256))
         .as("expected 256 items")
         .expectComplete()
         .verify(getTimeout());
@@ -465,6 +488,8 @@ public interface TransportTest {
     private static final String metadata = "metadata";
 
     private final boolean withResumability;
+    private final boolean runClientWithAsyncInterceptors;
+    private final boolean runServerWithAsyncInterceptors;
 
     private final LeaksTrackingByteBufAllocator byteBufAllocator1 =
         LeaksTrackingByteBufAllocator.instrument(
@@ -505,12 +530,15 @@ public interface TransportTest {
         BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier,
         boolean withRandomFragmentation,
         boolean withResumability) {
+      Schedulers.onHandleError((t, e) -> e.printStackTrace());
+      Schedulers.resetFactory();
+
       this.withResumability = withResumability;
 
       T address = addressSupplier.get();
 
-      final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
-      final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+      this.runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+      this.runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
 
       ByteBufAllocator allocatorToSupply1;
       ByteBufAllocator allocatorToSupply2;
@@ -535,7 +563,7 @@ public interface TransportTest {
                       registry
                           .forConnection(
                               (type, duplexConnection) ->
-                                  new AsyncDuplexConnection(duplexConnection))
+                                  new AsyncDuplexConnection(duplexConnection, "server"))
                           .forSocketAcceptor(
                               delegate ->
                                   (connectionSetupPayload, sendingSocket) ->
@@ -583,7 +611,7 @@ public interface TransportTest {
                       registry
                           .forConnection(
                               (type, duplexConnection) ->
-                                  new AsyncDuplexConnection(duplexConnection))
+                                  new AsyncDuplexConnection(duplexConnection, "client"))
                           .forSocketAcceptor(
                               delegate ->
                                   (connectionSetupPayload, sendingSocket) ->
@@ -625,7 +653,7 @@ public interface TransportTest {
 
     @Override
     public void dispose() {
-      server.dispose();
+      logger.info("terminating transport pair");
       client.dispose();
     }
 
@@ -641,21 +669,46 @@ public interface TransportTest {
       return metadata;
     }
 
-    public void awaitClosed() {
-      server
+    public void awaitClosed(Duration timeout) {
+      logger.info("awaiting termination of transport pair");
+      logger.info(
+          "wrappers combination: client{async="
+              + runClientWithAsyncInterceptors
+              + "; resume="
+              + withResumability
+              + "} server{async="
+              + runServerWithAsyncInterceptors
+              + "; resume="
+              + withResumability
+              + "}");
+      client
           .onClose()
-          .onErrorResume(__ -> Mono.empty())
-          .and(client.onClose().onErrorResume(__ -> Mono.empty()))
-          .block(Duration.ofMinutes(1));
+          .doOnSubscribe(s -> logger.info("Client termination stage=onSubscribe(" + s + ")"))
+          .doOnEach(s -> logger.info("Client termination stage=" + s))
+          .onErrorResume(t -> Mono.empty())
+          .doOnTerminate(() -> logger.info("Client terminated. Terminating Server"))
+          .then(Mono.fromRunnable(server::dispose))
+          .then(
+              server
+                  .onClose()
+                  .doOnSubscribe(
+                      s -> logger.info("Server termination stage=onSubscribe(" + s + ")"))
+                  .doOnEach(s -> logger.info("Server termination stage=" + s)))
+          .onErrorResume(t -> Mono.empty())
+          .block(timeout);
+
+      logger.info("TransportPair has been terminated");
     }
 
     private static class AsyncDuplexConnection implements DuplexConnection {
 
       private final DuplexConnection duplexConnection;
+      private String tag;
       private final ByteBufReleaserOperator bufReleaserOperator;
 
-      public AsyncDuplexConnection(DuplexConnection duplexConnection) {
+      public AsyncDuplexConnection(DuplexConnection duplexConnection, String tag) {
         this.duplexConnection = duplexConnection;
+        this.tag = tag;
         this.bufReleaserOperator = new ByteBufReleaserOperator();
       }
 
@@ -673,9 +726,11 @@ public interface TransportTest {
       public Flux<ByteBuf> receive() {
         return duplexConnection
             .receive()
+            .doOnTerminate(() -> logger.info("[" + this + "] Receive is done before PO"))
             .subscribeOn(Schedulers.boundedElastic())
             .doOnNext(ByteBuf::retain)
             .publishOn(Schedulers.boundedElastic(), Integer.MAX_VALUE)
+            .doOnTerminate(() -> logger.info("[" + this + "] Receive is done after PO"))
             .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::safeRelease)
             .transform(
                 Operators.<ByteBuf, ByteBuf>lift(
@@ -697,12 +752,31 @@ public interface TransportTest {
 
       @Override
       public Mono<Void> onClose() {
-        return duplexConnection.onClose().and(bufReleaserOperator.onClose());
+        return Mono.whenDelayError(
+            duplexConnection
+                .onClose()
+                .doOnTerminate(() -> logger.info("[" + this + "] Source Connection is done")),
+            bufReleaserOperator
+                .onClose()
+                .doOnTerminate(() -> logger.info("[" + this + "] BufferReleaser is done")));
       }
 
       @Override
       public void dispose() {
         duplexConnection.dispose();
+      }
+
+      @Override
+      public String toString() {
+        return "AsyncDuplexConnection{"
+            + "duplexConnection="
+            + duplexConnection
+            + ", tag='"
+            + tag
+            + '\''
+            + ", bufReleaserOperator="
+            + bufReleaserOperator
+            + '}';
       }
     }
 
@@ -727,7 +801,9 @@ public interface TransportTest {
 
       @Override
       public Mono<Void> onClose() {
-        return source.onClose();
+        return source
+            .onClose()
+            .doOnTerminate(() -> logger.info("[" + this + "] Source Connection is done"));
       }
 
       @Override
@@ -746,6 +822,8 @@ public interface TransportTest {
       public Flux<ByteBuf> receive() {
         return source
             .receive()
+            .doOnSubscribe(
+                __ -> logger.warn("Tag {}. Subscribing Connection[{}]", tag, source.hashCode()))
             .doOnNext(
                 bb -> {
                   if (!receivedFirst) {
@@ -772,18 +850,31 @@ public interface TransportTest {
       public SocketAddress remoteAddress() {
         return source.remoteAddress();
       }
+
+      @Override
+      public String toString() {
+        return "DisconnectingDuplexConnection{"
+            + "tag='"
+            + tag
+            + '\''
+            + ", source="
+            + source
+            + ", disposables="
+            + disposables
+            + '}';
+      }
     }
 
     private static class ByteBufReleaserOperator
         implements CoreSubscriber<ByteBuf>, Subscription, Fuseable.QueueSubscription<ByteBuf> {
 
       CoreSubscriber<? super ByteBuf> actual;
-      final MonoProcessor<Void> closeableMono;
+      final Sinks.Empty<Void> closeableMonoSink;
 
       Subscription s;
 
       public ByteBufReleaserOperator() {
-        this.closeableMono = MonoProcessor.create();
+        this.closeableMonoSink = Sinks.unsafe().empty();
       }
 
       @Override
@@ -804,19 +895,19 @@ public interface TransportTest {
       }
 
       Mono<Void> onClose() {
-        return closeableMono;
+        return closeableMonoSink.asMono();
       }
 
       @Override
       public void onError(Throwable t) {
         actual.onError(t);
-        closeableMono.onError(t);
+        closeableMonoSink.tryEmitError(t);
       }
 
       @Override
       public void onComplete() {
         actual.onComplete();
-        closeableMono.onComplete();
+        closeableMonoSink.tryEmitEmpty();
       }
 
       @Override
@@ -827,7 +918,7 @@ public interface TransportTest {
       @Override
       public void cancel() {
         s.cancel();
-        closeableMono.onComplete();
+        closeableMonoSink.tryEmitEmpty();
       }
 
       @Override
@@ -854,6 +945,40 @@ public interface TransportTest {
       public void clear() {
         throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
       }
+
+      @Override
+      public String toString() {
+        return "ByteBufReleaserOperator{"
+            + "isActualPresent="
+            + (actual != null)
+            + ", "
+            + "isSubscriptionPresent="
+            + (s != null)
+            + '}';
+      }
+    }
+  }
+
+  class PayloadPredicate implements Predicate<Payload> {
+    final int expectedCnt;
+    int cnt;
+
+    public PayloadPredicate(int expectedCnt) {
+      this.expectedCnt = expectedCnt;
+    }
+
+    @Override
+    public boolean test(Payload p) {
+      boolean shouldConsume = cnt++ < expectedCnt;
+      if (!shouldConsume) {
+        logger.info(
+            "Metadata: \n\r{}\n\rData:{}",
+            p.hasMetadata()
+                ? new ByteBufRepresentation().fallbackToStringOf(p.sliceMetadata())
+                : "Empty",
+            new ByteBufRepresentation().fallbackToStringOf(p.sliceData()));
+      }
+      return shouldConsume;
     }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,29 +22,35 @@ import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 
 final class WebsocketResumableWithFragmentationTransportTest implements TransportTest {
+  private TransportPair transportPair;
 
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> InetSocketAddress.createUnresolved("localhost", 0),
-          (address, server, allocator) ->
-              WebsocketClientTransport.create(
-                  HttpClient.create()
-                      .host(server.address().getHostName())
-                      .port(server.address().getPort())
-                      .option(ChannelOption.ALLOCATOR, allocator),
-                  ""),
-          (address, allocator) ->
-              WebsocketServerTransport.create(
+  @BeforeEach
+  void createTestPair() {
+    transportPair =
+        new TransportPair<>(
+            () -> InetSocketAddress.createUnresolved("localhost", 0),
+            (address, server, allocator) ->
+                WebsocketClientTransport.create(
+                    HttpClient.create()
+                        .host(server.address().getHostName())
+                        .port(server.address().getPort())
+                        .option(ChannelOption.ALLOCATOR, allocator),
+                    ""),
+            (address, allocator) -> {
+              return WebsocketServerTransport.create(
                   HttpServer.create()
                       .host(address.getHostName())
                       .port(address.getPort())
-                      .option(ChannelOption.ALLOCATOR, allocator)),
-          true,
-          true);
+                      .option(ChannelOption.ALLOCATOR, allocator));
+            },
+            true,
+            true);
+  }
 
   @Override
   public Duration getTimeout() {

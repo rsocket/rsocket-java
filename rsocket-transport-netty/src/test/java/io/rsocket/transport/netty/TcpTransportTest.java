@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,24 +22,30 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
 import reactor.netty.tcp.TcpClient;
 import reactor.netty.tcp.TcpServer;
 
 final class TcpTransportTest implements TransportTest {
+  private TransportPair transportPair;
 
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> InetSocketAddress.createUnresolved("localhost", 0),
-          (address, server, allocator) ->
-              TcpClientTransport.create(
-                  TcpClient.create()
-                      .remoteAddress(server::address)
-                      .option(ChannelOption.ALLOCATOR, allocator)),
-          (address, allocator) ->
-              TcpServerTransport.create(
+  @BeforeEach
+  void createTestPair() {
+    transportPair =
+        new TransportPair<>(
+            () -> InetSocketAddress.createUnresolved("localhost", 0),
+            (address, server, allocator) ->
+                TcpClientTransport.create(
+                    TcpClient.create()
+                        .remoteAddress(server::address)
+                        .option(ChannelOption.ALLOCATOR, allocator)),
+            (address, allocator) -> {
+              return TcpServerTransport.create(
                   TcpServer.create()
                       .bindAddress(() -> address)
-                      .option(ChannelOption.ALLOCATOR, allocator)));
+                      .option(ChannelOption.ALLOCATOR, allocator));
+            });
+  }
 
   @Override
   public Duration getTimeout() {

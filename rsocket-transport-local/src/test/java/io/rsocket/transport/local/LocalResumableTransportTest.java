@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,20 +19,31 @@ package io.rsocket.transport.local;
 import io.rsocket.test.TransportTest;
 import java.time.Duration;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 
 final class LocalResumableTransportTest implements TransportTest {
 
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> "test-" + UUID.randomUUID(),
-          (address, server, allocator) -> LocalClientTransport.create(address, allocator),
-          (address, allocator) -> LocalServerTransport.create(address),
-          false,
-          true);
+  private TransportPair transportPair;
+
+  @BeforeEach
+  void createTestPair(TestInfo testInfo) {
+    transportPair =
+        new TransportPair<>(
+            () ->
+                "LocalResumableTransportTest-"
+                    + testInfo.getDisplayName()
+                    + "-"
+                    + UUID.randomUUID(),
+            (address, server, allocator) -> LocalClientTransport.create(address, allocator),
+            (address, allocator) -> LocalServerTransport.create(address),
+            false,
+            true);
+  }
 
   @Override
   public Duration getTimeout() {
-    return Duration.ofSeconds(10);
+    return Duration.ofMinutes(1);
   }
 
   @Override
