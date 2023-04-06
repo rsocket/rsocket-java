@@ -60,6 +60,7 @@ abstract class ServerSetup {
 
   void sendError(DuplexConnection duplexConnection, RSocketErrorException exception) {
     duplexConnection.sendErrorAndClose(exception);
+    duplexConnection.receive().subscribe();
   }
 
   static class DefaultServerSetup extends ServerSetup {

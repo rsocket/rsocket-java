@@ -168,9 +168,9 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
       if (isConnected(expectedState)) {
         if (isTerminated(expectedState)) {
-          handleTerminal(this.terminal);
+          handleTerminated(qs, this.terminal);
         } else if (isDisposed()) {
-          handleTerminal(new CancellationException("Disposed"));
+          handleDisposed();
         } else if (hasFrames(expectedState)) {
           handlePendingFrames(qs);
         }
@@ -402,12 +402,26 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     handleConnectionFrame(frame);
   }
 
-  void handleTerminal(@Nullable Throwable t) {
+  void handleTerminated(Fuseable.QueueSubscription<ByteBuf> qs, @Nullable Throwable t) {
+    for (; ; ) {
+      final ByteBuf frame = qs.poll();
+      final boolean empty = frame == null;
+
+      if (empty) {
+        break;
+      }
+
+      handleFrame(frame);
+    }
     if (t != null) {
       this.actual.onError(t);
     } else {
       this.actual.onComplete();
     }
+  }
+
+  void handleDisposed() {
+    this.actual.onError(new CancellationException("Disposed"));
   }
 
   void handleConnectionFrame(ByteBuf frame) {

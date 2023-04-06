@@ -138,7 +138,7 @@ public class ServerRSocketSession
       final RejectedResumeException rejectedResumeException =
           new RejectedResumeException("resume_internal_error: Session Expired");
       nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
-      nextDuplexConnection.receive().subscribe().dispose();
+      nextDuplexConnection.receive().subscribe();
       return;
     }
 
@@ -180,7 +180,7 @@ public class ServerRSocketSession
         final RejectedResumeException rejectedResumeException =
             new RejectedResumeException(t.getMessage(), t);
         nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
-        nextDuplexConnection.receive().subscribe().dispose();
+        nextDuplexConnection.receive().subscribe();
 
         return;
       }
@@ -200,7 +200,7 @@ public class ServerRSocketSession
         final RejectedResumeException rejectedResumeException =
             new RejectedResumeException("resume_internal_error: Session Expired");
         nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
-        nextDuplexConnection.receive().subscribe().dispose();
+        nextDuplexConnection.receive().subscribe();
 
         // resumableConnection is likely to be disposed at this stage. Thus we have
         // nothing to do
@@ -224,7 +224,7 @@ public class ServerRSocketSession
                   "resumption_pos=[ remote: { pos: %d, impliedPos: %d }, local: { pos: %d, impliedPos: %d }]",
                   remotePos, remoteImpliedPos, position, impliedPosition));
       nextDuplexConnection.sendErrorAndClose(rejectedResumeException);
-      nextDuplexConnection.receive().subscribe().dispose();
+      nextDuplexConnection.receive().subscribe();
     }
   }
 
@@ -289,7 +289,6 @@ public class ServerRSocketSession
   public void dispose() {
     Operators.terminate(S, this);
     resumableConnection.dispose();
-    resumableFramesStore.dispose();
   }
 
   @Override
