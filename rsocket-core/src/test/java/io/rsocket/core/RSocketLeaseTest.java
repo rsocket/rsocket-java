@@ -91,6 +91,8 @@ class RSocketLeaseTest {
 
   private Sinks.Many<Lease> leaseSender = Sinks.many().multicast().onBackpressureBuffer();
   private RequesterLeaseTracker requesterLeaseTracker;
+  protected Sinks.Empty<Void> thisClosedSink;
+  protected Sinks.Empty<Void> otherClosedSink;
 
   @BeforeEach
   void setUp() {
@@ -100,6 +102,8 @@ class RSocketLeaseTest {
     connection = new TestDuplexConnection(byteBufAllocator);
     requesterLeaseTracker = new RequesterLeaseTracker(TAG, 0);
     responderLeaseTracker = new ResponderLeaseTracker(TAG, connection, () -> leaseSender.asFlux());
+    this.thisClosedSink = Sinks.empty();
+    this.otherClosedSink = Sinks.empty();
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
@@ -115,7 +119,9 @@ class RSocketLeaseTest {
             0,
             null,
             __ -> null,
-            requesterLeaseTracker);
+            requesterLeaseTracker,
+            thisClosedSink,
+            otherClosedSink.asMono().and(thisClosedSink.asMono()));
 
     mockRSocketHandler = mock(RSocket.class);
     when(mockRSocketHandler.metadataPush(any()))
@@ -182,7 +188,8 @@ class RSocketLeaseTest {
             0,
             FRAME_LENGTH_MASK,
             Integer.MAX_VALUE,
-            __ -> null);
+            __ -> null,
+            otherClosedSink);
   }
 
   @Test

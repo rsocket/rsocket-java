@@ -31,7 +31,7 @@ import reactor.netty.Connection;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection extends BaseDuplexConnection {
-
+  private final String side;
   private final Connection connection;
 
   /**
@@ -40,14 +40,19 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
    * @param connection the {@link Connection} for managing the server
    */
   public TcpDuplexConnection(Connection connection) {
-    this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this("unknown", connection);
+  }
 
-    connection
-        .outbound()
-        .send(sender.hide())
-        .then()
-        .doFinally(__ -> connection.dispose())
-        .subscribe();
+  /**
+   * Creates a new instance
+   *
+   * @param connection the {@link Connection} for managing the server
+   */
+  public TcpDuplexConnection(String side, Connection connection) {
+    this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.side = side;
+
+    connection.outbound().send(sender).then().doFinally(__ -> connection.dispose()).subscribe();
   }
 
   @Override
@@ -84,5 +89,10 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     super.sendFrame(streamId, FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame));
+  }
+
+  @Override
+  public String toString() {
+    return "TcpDuplexConnection{" + "side='" + side + '\'' + ", connection=" + connection + '}';
   }
 }

@@ -28,7 +28,6 @@ dependencies {
     implementation "io.micrometer:micrometer-core"
     implementation "io.micrometer:micrometer-tracing"
     implementation project(":rsocket-micrometer")
-    testImplementation 'org.awaitility:awaitility'
 
     runtimeOnly 'ch.qos.logback:logback-classic'
 
@@ -37,6 +36,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.awaitility:awaitility'
     testImplementation "io.micrometer:micrometer-test"
     testImplementation "io.micrometer:micrometer-tracing-integration-test"
 

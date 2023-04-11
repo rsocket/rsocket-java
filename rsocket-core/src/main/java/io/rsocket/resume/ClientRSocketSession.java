@@ -110,17 +110,9 @@ public class ClientRSocketSession
                         position);
                   }
 
-                  return connectionTransformer
-                      .apply(dc)
-                      .doOnDiscard(
-                          Tuple2.class,
-                          tuple2 -> {
-                            if (logger.isDebugEnabled()) {
-                              logger.debug("try to reestablish from discard");
-                            }
-                            tryReestablishSession(tuple2);
-                          });
-                });
+                  return connectionTransformer.apply(dc);
+                })
+            .doOnDiscard(Tuple2.class, this::tryReestablishSession);
     this.resumableFramesStore = resumableFramesStore;
     this.allocator = resumableDuplexConnection.alloc();
     this.resumeSessionDuration = resumeSessionDuration;

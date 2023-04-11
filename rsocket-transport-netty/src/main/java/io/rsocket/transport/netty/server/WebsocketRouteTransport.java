@@ -80,6 +80,8 @@ public final class WebsocketRouteTransport
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
     return (in, out) ->
-        acceptor.apply(new WebsocketDuplexConnection((Connection) in)).then(out.neverComplete());
+        acceptor
+            .apply(new WebsocketDuplexConnection("server", (Connection) in))
+            .then(out.neverComplete());
   }
 }

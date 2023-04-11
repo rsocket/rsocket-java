@@ -168,4 +168,9 @@ class SetupHandlingDuplexConnection extends Flux<ByteBuf>
   public ByteBufAllocator alloc() {
     return source.alloc();
   }
+
+  @Override
+  public String toString() {
+    return "SetupHandlingDuplexConnection{" + "source=" + source + ", done=" + done + '}';
+  }
 }

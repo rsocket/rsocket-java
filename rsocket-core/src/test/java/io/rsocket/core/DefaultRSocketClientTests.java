@@ -643,6 +643,8 @@ public class DefaultRSocketClientTests {
     protected Runnable delayer;
     protected Sinks.One<RSocket> producer;
 
+    protected Sinks.Empty<Void> thisClosedSink;
+
     @Override
     protected void doInit() {
       super.doInit();
@@ -660,6 +662,7 @@ public class DefaultRSocketClientTests {
 
     @Override
     protected RSocket newRSocket() {
+      this.thisClosedSink = Sinks.empty();
       return new RSocketRequester(
           connection,
           PayloadDecoder.ZERO_COPY,
@@ -671,7 +674,9 @@ public class DefaultRSocketClientTests {
           Integer.MAX_VALUE,
           null,
           __ -> null,
-          null);
+          null,
+          thisClosedSink,
+          thisClosedSink.asMono());
     }
   }
 }

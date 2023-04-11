@@ -172,6 +172,6 @@ public final class WebsocketClientTransport implements ClientTransport {
         .websocket(specBuilder.build())
         .uri(path)
         .connect()
-        .map(WebsocketDuplexConnection::new);
+        .map(connection -> new WebsocketDuplexConnection("client", connection));
   }
 }

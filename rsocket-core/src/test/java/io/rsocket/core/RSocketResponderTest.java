@@ -1184,6 +1184,7 @@ public class RSocketResponderTest {
     private RSocket acceptingSocket;
     private volatile int prefetch;
     private RequestInterceptor requestInterceptor;
+    protected Sinks.Empty<Void> onCloseSink;
 
     @Override
     protected void doInit() {
@@ -1220,6 +1221,7 @@ public class RSocketResponderTest {
 
     @Override
     protected RSocketResponder newRSocket() {
+      onCloseSink = Sinks.empty();
       return new RSocketResponder(
           connection,
           acceptingSocket,
@@ -1228,7 +1230,8 @@ public class RSocketResponderTest {
           0,
           maxFrameLength,
           maxInboundPayloadSize,
-          __ -> requestInterceptor);
+          __ -> requestInterceptor,
+          onCloseSink);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
