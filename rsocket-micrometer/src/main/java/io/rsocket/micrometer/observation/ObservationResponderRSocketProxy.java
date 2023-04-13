@@ -30,23 +30,34 @@ import java.util.Iterator;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 /**
  * Tracing representation of a {@link RSocketProxy} for the responder.
  *
  * @author Marcin Grzejszczak
  * @author Oleh Dokuka
- * @since 3.1.0
+ * @since 1.1.4
  */
 public class ObservationResponderRSocketProxy extends RSocketProxy {
+  /** Aligned with ObservationThreadLocalAccessor#KEY */
+  private static final String MICROMETER_OBSERVATION_KEY = "micrometer.observation";
 
   private final ObservationRegistry observationRegistry;
 
-  private RSocketResponderObservationConvention observationConvention;
+  @Nullable private final RSocketResponderObservationConvention observationConvention;
 
   public ObservationResponderRSocketProxy(RSocket source, ObservationRegistry observationRegistry) {
+    this(source, observationRegistry, null);
+  }
+
+  public ObservationResponderRSocketProxy(
+      RSocket source,
+      ObservationRegistry observationRegistry,
+      RSocketResponderObservationConvention observationConvention) {
     super(source);
     this.observationRegistry = observationRegistry;
+    this.observationConvention = observationConvention;
   }
 
   @Override
@@ -63,18 +74,19 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             route,
             RSocketContext.Side.RESPONDER);
     Observation newObservation =
-        startObservation(RSocketDocumentedObservation.RSOCKET_RESPONDER_FNF, rSocketContext);
+        startObservation(RSocketObservationDocumentation.RSOCKET_RESPONDER_FNF, rSocketContext);
     return super.fireAndForget(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
-        .doFinally(signalType -> newObservation.stop());
+        .doFinally(signalType -> newObservation.stop())
+        .contextWrite(context -> context.put(MICROMETER_OBSERVATION_KEY, newObservation));
   }
 
   private Observation startObservation(
-      RSocketDocumentedObservation observation, RSocketContext rSocketContext) {
+      RSocketObservationDocumentation observation, RSocketContext rSocketContext) {
     return observation.start(
         this.observationConvention,
         new DefaultRSocketResponderObservationConvention(rSocketContext),
-        rSocketContext,
+        () -> rSocketContext,
         this.observationRegistry);
   }
 
@@ -91,10 +103,11 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_RESPONSE, rSocketContext);
+            RSocketObservationDocumentation.RSOCKET_RESPONDER_REQUEST_RESPONSE, rSocketContext);
     return super.requestResponse(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
-        .doFinally(signalType -> newObservation.stop());
+        .doFinally(signalType -> newObservation.stop())
+        .contextWrite(context -> context.put(MICROMETER_OBSERVATION_KEY, newObservation));
   }
 
   @Override
@@ -106,10 +119,11 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
             payload, sliceMetadata, FrameType.REQUEST_STREAM, route, RSocketContext.Side.RESPONDER);
     Observation newObservation =
         startObservation(
-            RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_STREAM, rSocketContext);
+            RSocketObservationDocumentation.RSOCKET_RESPONDER_REQUEST_STREAM, rSocketContext);
     return super.requestStream(rSocketContext.modifiedPayload)
         .doOnError(newObservation::error)
-        .doFinally(signalType -> newObservation.stop());
+        .doFinally(signalType -> newObservation.stop())
+        .contextWrite(context -> context.put(MICROMETER_OBSERVATION_KEY, newObservation));
   }
 
   @Override
@@ -130,14 +144,16 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
                         RSocketContext.Side.RESPONDER);
                 Observation newObservation =
                     startObservation(
-                        RSocketDocumentedObservation.RSOCKET_RESPONDER_REQUEST_CHANNEL,
+                        RSocketObservationDocumentation.RSOCKET_RESPONDER_REQUEST_CHANNEL,
                         rSocketContext);
                 if (StringUtils.isNotBlank(route)) {
                   newObservation.contextualName(rSocketContext.frameType.name() + " " + route);
                 }
                 return super.requestChannel(flux.skip(1).startWith(rSocketContext.modifiedPayload))
                     .doOnError(newObservation::error)
-                    .doFinally(signalType -> newObservation.stop());
+                    .doFinally(signalType -> newObservation.stop())
+                    .contextWrite(
+                        context -> context.put(MICROMETER_OBSERVATION_KEY, newObservation));
               }
               return flux;
             });
@@ -159,9 +175,5 @@ public class ObservationResponderRSocketProxy extends RSocketProxy {
       }
     }
     return null;
-  }
-
-  public void setObservationConvention(RSocketResponderObservationConvention convention) {
-    this.observationConvention = convention;
   }
 }

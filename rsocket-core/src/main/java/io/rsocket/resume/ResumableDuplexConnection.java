@@ -21,8 +21,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.CharsetUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocketErrorException;
-import io.rsocket.exceptions.ConnectionCloseException;
 import io.rsocket.exceptions.ConnectionErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.internal.UnboundedProcessor;
 import java.net.SocketAddress;
@@ -50,8 +50,8 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   final ResumableFramesStore resumableFramesStore;
 
   final UnboundedProcessor savableFramesSender;
-  final Disposable framesSaverDisposable;
-  final Sinks.Empty<Void> onClose;
+  final Sinks.Empty<Void> onQueueClose;
+  final Sinks.Empty<Void> onLastConnectionClose;
   final SocketAddress remoteAddress;
   final Sinks.Many<Integer> onConnectionClosedSink;
 
@@ -79,10 +79,12 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     this.session = session.toString(CharsetUtil.UTF_8);
     this.onConnectionClosedSink = Sinks.unsafe().many().unicast().onBackpressureBuffer();
     this.resumableFramesStore = resumableFramesStore;
-    this.savableFramesSender = new UnboundedProcessor();
-    this.framesSaverDisposable = resumableFramesStore.saveFrames(savableFramesSender).subscribe();
-    this.onClose = Sinks.empty();
+    this.onQueueClose = Sinks.unsafe().empty();
+    this.onLastConnectionClose = Sinks.unsafe().empty();
+    this.savableFramesSender = new UnboundedProcessor(onQueueClose::tryEmitEmpty);
     this.remoteAddress = initialConnection.remoteAddress();
+
+    resumableFramesStore.saveFrames(savableFramesSender).subscribe();
 
     ACTIVE_CONNECTION.lazySet(this, initialConnection);
   }
@@ -92,7 +94,10 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
     if (activeConnection != DisposedConnection.INSTANCE
         && ACTIVE_CONNECTION.compareAndSet(this, activeConnection, nextConnection)) {
 
-      activeConnection.dispose();
+      if (!activeConnection.isDisposed()) {
+        activeConnection.sendErrorAndClose(
+            new ConnectionErrorException("Connection unexpectedly replaced"));
+      }
 
       initConnection(nextConnection);
 
@@ -120,10 +125,16 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
             .resumeStream()
             .subscribe(
                 f -> nextConnection.sendFrame(FrameHeaderCodec.streamId(f), f),
-                t -> sendErrorAndClose(new ConnectionErrorException(t.getMessage())),
-                () ->
-                    sendErrorAndClose(
-                        new ConnectionCloseException("Connection Closed Unexpectedly")));
+                t -> {
+                  dispose(nextConnection, t);
+                  nextConnection.sendErrorAndClose(new ConnectionErrorException(t.getMessage(), t));
+                },
+                () -> {
+                  final ConnectionErrorException e =
+                      new ConnectionErrorException("Connection Closed Unexpectedly");
+                  dispose(nextConnection, e);
+                  nextConnection.sendErrorAndClose(e);
+                });
     nextConnection.receive().subscribe(frameReceivingSubscriber);
     nextConnection
         .onClose()
@@ -153,7 +164,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
   public void disconnect() {
     final DuplexConnection activeConnection = this.activeConnection;
-    if (activeConnection != DisposedConnection.INSTANCE) {
+    if (activeConnection != DisposedConnection.INSTANCE && !activeConnection.isDisposed()) {
       activeConnection.dispose();
     }
   }
@@ -161,9 +172,9 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     if (streamId == 0) {
-      savableFramesSender.onNextPrioritized(frame);
+      savableFramesSender.tryEmitPrioritized(frame);
     } else {
-      savableFramesSender.onNext(frame);
+      savableFramesSender.tryEmitNormal(frame);
     }
   }
 
@@ -184,32 +195,25 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
       return;
     }
 
-    activeConnection.sendErrorAndClose(rSocketErrorException);
+    savableFramesSender.tryEmitFinal(
+        ErrorFrameCodec.encode(activeConnection.alloc(), 0, rSocketErrorException));
+
     activeConnection
         .onClose()
         .subscribe(
             null,
             t -> {
-              framesSaverDisposable.dispose();
-              activeReceivingSubscriber.dispose();
-              savableFramesSender.onComplete();
-              savableFramesSender.cancel();
               onConnectionClosedSink.tryEmitComplete();
-
-              onClose.tryEmitError(t);
+              onLastConnectionClose.tryEmitEmpty();
             },
             () -> {
-              framesSaverDisposable.dispose();
-              activeReceivingSubscriber.dispose();
-              savableFramesSender.onComplete();
-              savableFramesSender.cancel();
               onConnectionClosedSink.tryEmitComplete();
 
               final Throwable cause = rSocketErrorException.getCause();
               if (cause == null) {
-                onClose.tryEmitEmpty();
+                onLastConnectionClose.tryEmitEmpty();
               } else {
-                onClose.tryEmitError(cause);
+                onLastConnectionClose.tryEmitError(cause);
               }
             });
   }
@@ -226,50 +230,66 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
   @Override
   public Mono<Void> onClose() {
-    return onClose.asMono();
+    return Mono.whenDelayError(
+        onQueueClose.asMono(), resumableFramesStore.onClose(), onLastConnectionClose.asMono());
   }
 
   @Override
   public void dispose() {
-    dispose(null);
-  }
-
-  void dispose(@Nullable Throwable e) {
     final DuplexConnection activeConnection =
         ACTIVE_CONNECTION.getAndSet(this, DisposedConnection.INSTANCE);
     if (activeConnection == DisposedConnection.INSTANCE) {
       return;
     }
-
-    if (activeConnection != null) {
-      activeConnection.dispose();
-    }
-
-    if (logger.isDebugEnabled()) {
-      logger.debug(
-          "Side[{}]|Session[{}]|DuplexConnection[{}]. Disposing...",
-          side,
-          session,
-          connectionIndex);
-    }
-
-    framesSaverDisposable.dispose();
-    activeReceivingSubscriber.dispose();
     savableFramesSender.onComplete();
-    savableFramesSender.cancel();
-    onConnectionClosedSink.tryEmitComplete();
+    activeConnection
+        .onClose()
+        .subscribe(
+            null,
+            t -> {
+              onConnectionClosedSink.tryEmitComplete();
+              onLastConnectionClose.tryEmitEmpty();
+            },
+            () -> {
+              onConnectionClosedSink.tryEmitComplete();
+              onLastConnectionClose.tryEmitEmpty();
+            });
+  }
 
-    if (e != null) {
-      onClose.tryEmitError(e);
-    } else {
-      onClose.tryEmitEmpty();
+  void dispose(DuplexConnection nextConnection, @Nullable Throwable e) {
+    final DuplexConnection activeConnection =
+        ACTIVE_CONNECTION.getAndSet(this, DisposedConnection.INSTANCE);
+    if (activeConnection == DisposedConnection.INSTANCE) {
+      return;
     }
+    savableFramesSender.onComplete();
+    nextConnection
+        .onClose()
+        .subscribe(
+            null,
+            t -> {
+              if (e != null) {
+                onLastConnectionClose.tryEmitError(e);
+              } else {
+                onLastConnectionClose.tryEmitEmpty();
+              }
+              onConnectionClosedSink.tryEmitComplete();
+            },
+            () -> {
+              if (e != null) {
+                onLastConnectionClose.tryEmitError(e);
+              } else {
+                onLastConnectionClose.tryEmitEmpty();
+              }
+              onConnectionClosedSink.tryEmitComplete();
+            });
   }
 
   @Override
   @SuppressWarnings("ConstantConditions")
   public boolean isDisposed() {
-    return onClose.scan(Scannable.Attr.TERMINATED) || onClose.scan(Scannable.Attr.CANCELLED);
+    return onQueueClose.scan(Scannable.Attr.TERMINATED)
+        || onQueueClose.scan(Scannable.Attr.CANCELLED);
   }
 
   @Override
@@ -280,6 +300,7 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
   @Override
   public void request(long n) {
     if (state == 1 && STATE.compareAndSet(this, 1, 2)) {
+      // happens for the very first time with the initial connection
       initConnection(this.activeConnection);
     }
   }
@@ -299,6 +320,26 @@ public class ResumableDuplexConnection extends Flux<ByteBuf>
 
   static boolean isResumableFrame(ByteBuf frame) {
     return FrameHeaderCodec.streamId(frame) != 0;
+  }
+
+  @Override
+  public String toString() {
+    return "ResumableDuplexConnection{"
+        + "side='"
+        + side
+        + '\''
+        + ", session='"
+        + session
+        + '\''
+        + ", remoteAddress="
+        + remoteAddress
+        + ", state="
+        + state
+        + ", activeConnection="
+        + activeConnection
+        + ", connectionIndex="
+        + connectionIndex
+        + '}';
   }
 
   private static final class DisposedConnection implements DuplexConnection {

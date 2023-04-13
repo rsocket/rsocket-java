@@ -36,7 +36,7 @@ final class LocalDuplexConnection implements DuplexConnection {
 
   private final LocalSocketAddress address;
   private final ByteBufAllocator allocator;
-  private final Flux<ByteBuf> in;
+  private final UnboundedProcessor in;
 
   private final Mono<Void> onClose;
 
@@ -54,7 +54,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   LocalDuplexConnection(
       String name,
       ByteBufAllocator allocator,
-      Flux<ByteBuf> in,
+      UnboundedProcessor in,
       UnboundedProcessor out,
       Mono<Void> onClose) {
     this.address = new LocalSocketAddress(name);
@@ -89,17 +89,16 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     if (streamId == 0) {
-      out.onNextPrioritized(frame);
+      out.tryEmitPrioritized(frame);
     } else {
-      out.onNext(frame);
+      out.tryEmitNormal(frame);
     }
   }
 
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(allocator, 0, e);
-    out.onNext(errorFrame);
-    dispose();
+    out.tryEmitFinal(errorFrame);
   }
 
   @Override
@@ -110,6 +109,11 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public SocketAddress remoteAddress() {
     return address;
+  }
+
+  @Override
+  public String toString() {
+    return "LocalDuplexConnection{" + "address=" + address + "hash=" + hashCode() + '}';
   }
 
   static class ByteBufReleaserOperator

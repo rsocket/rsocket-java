@@ -47,6 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.util.annotation.Nullable;
 import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
@@ -633,8 +634,7 @@ public class RSocketConnector {
                                     wrappedConnection = resumableDuplexConnection;
                                   } else {
                                     keepAliveHandler =
-                                        new KeepAliveHandler.DefaultKeepAliveHandler(
-                                            clientServerConnection);
+                                        new KeepAliveHandler.DefaultKeepAliveHandler();
                                     wrappedConnection = clientServerConnection;
                                   }
 
@@ -655,6 +655,11 @@ public class RSocketConnector {
                                     requesterLeaseTracker = null;
                                   }
 
+                                  final Sinks.Empty<Void> requesterOnAllClosedSink =
+                                      Sinks.unsafe().empty();
+                                  final Sinks.Empty<Void> responderOnAllClosedSink =
+                                      Sinks.unsafe().empty();
+
                                   RSocket rSocketRequester =
                                       new RSocketRequester(
                                           multiplexer.asClientConnection(),
@@ -667,7 +672,11 @@ public class RSocketConnector {
                                           (int) keepAliveMaxLifeTime.toMillis(),
                                           keepAliveHandler,
                                           interceptors::initRequesterRequestInterceptor,
-                                          requesterLeaseTracker);
+                                          requesterLeaseTracker,
+                                          requesterOnAllClosedSink,
+                                          Mono.whenDelayError(
+                                              responderOnAllClosedSink.asMono(),
+                                              requesterOnAllClosedSink.asMono()));
 
                                   RSocket wrappedRSocketRequester =
                                       interceptors.initRequester(rSocketRequester);
@@ -715,7 +724,8 @@ public class RSocketConnector {
                                                                     (RequestInterceptor)
                                                                         leases.sender)
                                                         : interceptors
-                                                            ::initResponderRequestInterceptor);
+                                                            ::initResponderRequestInterceptor,
+                                                    responderOnAllClosedSink);
 
                                             return wrappedRSocketRequester;
                                           })

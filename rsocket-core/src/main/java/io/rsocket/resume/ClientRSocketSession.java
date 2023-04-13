@@ -29,7 +29,6 @@ import io.rsocket.frame.ResumeFrameCodec;
 import io.rsocket.frame.ResumeOkFrameCodec;
 import io.rsocket.keepalive.KeepAliveSupport;
 import java.time.Duration;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Function;
 import org.reactivestreams.Subscription;
@@ -79,31 +78,41 @@ public class ClientRSocketSession
     this.resumeToken = resumeToken;
     this.session = resumeToken.toString(CharsetUtil.UTF_8);
     this.connectionFactory =
-        connectionFactory.flatMap(
-            dc -> {
-              final long impliedPosition = resumableFramesStore.frameImpliedPosition();
-              final long position = resumableFramesStore.framePosition();
-              dc.sendFrame(
-                  0,
-                  ResumeFrameCodec.encode(
-                      dc.alloc(),
-                      resumeToken.retain(),
-                      // server uses this to release its cache
-                      impliedPosition, //  observed on the client side
-                      // server uses this to check whether there is no mismatch
-                      position //  sent from the client sent
-                      ));
+        connectionFactory
+            .doOnDiscard(
+                DuplexConnection.class,
+                c -> {
+                  final ConnectionErrorException connectionErrorException =
+                      new ConnectionErrorException("resumption_server=[Session Expired]");
+                  c.sendErrorAndClose(connectionErrorException);
+                  c.receive().subscribe();
+                })
+            .flatMap(
+                dc -> {
+                  final long impliedPosition = resumableFramesStore.frameImpliedPosition();
+                  final long position = resumableFramesStore.framePosition();
+                  dc.sendFrame(
+                      0,
+                      ResumeFrameCodec.encode(
+                          dc.alloc(),
+                          resumeToken.retain(),
+                          // server uses this to release its cache
+                          impliedPosition, //  observed on the client side
+                          // server uses this to check whether there is no mismatch
+                          position //  sent from the client sent
+                          ));
 
-              if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "Side[client]|Session[{}]. ResumeFrame[impliedPosition[{}], position[{}]] has been sent.",
-                    session,
-                    impliedPosition,
-                    position);
-              }
+                  if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Side[client]|Session[{}]. ResumeFrame[impliedPosition[{}], position[{}]] has been sent.",
+                        session,
+                        impliedPosition,
+                        position);
+                  }
 
-              return connectionTransformer.apply(dc);
-            });
+                  return connectionTransformer.apply(dc);
+                })
+            .doOnDiscard(Tuple2.class, this::tryReestablishSession);
     this.resumableFramesStore = resumableFramesStore;
     this.allocator = resumableDuplexConnection.alloc();
     this.resumeSessionDuration = resumeSessionDuration;
@@ -160,11 +169,20 @@ public class ClientRSocketSession
 
   @Override
   public void dispose() {
-    Operators.terminate(S, this);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Side[client]|Session[{}]. Disposing", session);
+    }
+
+    boolean result = Operators.terminate(S, this);
+
+    if (logger.isDebugEnabled()) {
+      logger.debug("Side[client]|Session[{}]. Sessions[isDisposed={}]", session, result);
+    }
 
     reconnectDisposable.dispose();
     resumableConnection.dispose();
-    resumableFramesStore.dispose();
+    // frame store is disposed by resumable connection
+    // resumableFramesStore.dispose();
 
     if (resumeToken.refCnt() > 0) {
       resumeToken.release();
@@ -177,6 +195,9 @@ public class ClientRSocketSession
   }
 
   void tryReestablishSession(Tuple2<ByteBuf, DuplexConnection> tuple2) {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Active subscription is canceled {}", s == Operators.cancelledSubscription());
+    }
     ByteBuf shouldBeResumeOKFrame = tuple2.getT1();
     DuplexConnection nextDuplexConnection = tuple2.getT2();
 
@@ -189,9 +210,9 @@ public class ClientRSocketSession
       }
       final ConnectionErrorException connectionErrorException =
           new ConnectionErrorException("RESUME_OK frame must be received before any others");
-      resumableConnection.dispose(connectionErrorException);
+      resumableConnection.dispose(nextDuplexConnection, connectionErrorException);
       nextDuplexConnection.sendErrorAndClose(connectionErrorException);
-      nextDuplexConnection.receive().subscribe().dispose();
+      nextDuplexConnection.receive().subscribe();
 
       throw connectionErrorException; // throw to retry connection again
     }
@@ -227,10 +248,10 @@ public class ClientRSocketSession
           }
           final ConnectionErrorException t = new ConnectionErrorException(e.getMessage(), e);
 
-          resumableConnection.dispose(t);
+          resumableConnection.dispose(nextDuplexConnection, t);
 
           nextDuplexConnection.sendErrorAndClose(t);
-          nextDuplexConnection.receive().subscribe().dispose();
+          nextDuplexConnection.receive().subscribe();
 
           return;
         }
@@ -244,7 +265,7 @@ public class ClientRSocketSession
           final ConnectionErrorException connectionErrorException =
               new ConnectionErrorException("resumption_server=[Session Expired]");
           nextDuplexConnection.sendErrorAndClose(connectionErrorException);
-          nextDuplexConnection.receive().subscribe().dispose();
+          nextDuplexConnection.receive().subscribe();
           return;
         }
 
@@ -263,7 +284,7 @@ public class ClientRSocketSession
           final ConnectionErrorException connectionErrorException =
               new ConnectionErrorException("resumption_server_pos=[Session Expired]");
           nextDuplexConnection.sendErrorAndClose(connectionErrorException);
-          nextDuplexConnection.receive().subscribe().dispose();
+          nextDuplexConnection.receive().subscribe();
           // no need to do anything since connection resumable connection is liklly to
           // be disposed
         }
@@ -278,10 +299,10 @@ public class ClientRSocketSession
         final ConnectionErrorException connectionErrorException =
             new ConnectionErrorException("resumption_server_pos=[" + remoteImpliedPos + "]");
 
-        resumableConnection.dispose(connectionErrorException);
+        resumableConnection.dispose(nextDuplexConnection, connectionErrorException);
 
         nextDuplexConnection.sendErrorAndClose(connectionErrorException);
-        nextDuplexConnection.receive().subscribe().dispose();
+        nextDuplexConnection.receive().subscribe();
       }
     } else if (frameType == FrameType.ERROR) {
       final RuntimeException exception = Exceptions.from(0, shouldBeResumeOKFrame);
@@ -292,13 +313,14 @@ public class ClientRSocketSession
             exception);
       }
       if (exception instanceof RejectedResumeException) {
-        resumableConnection.dispose(exception);
+        resumableConnection.dispose(nextDuplexConnection, exception);
         nextDuplexConnection.dispose();
-        nextDuplexConnection.receive().subscribe().dispose();
+        nextDuplexConnection.receive().subscribe();
         return;
       }
 
       nextDuplexConnection.dispose();
+      nextDuplexConnection.receive().subscribe();
       throw exception; // assume retryable exception
     } else {
       if (logger.isDebugEnabled()) {
@@ -309,10 +331,10 @@ public class ClientRSocketSession
       final ConnectionErrorException connectionErrorException =
           new ConnectionErrorException("RESUME_OK frame must be received before any others");
 
-      resumableConnection.dispose(connectionErrorException);
+      resumableConnection.dispose(nextDuplexConnection, connectionErrorException);
 
       nextDuplexConnection.sendErrorAndClose(connectionErrorException);
-      nextDuplexConnection.receive().subscribe().dispose();
+      nextDuplexConnection.receive().subscribe();
 
       // no need to do anything since remote server rejected our connection completely
     }
@@ -349,11 +371,7 @@ public class ClientRSocketSession
       Operators.onErrorDropped(t, currentContext());
     }
 
-    if (t instanceof TimeoutException) {
-      resumableConnection.dispose();
-    } else {
-      resumableConnection.dispose(t);
-    }
+    resumableConnection.dispose();
   }
 
   @Override

@@ -52,4 +52,9 @@ jar {
     }
 }
 
+test {
+    minHeapSize = "512m"
+    maxHeapSize = "4096m"
+}
+
 description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'

@@ -19,9 +19,9 @@ package io.rsocket.micrometer.observation;
 import io.micrometer.common.docs.KeyName;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationConvention;
-import io.micrometer.observation.docs.DocumentedObservation;
+import io.micrometer.observation.docs.ObservationDocumentation;
 
-enum RSocketDocumentedObservation implements DocumentedObservation {
+enum RSocketObservationDocumentation implements ObservationDocumentation {
 
   /** Observation created on the RSocket responder side. */
   RSOCKET_RESPONDER {

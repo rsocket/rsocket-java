@@ -116,6 +116,6 @@ public final class TcpClientTransport implements ClientTransport {
     return client
         .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec(maxFrameLength)))
         .connect()
-        .map(TcpDuplexConnection::new);
+        .map(connection -> new TcpDuplexConnection("client", connection));
   }
 }

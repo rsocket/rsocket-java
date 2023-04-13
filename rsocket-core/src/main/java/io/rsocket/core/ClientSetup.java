@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
 import java.nio.channels.ClosedChannelException;
+import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -25,8 +26,24 @@ class ResumableClientSetup extends ClientSetup {
 
   @Override
   Mono<Tuple2<ByteBuf, DuplexConnection>> init(DuplexConnection connection) {
-    return Mono.<Tuple2<ByteBuf, DuplexConnection>>create(
-            sink -> sink.onRequest(__ -> new SetupHandlingDuplexConnection(connection, sink)))
-        .or(connection.onClose().then(Mono.error(ClosedChannelException::new)));
+    return Mono.create(
+        sink -> {
+          sink.onRequest(
+              __ -> {
+                new SetupHandlingDuplexConnection(connection, sink);
+              });
+
+          Disposable subscribe =
+              connection
+                  .onClose()
+                  .doFinally(__ -> sink.error(new ClosedChannelException()))
+                  .subscribe();
+          sink.onCancel(
+              () -> {
+                subscribe.dispose();
+                connection.dispose();
+                connection.receive().subscribe();
+              });
+        });
   }
 }

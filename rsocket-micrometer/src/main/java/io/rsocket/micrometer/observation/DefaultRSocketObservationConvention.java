@@ -22,7 +22,7 @@ import io.rsocket.frame.FrameType;
  * Default {@link RSocketRequesterObservationConvention} implementation.
  *
  * @author Marcin Grzejszczak
- * @since 2.0.0
+ * @since 1.1.4
  */
 class DefaultRSocketObservationConvention {
 

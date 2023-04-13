@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,45 +26,50 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
 import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
 import reactor.core.Exceptions;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
 
 final class WebsocketSecureTransportTest implements TransportTest {
+  private TransportPair transportPair;
 
-  private final TransportPair transportPair =
-      new TransportPair<>(
-          () -> new InetSocketAddress("localhost", 0),
-          (address, server, allocator) ->
-              WebsocketClientTransport.create(
-                  HttpClient.create()
-                      .option(ChannelOption.ALLOCATOR, allocator)
-                      .remoteAddress(server::address)
-                      .secure(
-                          ssl ->
-                              ssl.sslContext(
-                                  SslContextBuilder.forClient()
-                                      .trustManager(InsecureTrustManagerFactory.INSTANCE))),
-                  String.format(
-                      "https://%s:%d/",
-                      server.address().getHostName(), server.address().getPort())),
-          (address, allocator) -> {
-            try {
-              SelfSignedCertificate ssc = new SelfSignedCertificate();
-              HttpServer server =
-                  HttpServer.create()
-                      .option(ChannelOption.ALLOCATOR, allocator)
-                      .bindAddress(() -> address)
-                      .secure(
-                          ssl ->
-                              ssl.sslContext(
-                                  SslContextBuilder.forServer(
-                                      ssc.certificate(), ssc.privateKey())));
-              return WebsocketServerTransport.create(server);
-            } catch (CertificateException e) {
-              throw Exceptions.propagate(e);
-            }
-          });
+  @BeforeEach
+  void createTestPair() {
+    transportPair =
+        new TransportPair<>(
+            () -> new InetSocketAddress("localhost", 0),
+            (address, server, allocator) ->
+                WebsocketClientTransport.create(
+                    HttpClient.create()
+                        .option(ChannelOption.ALLOCATOR, allocator)
+                        .remoteAddress(server::address)
+                        .secure(
+                            ssl ->
+                                ssl.sslContext(
+                                    SslContextBuilder.forClient()
+                                        .trustManager(InsecureTrustManagerFactory.INSTANCE))),
+                    String.format(
+                        "https://%s:%d/",
+                        server.address().getHostName(), server.address().getPort())),
+            (address, allocator) -> {
+              try {
+                SelfSignedCertificate ssc = new SelfSignedCertificate();
+                HttpServer server =
+                    HttpServer.create()
+                        .option(ChannelOption.ALLOCATOR, allocator)
+                        .bindAddress(() -> address)
+                        .secure(
+                            ssl ->
+                                ssl.sslContext(
+                                    SslContextBuilder.forServer(
+                                        ssc.certificate(), ssc.privateKey())));
+                return WebsocketServerTransport.create(server);
+              } catch (CertificateException e) {
+                throw Exceptions.propagate(e);
+              }
+            });
+  }
 
   @Override
   public Duration getTimeout() {

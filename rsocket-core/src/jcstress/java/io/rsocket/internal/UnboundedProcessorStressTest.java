@@ -898,6 +898,70 @@ public abstract class UnboundedProcessorStressTest {
   @JCStressTest
   @Outcome(
       id = {
+        "0, 1, 0, 5",
+        "1, 1, 0, 5",
+        "2, 1, 0, 5",
+        "3, 1, 0, 5",
+        "4, 1, 0, 5",
+        "5, 1, 0, 5",
+      },
+      expect = Expect.ACCEPTABLE,
+      desc = "onComplete()")
+  @State
+  public static class Smoke33StressTest extends UnboundedProcessorStressTest {
+
+    final StressSubscriber<ByteBuf> stressSubscriber =
+        new StressSubscriber<>(Long.MAX_VALUE, Fuseable.NONE);
+    final ByteBuf byteBuf1 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(1);
+    final ByteBuf byteBuf2 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(2);
+    final ByteBuf byteBuf3 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    final ByteBuf byteBuf4 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(4);
+    final ByteBuf byteBuf5 = UnpooledByteBufAllocator.DEFAULT.buffer().writeByte(5);
+
+    {
+      unboundedProcessor.subscribe(stressSubscriber);
+    }
+
+    @Actor
+    public void next1() {
+      unboundedProcessor.tryEmitNormal(byteBuf1);
+      unboundedProcessor.tryEmitPrioritized(byteBuf2);
+    }
+
+    @Actor
+    public void next2() {
+      unboundedProcessor.tryEmitPrioritized(byteBuf3);
+      unboundedProcessor.tryEmitNormal(byteBuf4);
+    }
+
+    @Actor
+    public void complete() {
+      unboundedProcessor.tryEmitFinal(byteBuf5);
+    }
+
+    @Arbiter
+    public void arbiter(LLLL_Result r) {
+      r.r1 = stressSubscriber.onNextCalls;
+      r.r2 =
+          stressSubscriber.onCompleteCalls
+              + stressSubscriber.onErrorCalls * 2
+              + stressSubscriber.droppedErrors.size() * 3;
+
+      r.r4 = stressSubscriber.values.get(stressSubscriber.values.size() - 1).readByte();
+      stressSubscriber.values.forEach(ByteBuf::release);
+
+      r.r3 =
+          byteBuf1.refCnt()
+              + byteBuf2.refCnt()
+              + byteBuf3.refCnt()
+              + byteBuf4.refCnt()
+              + byteBuf5.refCnt();
+    }
+  }
+
+  @JCStressTest
+  @Outcome(
+      id = {
         "-2954361355555045376, 4, 2, 0",
         "-3242591731706757120, 4, 2, 0",
         "-4107282860161892352, 4, 2, 0",

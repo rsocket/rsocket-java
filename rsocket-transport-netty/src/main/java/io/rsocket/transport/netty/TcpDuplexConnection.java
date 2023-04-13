@@ -31,7 +31,7 @@ import reactor.netty.Connection;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection extends BaseDuplexConnection {
-
+  private final String side;
   private final Connection connection;
 
   /**
@@ -40,17 +40,19 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
    * @param connection the {@link Connection} for managing the server
    */
   public TcpDuplexConnection(Connection connection) {
+    this("unknown", connection);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param connection the {@link Connection} for managing the server
+   */
+  public TcpDuplexConnection(String side, Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.side = side;
 
-    connection
-        .channel()
-        .closeFuture()
-        .addListener(
-            future -> {
-              if (!isDisposed()) dispose();
-            });
-
-    connection.outbound().send(sender).then().subscribe();
+    connection.outbound().send(sender).then().doFinally(__ -> connection.dispose()).subscribe();
   }
 
   @Override
@@ -70,17 +72,13 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return super.onClose().and(connection.onDispose());
+    return Mono.whenDelayError(super.onClose(), connection.onTerminate());
   }
 
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
-    connection
-        .outbound()
-        .sendObject(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame))
-        .subscribe(connection.disposeSubscriber());
-    sender.onComplete();
+    sender.tryEmitFinal(FrameLengthCodec.encode(alloc(), errorFrame.readableBytes(), errorFrame));
   }
 
   @Override
@@ -91,5 +89,10 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   public void sendFrame(int streamId, ByteBuf frame) {
     super.sendFrame(streamId, FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame));
+  }
+
+  @Override
+  public String toString() {
+    return "TcpDuplexConnection{" + "side='" + side + '\'' + ", connection=" + connection + '}';
   }
 }

@@ -36,7 +36,7 @@ import reactor.netty.Connection;
  * stitched back on for frames received.
  */
 public final class WebsocketDuplexConnection extends BaseDuplexConnection {
-
+  private final String side;
   private final Connection connection;
 
   /**
@@ -45,17 +45,24 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
    * @param connection the {@link Connection} to for managing the server
    */
   public WebsocketDuplexConnection(Connection connection) {
+    this("unknown", connection);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param connection the {@link Connection} to for managing the server
+   */
+  public WebsocketDuplexConnection(String side, Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.side = side;
 
     connection
-        .channel()
-        .closeFuture()
-        .addListener(
-            future -> {
-              if (!isDisposed()) dispose();
-            });
-
-    connection.outbound().sendObject(sender.map(BinaryWebSocketFrame::new)).then().subscribe();
+        .outbound()
+        .sendObject(sender.map(BinaryWebSocketFrame::new))
+        .then()
+        .doFinally(__ -> connection.dispose())
+        .subscribe();
   }
 
   @Override
@@ -75,7 +82,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return super.onClose().and(connection.onDispose());
+    return Mono.whenDelayError(super.onClose(), connection.onTerminate());
   }
 
   @Override
@@ -86,10 +93,17 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public void sendErrorAndClose(RSocketErrorException e) {
     final ByteBuf errorFrame = ErrorFrameCodec.encode(alloc(), 0, e);
-    connection
-        .outbound()
-        .sendObject(new BinaryWebSocketFrame(errorFrame))
-        .subscribe(connection.disposeSubscriber());
-    sender.onComplete();
+    sender.tryEmitFinal(errorFrame);
+  }
+
+  @Override
+  public String toString() {
+    return "WebsocketDuplexConnection{"
+        + "side='"
+        + side
+        + '\''
+        + ", connection="
+        + connection
+        + '}';
   }
 }

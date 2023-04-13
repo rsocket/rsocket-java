@@ -72,7 +72,10 @@ public class RSocketResponderTracingObservationHandler
 
   @Override
   public void onError(RSocketContext context) {
-    context.getError().ifPresent(throwable -> getRequiredSpan(context).error(throwable));
+    Throwable error = context.getError();
+    if (error != null) {
+      getRequiredSpan(context).error(error);
+    }
   }
 
   @Override

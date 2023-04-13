@@ -25,7 +25,7 @@ import io.rsocket.frame.FrameType;
  * Default {@link RSocketRequesterObservationConvention} implementation.
  *
  * @author Marcin Grzejszczak
- * @since 2.0.0
+ * @since 1.1.4
  */
 public class DefaultRSocketResponderObservationConvention
     extends DefaultRSocketObservationConvention implements RSocketResponderObservationConvention {
@@ -38,10 +38,10 @@ public class DefaultRSocketResponderObservationConvention
   public KeyValues getLowCardinalityKeyValues(RSocketContext context) {
     KeyValues tags =
         KeyValues.of(
-            RSocketDocumentedObservation.ResponderTags.REQUEST_TYPE.withValue(
+            RSocketObservationDocumentation.ResponderTags.REQUEST_TYPE.withValue(
                 context.frameType.name()));
     if (StringUtils.isNotBlank(context.route)) {
-      tags = tags.and(RSocketDocumentedObservation.ResponderTags.ROUTE.withValue(context.route));
+      tags = tags.and(RSocketObservationDocumentation.ResponderTags.ROUTE.withValue(context.route));
     }
     return tags;
   }

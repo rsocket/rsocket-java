@@ -44,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.util.annotation.Nullable;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
@@ -54,6 +55,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
   private final RSocket requestHandler;
+  private final Sinks.Empty<Void> onThisSideClosedSink;
 
   @Nullable private final ResponderLeaseTracker leaseHandler;
 
@@ -70,7 +72,8 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
       int mtu,
       int maxFrameLength,
       int maxInboundPayloadSize,
-      Function<RSocket, ? extends RequestInterceptor> requestInterceptorFunction) {
+      Function<RSocket, ? extends RequestInterceptor> requestInterceptorFunction,
+      Sinks.Empty<Void> onThisSideClosedSink) {
     super(
         mtu,
         maxFrameLength,
@@ -83,19 +86,27 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     this.requestHandler = requestHandler;
 
     this.leaseHandler = leaseHandler;
-
-    connection.receive().subscribe(this::handleFrame, e -> {});
+    this.onThisSideClosedSink = onThisSideClosedSink;
 
     connection
         .onClose()
         .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
+
+    connection.receive().subscribe(this::handleFrame, e -> {});
   }
 
   private void tryTerminateOnConnectionError(Throwable e) {
+    if (LOGGER.isDebugEnabled()) {
+
+      LOGGER.debug("Try terminate connection on responder side");
+    }
     tryTerminate(() -> e);
   }
 
   private void tryTerminateOnConnectionClose() {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.info("Try terminate connection on responder side");
+    }
     tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
   }
 
@@ -169,6 +180,9 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   }
 
   final void doOnDispose() {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("closing responder " + getDuplexConnection());
+    }
     cleanUpSendingSubscriptions();
 
     getDuplexConnection().dispose();
@@ -183,6 +197,10 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     }
 
     requestHandler.dispose();
+    onThisSideClosedSink.tryEmitEmpty();
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("responder closed " + getDuplexConnection());
+    }
   }
 
   private void cleanUpSendingSubscriptions() {

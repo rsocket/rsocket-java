@@ -118,7 +118,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
    * the {@link InMemoryResumableFramesStore#drain(long)} method.
    */
   static final long MAX_WORK_IN_PROGRESS =
-      0b0000_0000_0000_0000_0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111L;
+      0b0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
 
   public InMemoryResumableFramesStore(String side, ByteBuf session, int cacheSizeBytes) {
     this.side = side;
@@ -168,9 +168,9 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
 
       if (isConnected(expectedState)) {
         if (isTerminated(expectedState)) {
-          handleTerminal(this.terminal);
+          handleTerminated(qs, this.terminal);
         } else if (isDisposed()) {
-          handleTerminal(new CancellationException("Disposed"));
+          handleDisposed();
         } else if (hasFrames(expectedState)) {
           handlePendingFrames(qs);
         }
@@ -374,7 +374,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
       return;
     }
 
-    drain(previousState | DISPOSED_FLAG);
+    drain((previousState + 1) | DISPOSED_FLAG);
   }
 
   void clearCache() {
@@ -402,12 +402,26 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
     handleConnectionFrame(frame);
   }
 
-  void handleTerminal(@Nullable Throwable t) {
+  void handleTerminated(Fuseable.QueueSubscription<ByteBuf> qs, @Nullable Throwable t) {
+    for (; ; ) {
+      final ByteBuf frame = qs.poll();
+      final boolean empty = frame == null;
+
+      if (empty) {
+        break;
+      }
+
+      handleFrame(frame);
+    }
     if (t != null) {
       this.actual.onError(t);
     } else {
       this.actual.onComplete();
     }
+  }
+
+  void handleDisposed() {
+    this.actual.onError(new CancellationException("Disposed"));
   }
 
   void handleConnectionFrame(ByteBuf frame) {
@@ -543,12 +557,13 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      if (isWorkInProgress(previousState)
-          || (!isConnected(previousState) && !hasPendingConnection(previousState))) {
+      if (isWorkInProgress(previousState)) {
         return;
       }
 
-      parent.drain(previousState + 1);
+      if (isConnected(previousState) || hasPendingConnection(previousState)) {
+        parent.drain((previousState + 1) | HAS_FRAME_FLAG);
+      }
     }
 
     @Override
@@ -573,7 +588,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      parent.drain(previousState | TERMINATED_FLAG);
+      parent.drain((previousState + 1) | TERMINATED_FLAG);
     }
 
     @Override
@@ -595,7 +610,7 @@ public class InMemoryResumableFramesStore extends Flux<ByteBuf>
         return;
       }
 
-      parent.drain(previousState | TERMINATED_FLAG);
+      parent.drain((previousState + 1) | TERMINATED_FLAG);
     }
 
     @Override

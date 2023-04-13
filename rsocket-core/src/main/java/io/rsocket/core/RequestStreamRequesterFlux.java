@@ -238,10 +238,10 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
         return;
       }
 
-      sm.remove(streamId, this);
-
       final ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, streamId);
       connection.sendFrame(streamId, cancelFrame);
+
+      sm.remove(streamId, this);
 
       if (requestInterceptor != null) {
         requestInterceptor.onCancel(streamId, FrameType.REQUEST_STREAM);
@@ -276,11 +276,12 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
     if (isFirstFrameSent(previousState)) {
       final int streamId = this.streamId;
-      this.requesterResponderSupport.remove(streamId, this);
 
       ReassemblyUtils.synchronizedRelease(this, previousState);
 
       this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
+
+      this.requesterResponderSupport.remove(streamId, this);
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {
@@ -309,12 +310,13 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       }
 
       final int streamId = this.streamId;
-      this.requesterResponderSupport.remove(streamId, this);
 
       final IllegalStateException cause =
           Exceptions.failWithOverflow(
               "The number of messages received exceeds the number requested");
       this.connection.sendFrame(streamId, CancelFrameCodec.encode(this.allocator, streamId));
+
+      this.requesterResponderSupport.remove(streamId, this);
 
       final RequestInterceptor requestInterceptor = this.requestInterceptor;
       if (requestInterceptor != null) {

@@ -69,6 +69,10 @@ public class RSocketRequesterTracingObservationHandler
   public void onStart(RSocketContext context) {
     Payload payload = context.payload;
     Span.Builder spanBuilder = this.tracer.spanBuilder();
+    Span parentSpan = getParentSpan(context);
+    if (parentSpan != null) {
+      spanBuilder.setParent(parentSpan.context());
+    }
     Span span = spanBuilder.kind(Span.Kind.PRODUCER).start();
     log.debug("Extracted result from context or thread local {}", span);
     // TODO: newmetadata returns an empty composite byte buf
@@ -85,7 +89,10 @@ public class RSocketRequesterTracingObservationHandler
 
   @Override
   public void onError(RSocketContext context) {
-    context.getError().ifPresent(throwable -> getRequiredSpan(context).error(throwable));
+    Throwable error = context.getError();
+    if (error != null) {
+      getRequiredSpan(context).error(error);
+    }
   }
 
   @Override

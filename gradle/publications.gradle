@@ -22,16 +22,6 @@ subprojects {
                         }
                         developers {
                             developer {
-                                id = 'rdegnan'
-                                name = 'Ryland Degnan'
-                                email = 'ryland@netifi.com'
-                            }
-                            developer {
-                                id = 'yschimke'
-                                name = 'Yuri Schimke'
-                                email = 'yuri@schimke.ee'
-                            }
-                            developer {
                                 id = 'OlegDokuka'
                                 name = 'Oleh Dokuka'
                                 email = 'oleh.dokuka@icloud.com'

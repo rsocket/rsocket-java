@@ -5,20 +5,25 @@ import static java.util.concurrent.locks.LockSupport.parkNanos;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ResourceLeakDetector;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Additional Utils which allows to decorate a ByteBufAllocator and track/assertOnLeaks all created
  * ByteBuffs
  */
 public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
+  static final Logger LOGGER = LoggerFactory.getLogger(LeaksTrackingByteBufAllocator.class);
 
   /**
    * Allows to instrument any given the instance of ByteBufAllocator
@@ -83,6 +88,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
             return this;
           }
 
+          LOGGER.debug(tag + " await buffers to be released");
           for (int i = 0; i < 100; i++) {
             System.gc();
             parkNanos(1000);
@@ -91,22 +97,31 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
         }
       }
 
-      Assertions.assertThat(unreleased)
-          .allMatch(
-              bb -> {
-                final boolean checkResult = bb.refCnt() == 0;
+      Set<ByteBuf> collected = new HashSet<>();
+      for (ByteBuf buf : unreleased) {
+        if (buf.refCnt() != 0) {
+          try {
+            collected.add(buf);
+          } catch (IllegalReferenceCountException ignored) {
+            // fine to ignore if throws because of refCnt
+          }
+        }
+      }
 
-                if (!checkResult) {
-                  try {
-                    System.out.println(tag + " " + resolveTrackingInfo(bb));
-                  } catch (Exception e) {
-                    e.printStackTrace();
-                  }
-                }
-
-                return checkResult;
-              },
-              tag);
+      Assertions.assertThat(
+              collected
+                  .stream()
+                  .filter(bb -> bb.refCnt() != 0)
+                  .peek(
+                      bb -> {
+                        try {
+                          LOGGER.debug(tag + " " + resolveTrackingInfo(bb));
+                        } catch (Exception e) {
+                          e.printStackTrace();
+                        }
+                      }))
+          .describedAs("[" + tag + "] all buffers expected to be released but got ")
+          .isEmpty();
     } finally {
       tracker.clear();
     }

@@ -142,10 +142,14 @@ jobs:
         run: chmod +x gradlew
       - name: Publish Packages to Artifactory
         if: ${{ matrix.jdk == '1.8' }}
-        run: ./gradlew -PversionSuffix="-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToGitHubPackagesRepository --no-daemon --stacktrace
+        run: ./gradlew -PversionSuffix="-SNAPSHOT" -PbuildNumber="${buildNumber}" publishMavenPublicationToSonatypeRepository --no-daemon --stacktrace
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           buildNumber: ${{ github.run_number }}
+          ORG_GRADLE_PROJECT_signingKey: ${{secrets.signingKey}}
+          ORG_GRADLE_PROJECT_signingPassword: ${{secrets.signingPassword}}
+          ORG_GRADLE_PROJECT_sonatypeUsername: ${{secrets.sonatypeUsername}}
+          ORG_GRADLE_PROJECT_sonatypePassword: ${{secrets.sonatypePassword}}
       - name: Aggregate test reports with ciMate
         if: always()
         continue-on-error: true

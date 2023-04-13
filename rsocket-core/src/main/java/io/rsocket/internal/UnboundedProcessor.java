@@ -91,6 +91,8 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
   static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
 
+  ByteBuf last;
+
   boolean outputFused;
 
   public UnboundedProcessor() {
@@ -121,78 +123,127 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     return null;
   }
 
-  public void onNextPrioritized(ByteBuf t) {
+  public boolean tryEmitPrioritized(ByteBuf t) {
     if (this.done || this.cancelled) {
       release(t);
-      return;
+      return false;
     }
 
     if (!this.priorityQueue.offer(t)) {
       onError(Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext()));
       release(t);
-      return;
+      return false;
     }
 
     final long previousState = markValueAdded(this);
     if (isFinalized(previousState)) {
       this.clearSafely();
-      return;
+      return false;
     }
 
     if (isSubscriberReady(previousState)) {
       if (this.outputFused) {
         // fast path for fusion
         this.actual.onNext(null);
-        return;
+        return true;
       }
 
       if (isWorkInProgress(previousState)) {
-        return;
+        return true;
       }
 
       if (hasRequest(previousState)) {
         drainRegular(previousState);
       }
     }
+    return true;
   }
 
-  @Override
-  public void onNext(ByteBuf t) {
+  public boolean tryEmitNormal(ByteBuf t) {
     if (this.done || this.cancelled) {
       release(t);
-      return;
+      return false;
     }
 
     if (!this.queue.offer(t)) {
       onError(Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext()));
       release(t);
-      return;
+      return false;
     }
 
     final long previousState = markValueAdded(this);
     if (isFinalized(previousState)) {
       this.clearSafely();
-      return;
+      return false;
     }
 
     if (isSubscriberReady(previousState)) {
       if (this.outputFused) {
         // fast path for fusion
         this.actual.onNext(null);
-        return;
+        return true;
       }
 
       if (isWorkInProgress(previousState)) {
-        return;
+        return true;
       }
 
       if (hasRequest(previousState)) {
         drainRegular(previousState);
       }
     }
+
+    return true;
+  }
+
+  public boolean tryEmitFinal(ByteBuf t) {
+    if (this.done || this.cancelled) {
+      release(t);
+      return false;
+    }
+
+    this.last = t;
+    this.done = true;
+
+    final long previousState = markValueAddedAndTerminated(this);
+    if (isFinalized(previousState)) {
+      this.clearSafely();
+      return false;
+    }
+
+    if (isSubscriberReady(previousState)) {
+      if (this.outputFused) {
+        // fast path for fusion
+        this.actual.onNext(null);
+        this.actual.onComplete();
+        return true;
+      }
+
+      if (isWorkInProgress(previousState)) {
+        return true;
+      }
+
+      if (hasRequest(previousState)) {
+        drainRegular(previousState);
+      }
+    }
+
+    return true;
+  }
+
+  @Deprecated
+  public void onNextPrioritized(ByteBuf t) {
+    tryEmitPrioritized(t);
   }
 
   @Override
+  @Deprecated
+  public void onNext(ByteBuf t) {
+    tryEmitNormal(t);
+  }
+
+  @Override
+  @Deprecated
   public void onError(Throwable t) {
     if (this.done || this.cancelled) {
       Operators.onErrorDropped(t, currentContext());
@@ -235,6 +286,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
   }
 
   @Override
+  @Deprecated
   public void onComplete() {
     if (this.done || this.cancelled) {
       return;
@@ -363,6 +415,11 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     }
 
     if (done && empty) {
+      final ByteBuf last = this.last;
+      if (last != null) {
+        this.last = null;
+        a.onNext(last);
+      }
       clearAndFinalize(this);
       Throwable e = this.error;
       if (e != null) {
@@ -515,6 +572,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
   }
 
   @Override
+  @Deprecated
   public void dispose() {
     this.cancelled = true;
 
@@ -553,7 +611,19 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     if (t != null) {
       return t;
     }
-    return this.queue.poll();
+
+    t = this.queue.poll();
+    if (t != null) {
+      return t;
+    }
+
+    t = this.last;
+    if (t != null) {
+      this.last = null;
+      return t;
+    }
+
+    return null;
   }
 
   @Override
@@ -597,6 +667,12 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
   void clearUnsafely() {
     final Queue<ByteBuf> queue = this.queue;
     final Queue<ByteBuf> priorityQueue = this.priorityQueue;
+
+    final ByteBuf last = this.last;
+
+    if (last != null) {
+      release(last);
+    }
 
     ByteBuf byteBuf;
     while ((byteBuf = queue.poll()) != null) {
@@ -740,6 +816,36 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       if (STATE.compareAndSet(instance, state, nextState | FLAG_HAS_VALUE)) {
+        return state;
+      }
+    }
+  }
+
+  /**
+   * Sets {@link #FLAG_HAS_VALUE} flag if it was not set before and if flags {@link
+   * #FLAG_FINALIZED}, {@link #FLAG_CANCELLED}, {@link #FLAG_DISPOSED} are unset. Also, this method
+   * increments number of work in progress (WIP) if {@link #FLAG_HAS_REQUEST} is set
+   *
+   * @return previous state
+   */
+  static long markValueAddedAndTerminated(UnboundedProcessor instance) {
+    for (; ; ) {
+      final long state = instance.state;
+
+      if (isFinalized(state)) {
+        return state;
+      }
+
+      long nextState = state;
+      if (isWorkInProgress(state)) {
+        nextState = addWork(state);
+      } else if (isSubscriberReady(state) && !instance.outputFused) {
+        if (hasRequest(state)) {
+          nextState = addWork(state);
+        }
+      }
+
+      if (STATE.compareAndSet(instance, state, nextState | FLAG_HAS_VALUE | FLAG_TERMINATED)) {
         return state;
       }
     }

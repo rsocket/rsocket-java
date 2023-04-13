@@ -23,7 +23,7 @@ import io.micrometer.observation.ObservationConvention;
  * {@link ObservationConvention} for RSocket responder {@link RSocketContext}.
  *
  * @author Marcin Grzejszczak
- * @since 2.0.0
+ * @since 1.1.4
  */
 public interface RSocketResponderObservationConvention
     extends ObservationConvention<RSocketContext> {
