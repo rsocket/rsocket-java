@@ -30,20 +30,28 @@ public class MimeTypeMetadataCodecTest {
   public void wellKnownMimeType() {
     WellKnownMimeType mimeType = WellKnownMimeType.APPLICATION_HESSIAN;
     ByteBuf byteBuf = MimeTypeMetadataCodec.encode(ByteBufAllocator.DEFAULT, mimeType);
-    List<String> mimeTypes = MimeTypeMetadataCodec.decode(byteBuf);
+    try {
+      List<String> mimeTypes = MimeTypeMetadataCodec.decode(byteBuf);
 
-    assertThat(mimeTypes.size()).isEqualTo(1);
-    assertThat(WellKnownMimeType.fromString(mimeTypes.get(0))).isEqualTo(mimeType);
+      assertThat(mimeTypes.size()).isEqualTo(1);
+      assertThat(WellKnownMimeType.fromString(mimeTypes.get(0))).isEqualTo(mimeType);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @Test
   public void customMimeType() {
     String mimeType = "aaa/bb";
     ByteBuf byteBuf = MimeTypeMetadataCodec.encode(ByteBufAllocator.DEFAULT, mimeType);
-    List<String> mimeTypes = MimeTypeMetadataCodec.decode(byteBuf);
+    try {
+      List<String> mimeTypes = MimeTypeMetadataCodec.decode(byteBuf);
 
-    assertThat(mimeTypes.size()).isEqualTo(1);
-    assertThat(mimeTypes.get(0)).isEqualTo(mimeType);
+      assertThat(mimeTypes.size()).isEqualTo(1);
+      assertThat(mimeTypes.get(0)).isEqualTo(mimeType);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @Test
@@ -51,6 +59,10 @@ public class MimeTypeMetadataCodecTest {
     List<String> mimeTypes = Lists.newArrayList("aaa/bbb", "application/x-hessian");
     ByteBuf byteBuf = MimeTypeMetadataCodec.encode(ByteBufAllocator.DEFAULT, mimeTypes);
 
-    assertThat(MimeTypeMetadataCodec.decode(byteBuf)).isEqualTo(mimeTypes);
+    try {
+      assertThat(MimeTypeMetadataCodec.decode(byteBuf)).isEqualTo(mimeTypes);
+    } finally {
+      byteBuf.release();
+    }
   }
 }

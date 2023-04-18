@@ -33,7 +33,10 @@ class LoadbalanceRSocketClientTest {
   public static final Duration LONG_DURATION = Duration.ofMillis(75);
 
   private static final Publisher<Payload> SOURCE =
-      Flux.interval(SHORT_DURATION).map(String::valueOf).map(DefaultPayload::create);
+      Flux.interval(SHORT_DURATION)
+          .onBackpressureBuffer()
+          .map(String::valueOf)
+          .map(DefaultPayload::create);
 
   private static final Mono<RSocket> PROGRESSING_HANDLER =
       Mono.just(
