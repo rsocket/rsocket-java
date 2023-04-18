@@ -19,6 +19,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RaceTestConstants;
@@ -434,6 +435,8 @@ public class DefaultRSocketClientTests {
     assertSubscriber1.assertTerminated().assertValueCount(1);
 
     Assertions.assertThat(assertSubscriber1.values()).isEqualTo(assertSubscriber.values());
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -457,6 +460,13 @@ public class DefaultRSocketClientTests {
         .assertErrorMessage("Disposed");
 
     Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -494,6 +504,13 @@ public class DefaultRSocketClientTests {
     onCloseSubscriber.assertTerminated().assertComplete();
 
     Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -515,6 +532,13 @@ public class DefaultRSocketClientTests {
     assertSubscriber1.assertTerminated().assertComplete();
 
     Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -536,6 +560,13 @@ public class DefaultRSocketClientTests {
     assertSubscriber1.assertTerminated().assertComplete();
 
     Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -552,6 +583,11 @@ public class DefaultRSocketClientTests {
     assertSubscriber.assertTerminated().assertValueCount(1);
 
     rule.socket.dispose();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
 
     terminateSubscriber.assertNotTerminated();
     Assertions.assertThat(rule.client.isDisposed()).isFalse();
@@ -576,6 +612,13 @@ public class DefaultRSocketClientTests {
     Assertions.assertThat(rule.client.connect()).isFalse();
 
     Assertions.assertThat(rule.socket.isDisposed()).isTrue();
+
+    FrameAssert.assertThat(rule.connection.awaitFrame())
+        .hasStreamIdZero()
+        .hasData("Disposed")
+        .hasNoLeaks();
+
+    rule.allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -603,6 +646,13 @@ public class DefaultRSocketClientTests {
           .assertTerminated()
           .assertError(CancellationException.class)
           .assertErrorMessage("Disposed");
+
+      ByteBuf buf;
+      while ((buf = rule.connection.pollFrame()) != null) {
+        FrameAssert.assertThat(buf).hasStreamIdZero().hasData("Disposed").hasNoLeaks();
+      }
+
+      rule.allocator.assertHasNoLeaks();
     }
   }
 
@@ -632,8 +682,14 @@ public class DefaultRSocketClientTests {
       AssertSubscriber<Void> assertSubscriber1 = AssertSubscriber.create();
 
       rule.client.onClose().subscribe(assertSubscriber1);
+      FrameAssert.assertThat(rule.connection.awaitFrame())
+          .hasStreamIdZero()
+          .hasData("Disposed")
+          .hasNoLeaks();
 
       assertSubscriber1.assertTerminated().assertComplete();
+
+      rule.allocator.assertHasNoLeaks();
     }
   }
 

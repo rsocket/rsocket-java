@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.rsocket.Closeable;
 import io.rsocket.FrameAssert;
 import io.rsocket.RSocket;
 import io.rsocket.frame.FrameType;
@@ -60,13 +61,14 @@ public class RSocketServerTest {
         .hasData("SETUP or RESUME frame must be received before any others")
         .hasStreamIdZero()
         .hasNoLeaks();
+    duplexConnection.alloc().assertHasNoLeaks();
   }
 
   @Test
   public void timeoutOnNoFirstFrame() {
     final VirtualTimeScheduler scheduler = VirtualTimeScheduler.getOrSet();
+    TestServerTransport transport = new TestServerTransport();
     try {
-      TestServerTransport transport = new TestServerTransport();
       RSocketServer.create().maxTimeToFirstFrame(Duration.ofMinutes(2)).bind(transport).block();
 
       final TestDuplexConnection duplexConnection = transport.connect();
@@ -84,6 +86,7 @@ public class RSocketServerTest {
 
       FrameAssert.assertThat(duplexConnection.pollFrame()).isNull();
     } finally {
+      transport.alloc().assertHasNoLeaks();
       VirtualTimeScheduler.reset();
     }
   }
@@ -128,14 +131,15 @@ public class RSocketServerTest {
     Sinks.Empty<Void> connectedSink = Sinks.empty();
 
     TestServerTransport transport = new TestServerTransport();
-    RSocketServer.create()
-        .acceptor(
-            (setup, sendingSocket) -> {
-              connectedSink.tryEmitEmpty();
-              return Mono.just(new RSocket() {});
-            })
-        .bind(transport)
-        .block();
+    Closeable server =
+        RSocketServer.create()
+            .acceptor(
+                (setup, sendingSocket) -> {
+                  connectedSink.tryEmitEmpty();
+                  return Mono.just(new RSocket() {});
+                })
+            .bind(transport)
+            .block();
 
     byte[] bytes = new byte[16_000_000];
     new Random().nextBytes(bytes);
@@ -153,5 +157,11 @@ public class RSocketServerTest {
     assertThat(connectedSink.scan(Scannable.Attr.TERMINATED))
         .as("Connection should not succeed")
         .isFalse();
+    FrameAssert.assertThat(connection.pollFrame())
+        .hasStreamIdZero()
+        .hasData("SETUP or RESUME frame must be received before any others")
+        .hasNoLeaks();
+    server.dispose();
+    transport.alloc().assertHasNoLeaks();
   }
 }
