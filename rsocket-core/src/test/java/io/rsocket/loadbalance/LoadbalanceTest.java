@@ -71,10 +71,11 @@ public class LoadbalanceTest {
             return Mono.empty();
           }
         };
-    final RSocketConnector rSocketConnectorMock =
-        RSocketConnector.create()
-            .interceptors(
-                ir -> ir.forRequester((RSocketInterceptor) socket -> new TestRSocket(rSocket)));
+
+      final RSocketConnector rSocketConnectorMock = Mockito.mock(RSocketConnector.class);
+      final ClientTransport mockTransport1 = Mockito.mock(ClientTransport.class);
+      Mockito.when(rSocketConnectorMock.connect(mockTransport1))
+             .then(im -> Mono.just(new TestRSocket(rSocket)));
 
     final List<LoadbalanceTarget> collectionOfDestination1 =
         Collections.singletonList(LoadbalanceTarget.from("1", mockTransport));
