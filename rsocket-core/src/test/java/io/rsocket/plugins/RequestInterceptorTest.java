@@ -1,16 +1,19 @@
 package io.rsocket.plugins;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.frame.FrameType;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -29,6 +32,9 @@ public class RequestInterceptorTest {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void interceptorShouldBeInstalledProperlyOnTheClientRequesterSide(boolean errorOutcome) {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
     final Closeable closeable =
         RSocketServer.create(
                 SocketAcceptor.with(
@@ -69,7 +75,7 @@ public class RequestInterceptorTest {
                     ir.forRequestsInRequester(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
-            .connect(LocalClientTransport.create("test"))
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
             .block();
 
     try {
@@ -130,6 +136,7 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 
@@ -137,6 +144,10 @@ public class RequestInterceptorTest {
   @ValueSource(booleans = {true, false})
   void interceptorShouldBeInstalledProperlyOnTheClientResponderSide(boolean errorOutcome)
       throws InterruptedException {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
+
     CountDownLatch latch = new CountDownLatch(1);
     final Closeable closeable =
         RSocketServer.create(
@@ -209,7 +220,7 @@ public class RequestInterceptorTest {
                     ir.forRequestsInResponder(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
-            .connect(LocalClientTransport.create("test"))
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
             .block();
 
     try {
@@ -253,12 +264,17 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void interceptorShouldBeInstalledProperlyOnTheServerRequesterSide(boolean errorOutcome) {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
+
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     final Closeable closeable =
         RSocketServer.create(
@@ -297,7 +313,9 @@ public class RequestInterceptorTest {
                             (__) -> testRequestInterceptor))
             .bindNow(LocalServerTransport.create("test"));
     final RSocket rSocket =
-        RSocketConnector.create().connect(LocalClientTransport.create("test")).block();
+        RSocketConnector.create()
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
+            .block();
 
     try {
       rSocket
@@ -357,6 +375,7 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 
@@ -364,6 +383,10 @@ public class RequestInterceptorTest {
   @ValueSource(booleans = {true, false})
   void interceptorShouldBeInstalledProperlyOnTheServerResponderSide(boolean errorOutcome)
       throws InterruptedException {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
+
     CountDownLatch latch = new CountDownLatch(1);
     final TestRequestInterceptor testRequestInterceptor = new TestRequestInterceptor();
     final Closeable closeable =
@@ -437,7 +460,7 @@ public class RequestInterceptorTest {
                             : Flux.from(payloads);
                       }
                     }))
-            .connect(LocalClientTransport.create("test"))
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
             .block();
 
     try {
@@ -481,11 +504,16 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 
   @Test
   void ensuresExceptionInTheInterceptorIsHandledProperly() {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
+
     final Closeable closeable =
         RSocketServer.create(
                 SocketAcceptor.with(
@@ -546,7 +574,7 @@ public class RequestInterceptorTest {
                     ir.forRequestsInRequester(
                         (Function<RSocket, ? extends RequestInterceptor>)
                             (__) -> testRequestInterceptor))
-            .connect(LocalClientTransport.create("test"))
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
             .block();
 
     try {
@@ -575,12 +603,17 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void shouldSupportMultipleInterceptors(boolean errorOutcome) {
+    final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(
+            ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "test");
+
     final Closeable closeable =
         RSocketServer.create(
                 SocketAcceptor.with(
@@ -655,7 +688,7 @@ public class RequestInterceptorTest {
                         .forRequestsInRequester(
                             (Function<RSocket, ? extends RequestInterceptor>)
                                 (__) -> testRequestInterceptor2))
-            .connect(LocalClientTransport.create("test"))
+            .connect(LocalClientTransport.create("test", byteBufAllocator))
             .block();
 
     try {
@@ -751,6 +784,7 @@ public class RequestInterceptorTest {
     } finally {
       rSocket.dispose();
       closeable.dispose();
+      byteBufAllocator.assertHasNoLeaks();
     }
   }
 }

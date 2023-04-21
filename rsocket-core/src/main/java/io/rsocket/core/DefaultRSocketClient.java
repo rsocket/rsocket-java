@@ -450,8 +450,8 @@ class DefaultRSocketClient extends ResolvingOperator<RSocket>
 
     @Override
     public void request(long n) {
-      this.main.request(n);
       super.request(n);
+      this.main.request(n);
     }
 
     public void cancel() {

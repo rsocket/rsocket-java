@@ -159,6 +159,7 @@ public class ClientRSocketSessionTest {
       assertThat(session.isDisposed()).isTrue();
 
       resumableDuplexConnection.onClose().as(StepVerifier::create).expectComplete().verify();
+      keepAliveSupport.dispose();
       transport.alloc().assertHasNoLeaks();
     } finally {
       VirtualTimeScheduler.reset();
@@ -291,6 +292,7 @@ public class ClientRSocketSessionTest {
           .as(StepVerifier::create)
           .expectErrorMessage("RESUME_OK frame must be received before any others")
           .verify();
+      keepAliveSupport.dispose();
       transport.alloc().assertHasNoLeaks();
     } finally {
       VirtualTimeScheduler.reset();
@@ -386,6 +388,7 @@ public class ClientRSocketSessionTest {
           .as(StepVerifier::create)
           .expectError(RejectedResumeException.class)
           .verify();
+      keepAliveSupport.dispose();
       transport.alloc().assertHasNoLeaks();
     } finally {
       VirtualTimeScheduler.reset();
@@ -458,7 +461,7 @@ public class ClientRSocketSessionTest {
           .matches(ReferenceCounted::release);
 
       resumableDuplexConnection.onClose().as(StepVerifier::create).expectError().verify();
-
+      keepAliveSupport.dispose();
       transport.alloc().assertHasNoLeaks();
     } finally {
       VirtualTimeScheduler.reset();
