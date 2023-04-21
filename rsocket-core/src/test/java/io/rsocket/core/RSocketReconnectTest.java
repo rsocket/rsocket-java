@@ -17,8 +17,11 @@ package io.rsocket.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.rsocket.FrameAssert;
 import io.rsocket.RSocket;
+import io.rsocket.frame.FrameType;
 import io.rsocket.test.util.TestClientTransport;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -49,27 +52,44 @@ public class RSocketReconnectTest {
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
 
+    FrameAssert.assertThat(testClientTransport[0].testConnection().awaitFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
     assertThat(rSocket1).isEqualTo(rSocket2);
 
     testClientTransport[0].testConnection().dispose();
+    rSocket1.onClose().block(Duration.ofSeconds(1));
+    testClientTransport[0].alloc().assertHasNoLeaks();
     testClientTransport[0] = new TestClientTransport();
 
     RSocket rSocket3 = rSocketMono.block();
     RSocket rSocket4 = rSocketMono.block();
 
+    FrameAssert.assertThat(testClientTransport[0].testConnection().awaitFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
     assertThat(rSocket3).isEqualTo(rSocket4).isNotEqualTo(rSocket2);
+
+    testClientTransport[0].testConnection().dispose();
+    rSocket3.onClose().block(Duration.ofSeconds(1));
+    testClientTransport[0].alloc().assertHasNoLeaks();
   }
 
   @Test
-  @SuppressWarnings({"rawtype", "unchecked"})
+  @SuppressWarnings({"rawtype"})
   public void shouldBeRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
     ClientTransport transport = Mockito.mock(ClientTransport.class);
+    TestClientTransport transport1 = new TestClientTransport();
     Mockito.when(transport.connect())
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport().connect());
+        .thenReturn(transport1.connect());
     Mono<RSocket> rSocketMono =
         RSocketConnector.create()
             .reconnect(
@@ -87,19 +107,29 @@ public class RSocketReconnectTest {
         UncheckedIOException.class,
         UncheckedIOException.class,
         UncheckedIOException.class);
+
+    FrameAssert.assertThat(transport1.testConnection().awaitFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
+    transport1.testConnection().dispose();
+    rSocket1.onClose().block(Duration.ofSeconds(1));
+    transport1.alloc().assertHasNoLeaks();
   }
 
   @Test
-  @SuppressWarnings({"rawtype", "unchecked"})
+  @SuppressWarnings({"rawtype"})
   public void shouldBeExaustedRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
     ClientTransport transport = Mockito.mock(ClientTransport.class);
+    TestClientTransport transport1 = new TestClientTransport();
     Mockito.when(transport.connect())
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport().connect());
+        .thenReturn(transport1.connect());
     Mono<RSocket> rSocketMono =
         RSocketConnector.create()
             .reconnect(
@@ -121,17 +151,38 @@ public class RSocketReconnectTest {
         UncheckedIOException.class,
         UncheckedIOException.class,
         UncheckedIOException.class);
+
+    transport1.alloc().assertHasNoLeaks();
   }
 
   @Test
   public void shouldBeNotBeASharedReconnectableInstanceOfRSocketMono() {
-
-    Mono<RSocket> rSocketMono = RSocketConnector.connectWith(new TestClientTransport());
+    TestClientTransport transport = new TestClientTransport();
+    Mono<RSocket> rSocketMono = RSocketConnector.connectWith(transport);
 
     RSocket rSocket1 = rSocketMono.block();
+    TestDuplexConnection connection1 = transport.testConnection();
+
+    FrameAssert.assertThat(connection1.awaitFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
     RSocket rSocket2 = rSocketMono.block();
+    TestDuplexConnection connection2 = transport.testConnection();
 
     assertThat(rSocket1).isNotEqualTo(rSocket2);
+
+    FrameAssert.assertThat(connection2.awaitFrame())
+        .typeOf(FrameType.SETUP)
+        .hasStreamIdZero()
+        .hasNoLeaks();
+
+    connection1.dispose();
+    connection2.dispose();
+    rSocket1.onClose().block(Duration.ofSeconds(1));
+    rSocket2.onClose().block(Duration.ofSeconds(1));
+    transport.alloc().assertHasNoLeaks();
   }
 
   @SafeVarargs

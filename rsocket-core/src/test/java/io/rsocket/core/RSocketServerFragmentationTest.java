@@ -1,5 +1,8 @@
 package io.rsocket.core;
 
+import io.rsocket.Closeable;
+import io.rsocket.FrameAssert;
+import io.rsocket.frame.FrameType;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.test.util.TestServerTransport;
 import org.assertj.core.api.Assertions;
@@ -16,12 +19,18 @@ public class RSocketServerFragmentationTest {
 
   @Test
   public void serverSucceedsWithEnabledFragmentationOnSufficientMtu() {
-    RSocketServer.create().fragment(100).bind(new TestServerTransport()).block();
+    TestServerTransport transport = new TestServerTransport();
+    Closeable closeable = RSocketServer.create().fragment(100).bind(transport).block();
+    closeable.dispose();
+    transport.alloc().assertHasNoLeaks();
   }
 
   @Test
   public void serverSucceedsWithDisabledFragmentation() {
-    RSocketServer.create().bind(new TestServerTransport()).block();
+    TestServerTransport transport = new TestServerTransport();
+    Closeable closeable = RSocketServer.create().bind(transport).block();
+    closeable.dispose();
+    transport.alloc().assertHasNoLeaks();
   }
 
   @Test
@@ -33,11 +42,23 @@ public class RSocketServerFragmentationTest {
 
   @Test
   public void clientSucceedsWithEnabledFragmentationOnSufficientMtu() {
-    RSocketConnector.create().fragment(100).connect(new TestClientTransport()).block();
+    TestClientTransport transport = new TestClientTransport();
+    RSocketConnector.create().fragment(100).connect(transport).block();
+    FrameAssert.assertThat(transport.testConnection().pollFrame())
+        .typeOf(FrameType.SETUP)
+        .hasNoLeaks();
+    transport.testConnection().dispose();
+    transport.alloc().assertHasNoLeaks();
   }
 
   @Test
   public void clientSucceedsWithDisabledFragmentation() {
-    RSocketConnector.connectWith(new TestClientTransport()).block();
+    TestClientTransport transport = new TestClientTransport();
+    RSocketConnector.connectWith(transport).block();
+    FrameAssert.assertThat(transport.testConnection().pollFrame())
+        .typeOf(FrameType.SETUP)
+        .hasNoLeaks();
+    transport.testConnection().dispose();
+    transport.alloc().assertHasNoLeaks();
   }
 }

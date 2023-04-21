@@ -23,11 +23,21 @@ import static org.assertj.core.api.Assertions.*;
 
 import io.netty.buffer.*;
 import io.netty.util.CharsetUtil;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class CompositeMetadataCodecTest {
+
+  final LeaksTrackingByteBufAllocator testAllocator =
+      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+
+  @AfterEach
+  void tearDownAndCheckForLeaks() {
+    testAllocator.assertHasNoLeaks();
+  }
 
   static String byteToBitsString(byte b) {
     return String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
@@ -48,17 +58,14 @@ class CompositeMetadataCodecTest {
 
     assertThatIllegalArgumentException()
         .isThrownBy(
-            () ->
-                CompositeMetadataCodec.encodeMetadataHeader(
-                    ByteBufAllocator.DEFAULT, mimeNotAscii, 0))
+            () -> CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeNotAscii, 0))
         .withMessage("custom mime type must be US_ASCII characters only");
   }
 
   @Test
   void customMimeHeaderLength0_encodingFails() {
     assertThatIllegalArgumentException()
-        .isThrownBy(
-            () -> CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "", 0))
+        .isThrownBy(() -> CompositeMetadataCodec.encodeMetadataHeader(testAllocator, "", 0))
         .withMessage(
             "custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
   }
@@ -70,8 +77,7 @@ class CompositeMetadataCodecTest {
       builder.append('a');
     }
     String mimeString = builder.toString();
-    ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
+    ByteBuf encoded = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeString, 0);
 
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111110");
@@ -99,6 +105,7 @@ class CompositeMetadataCodecTest {
         .hasToString(mimeString);
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
@@ -108,8 +115,7 @@ class CompositeMetadataCodecTest {
       builder.append('a');
     }
     String mimeString = builder.toString();
-    ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
+    ByteBuf encoded = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeString, 0);
 
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111111");
@@ -137,6 +143,7 @@ class CompositeMetadataCodecTest {
         .hasToString(mimeString);
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
@@ -148,9 +155,7 @@ class CompositeMetadataCodecTest {
 
     assertThatIllegalArgumentException()
         .isThrownBy(
-            () ->
-                CompositeMetadataCodec.encodeMetadataHeader(
-                    ByteBufAllocator.DEFAULT, builder.toString(), 0))
+            () -> CompositeMetadataCodec.encodeMetadataHeader(testAllocator, builder.toString(), 0))
         .withMessage(
             "custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
   }
@@ -158,8 +163,7 @@ class CompositeMetadataCodecTest {
   @Test
   void customMimeHeaderLengthOne() {
     String mimeString = "w";
-    ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
+    ByteBuf encoded = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeString, 0);
 
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000000");
@@ -185,13 +189,13 @@ class CompositeMetadataCodecTest {
         .hasToString(mimeString);
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
   void customMimeHeaderLengthTwo() {
     String mimeString = "ww";
-    ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
+    ByteBuf encoded = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeString, 0);
 
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000001");
@@ -219,6 +223,7 @@ class CompositeMetadataCodecTest {
         .hasToString(mimeString);
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
@@ -227,9 +232,7 @@ class CompositeMetadataCodecTest {
         "mime/tyࠒe"; // this is the SAMARITAN LETTER QUF u+0812 represented on 3 bytes
     assertThatIllegalArgumentException()
         .isThrownBy(
-            () ->
-                CompositeMetadataCodec.encodeMetadataHeader(
-                    ByteBufAllocator.DEFAULT, mimeNotAscii, 0))
+            () -> CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mimeNotAscii, 0))
         .withMessage("custom mime type must be US_ASCII characters only");
   }
 
@@ -317,72 +320,73 @@ class CompositeMetadataCodecTest {
 
   @Test
   void encodeMetadataCustomTypeDelegates() {
-    ByteBuf expected =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo", 2);
+    ByteBuf expected = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, "foo", 2);
 
-    CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+    CompositeByteBuf test = testAllocator.compositeBuffer();
 
     CompositeMetadataCodec.encodeAndAddMetadata(
-        test, ByteBufAllocator.DEFAULT, "foo", ByteBufUtils.getRandomByteBuf(2));
+        test, testAllocator, "foo", ByteBufUtils.getRandomByteBuf(2));
 
     assertThat((Iterable<? extends ByteBuf>) test).hasSize(2).first().isEqualTo(expected);
+    test.release();
+    expected.release();
   }
 
   @Test
   void encodeMetadataKnownTypeDelegates() {
     ByteBuf expected =
         CompositeMetadataCodec.encodeMetadataHeader(
-            ByteBufAllocator.DEFAULT,
-            WellKnownMimeType.APPLICATION_OCTET_STREAM.getIdentifier(),
-            2);
+            testAllocator, WellKnownMimeType.APPLICATION_OCTET_STREAM.getIdentifier(), 2);
 
-    CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+    CompositeByteBuf test = testAllocator.compositeBuffer();
 
     CompositeMetadataCodec.encodeAndAddMetadata(
         test,
-        ByteBufAllocator.DEFAULT,
+        testAllocator,
         WellKnownMimeType.APPLICATION_OCTET_STREAM,
         ByteBufUtils.getRandomByteBuf(2));
 
     assertThat((Iterable<? extends ByteBuf>) test).hasSize(2).first().isEqualTo(expected);
+    test.release();
+    expected.release();
   }
 
   @Test
   void encodeMetadataReservedTypeDelegates() {
-    ByteBuf expected =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, (byte) 120, 2);
+    ByteBuf expected = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, (byte) 120, 2);
 
-    CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+    CompositeByteBuf test = testAllocator.compositeBuffer();
 
     CompositeMetadataCodec.encodeAndAddMetadata(
-        test, ByteBufAllocator.DEFAULT, (byte) 120, ByteBufUtils.getRandomByteBuf(2));
+        test, testAllocator, (byte) 120, ByteBufUtils.getRandomByteBuf(2));
 
     assertThat((Iterable<? extends ByteBuf>) test).hasSize(2).first().isEqualTo(expected);
+    test.release();
+    expected.release();
   }
 
   @Test
   void encodeTryCompressWithCompressableType() {
     ByteBuf metadata = ByteBufUtils.getRandomByteBuf(2);
-    CompositeByteBuf target = UnpooledByteBufAllocator.DEFAULT.compositeBuffer();
+    CompositeByteBuf target = testAllocator.compositeBuffer();
 
     CompositeMetadataCodec.encodeAndAddMetadataWithCompression(
-        target,
-        UnpooledByteBufAllocator.DEFAULT,
-        WellKnownMimeType.APPLICATION_AVRO.getString(),
-        metadata);
+        target, testAllocator, WellKnownMimeType.APPLICATION_AVRO.getString(), metadata);
 
     assertThat(target.readableBytes()).as("readableBytes 1 + 3 + 2").isEqualTo(6);
+    target.release();
   }
 
   @Test
   void encodeTryCompressWithCustomType() {
     ByteBuf metadata = ByteBufUtils.getRandomByteBuf(2);
-    CompositeByteBuf target = UnpooledByteBufAllocator.DEFAULT.compositeBuffer();
+    CompositeByteBuf target = testAllocator.compositeBuffer();
 
     CompositeMetadataCodec.encodeAndAddMetadataWithCompression(
-        target, UnpooledByteBufAllocator.DEFAULT, "custom/example", metadata);
+        target, testAllocator, "custom/example", metadata);
 
     assertThat(target.readableBytes()).as("readableBytes 1 + 14 + 3 + 2").isEqualTo(20);
+    target.release();
   }
 
   @Test
@@ -390,19 +394,20 @@ class CompositeMetadataCodecTest {
     WellKnownMimeType mime = WellKnownMimeType.APPLICATION_AVRO;
 
     CompositeByteBuf buffer =
-        Unpooled.compositeBuffer()
+        testAllocator
+            .compositeBuffer()
+            .addComponent(
+                true,
+                CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mime.getIdentifier(), 0))
             .addComponent(
                 true,
                 CompositeMetadataCodec.encodeMetadataHeader(
-                    ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0))
-            .addComponent(
-                true,
-                CompositeMetadataCodec.encodeMetadataHeader(
-                    ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0));
+                    testAllocator, mime.getIdentifier(), 0));
 
     assertThat(CompositeMetadataCodec.hasEntry(buffer, 0)).isTrue();
     assertThat(CompositeMetadataCodec.hasEntry(buffer, 4)).isTrue();
     assertThat(CompositeMetadataCodec.hasEntry(buffer, 8)).isFalse();
+    buffer.release();
   }
 
   @Test
@@ -417,8 +422,7 @@ class CompositeMetadataCodecTest {
   @Test
   void knownMimeHeader120_reserved() {
     byte mime = (byte) 120;
-    ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mime, 0);
+    ByteBuf encoded = CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mime, 0);
 
     assertThat(mime)
         .as("smoke test RESERVED_120 unsigned 7 bits representation")
@@ -443,6 +447,7 @@ class CompositeMetadataCodecTest {
     assertThat(decodeMimeIdFromMimeBuffer(header)).as("decoded mime id").isEqualTo(mime);
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
@@ -453,8 +458,7 @@ class CompositeMetadataCodecTest {
         .isEqualTo((byte) 127)
         .isEqualTo((byte) 0b01111111);
     ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(
-            ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0);
+        CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mime.getIdentifier(), 0);
 
     assertThat(toHeaderBits(encoded))
         .startsWith("1")
@@ -480,6 +484,7 @@ class CompositeMetadataCodecTest {
         .isEqualTo(mime.getIdentifier());
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test
@@ -490,8 +495,7 @@ class CompositeMetadataCodecTest {
         .isEqualTo((byte) 0)
         .isEqualTo((byte) 0b00000000);
     ByteBuf encoded =
-        CompositeMetadataCodec.encodeMetadataHeader(
-            ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0);
+        CompositeMetadataCodec.encodeMetadataHeader(testAllocator, mime.getIdentifier(), 0);
 
     assertThat(toHeaderBits(encoded))
         .startsWith("1")
@@ -517,6 +521,7 @@ class CompositeMetadataCodecTest {
         .isEqualTo(mime.getIdentifier());
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+    encoded.release();
   }
 
   @Test

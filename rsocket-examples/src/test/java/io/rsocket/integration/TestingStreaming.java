@@ -78,8 +78,6 @@ public class TestingStreaming {
               .block();
 
       Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
-      System.out.println("here");
-
     } finally {
       server.dispose();
     }

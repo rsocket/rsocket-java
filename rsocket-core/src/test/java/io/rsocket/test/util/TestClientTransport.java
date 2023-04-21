@@ -6,11 +6,13 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.transport.ClientTransport;
+import java.time.Duration;
 import reactor.core.publisher.Mono;
 
 public class TestClientTransport implements ClientTransport {
   private final LeaksTrackingByteBufAllocator allocator =
-      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+      LeaksTrackingByteBufAllocator.instrument(
+          ByteBufAllocator.DEFAULT, Duration.ofSeconds(1), "client");
 
   private volatile TestDuplexConnection testDuplexConnection;
 

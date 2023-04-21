@@ -56,12 +56,20 @@ public class ClientServerInputMultiplexerTest {
     clientMultiplexer
         .asClientConnection()
         .receive()
-        .doOnNext(f -> clientFrames.incrementAndGet())
+        .doOnNext(
+            f -> {
+              clientFrames.incrementAndGet();
+              f.release();
+            })
         .subscribe();
     clientMultiplexer
         .asServerConnection()
         .receive()
-        .doOnNext(f -> serverFrames.incrementAndGet())
+        .doOnNext(
+            f -> {
+              serverFrames.incrementAndGet();
+              f.release();
+            })
         .subscribe();
 
     source.addToReceivedBuffer(errorFrame(1).retain());
@@ -101,12 +109,20 @@ public class ClientServerInputMultiplexerTest {
     serverMultiplexer
         .asClientConnection()
         .receive()
-        .doOnNext(f -> clientFrames.incrementAndGet())
+        .doOnNext(
+            f -> {
+              clientFrames.incrementAndGet();
+              f.release();
+            })
         .subscribe();
     serverMultiplexer
         .asServerConnection()
         .receive()
-        .doOnNext(f -> serverFrames.incrementAndGet())
+        .doOnNext(
+            f -> {
+              serverFrames.incrementAndGet();
+              f.release();
+            })
         .subscribe();
 
     source.addToReceivedBuffer(errorFrame(1).retain());

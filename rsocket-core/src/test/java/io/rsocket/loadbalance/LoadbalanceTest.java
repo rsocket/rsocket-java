@@ -20,7 +20,6 @@ import io.rsocket.RSocket;
 import io.rsocket.RaceTestConstants;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.internal.subscriber.AssertSubscriber;
-import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.util.EmptyPayload;
@@ -71,10 +70,11 @@ public class LoadbalanceTest {
             return Mono.empty();
           }
         };
-    final RSocketConnector rSocketConnectorMock =
-        RSocketConnector.create()
-            .interceptors(
-                ir -> ir.forRequester((RSocketInterceptor) socket -> new TestRSocket(rSocket)));
+
+    final RSocketConnector rSocketConnectorMock = Mockito.mock(RSocketConnector.class);
+    final ClientTransport mockTransport1 = Mockito.mock(ClientTransport.class);
+    Mockito.when(rSocketConnectorMock.connect(Mockito.any(ClientTransport.class)))
+        .then(im -> Mono.just(new TestRSocket(rSocket)));
 
     final List<LoadbalanceTarget> collectionOfDestination1 =
         Collections.singletonList(LoadbalanceTarget.from("1", mockTransport));

@@ -43,14 +43,18 @@ final class ExceptionsTest {
   void fromApplicationException() {
     ByteBuf byteBuf = createErrorFrame(1, APPLICATION_ERROR, "test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(ApplicationErrorException.class)
-        .hasMessage("test-message");
+    try {
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(ApplicationErrorException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid Error frame in Stream ID 0: 0x%08X '%s'", APPLICATION_ERROR, "test-message");
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              "Invalid Error frame in Stream ID 0: 0x%08X '%s'", APPLICATION_ERROR, "test-message");
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns CanceledException")
@@ -58,28 +62,37 @@ final class ExceptionsTest {
   void fromCanceledException() {
     ByteBuf byteBuf = createErrorFrame(1, CANCELED, "test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(CanceledException.class)
-        .hasMessage("test-message");
+    try {
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", CANCELED, "test-message");
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(CanceledException.class)
+          .hasMessage("test-message");
+
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", CANCELED, "test-message");
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns ConnectionCloseException")
   @Test
   void fromConnectionCloseException() {
     ByteBuf byteBuf = createErrorFrame(0, CONNECTION_CLOSE, "test-message");
+    try {
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(ConnectionCloseException.class)
-        .hasMessage("test-message");
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(ConnectionCloseException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", CONNECTION_CLOSE, "test-message");
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", CONNECTION_CLOSE, "test-message");
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns ConnectionErrorException")
@@ -87,116 +100,146 @@ final class ExceptionsTest {
   void fromConnectionErrorException() {
     ByteBuf byteBuf = createErrorFrame(0, CONNECTION_ERROR, "test-message");
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(ConnectionErrorException.class)
-        .hasMessage("test-message");
+    try {
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", CONNECTION_ERROR, "test-message");
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(ConnectionErrorException.class)
+          .hasMessage("test-message");
+
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", CONNECTION_ERROR, "test-message");
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns IllegalArgumentException if error frame has illegal error code")
   @Test
   void fromIllegalErrorFrame() {
     ByteBuf byteBuf = createErrorFrame(0, 0x00000000, "test-message");
+    try {
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", 0, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(0, byteBuf))
+          .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", 0, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .hasMessage("Invalid Error frame in Stream ID 1: 0x%08X '%s'", 0x00000000, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(1, byteBuf))
+          .hasMessage("Invalid Error frame in Stream ID 1: 0x%08X '%s'", 0x00000000, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns InvalidException")
   @Test
   void fromInvalidException() {
     ByteBuf byteBuf = createErrorFrame(1, INVALID, "test-message");
+    try {
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(InvalidException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(InvalidException.class)
-        .hasMessage("test-message");
-
-    assertThat(Exceptions.from(0, byteBuf))
-        .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", INVALID, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(0, byteBuf))
+          .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", INVALID, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns InvalidSetupException")
   @Test
   void fromInvalidSetupException() {
     ByteBuf byteBuf = createErrorFrame(0, INVALID_SETUP, "test-message");
+    try {
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(InvalidSetupException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(InvalidSetupException.class)
-        .hasMessage("test-message");
-
-    assertThat(Exceptions.from(1, byteBuf))
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", INVALID_SETUP, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(1, byteBuf))
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", INVALID_SETUP, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns RejectedException")
   @Test
   void fromRejectedException() {
     ByteBuf byteBuf = createErrorFrame(1, REJECTED, "test-message");
+    try {
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .isInstanceOf(RejectedException.class)
-        .withFailMessage("test-message");
+      assertThat(Exceptions.from(1, byteBuf))
+          .isInstanceOf(RejectedException.class)
+          .withFailMessage("test-message");
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", REJECTED, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(0, byteBuf))
+          .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", REJECTED, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns RejectedResumeException")
   @Test
   void fromRejectedResumeException() {
     ByteBuf byteBuf = createErrorFrame(0, REJECTED_RESUME, "test-message");
+    try {
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(RejectedResumeException.class)
-        .hasMessage("test-message");
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(RejectedResumeException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", REJECTED_RESUME, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(1, byteBuf))
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", REJECTED_RESUME, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns RejectedSetupException")
   @Test
   void fromRejectedSetupException() {
     ByteBuf byteBuf = createErrorFrame(0, REJECTED_SETUP, "test-message");
+    try {
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(RejectedSetupException.class)
-        .withFailMessage("test-message");
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(RejectedSetupException.class)
+          .withFailMessage("test-message");
 
-    assertThat(Exceptions.from(1, byteBuf))
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", REJECTED_SETUP, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(1, byteBuf))
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", REJECTED_SETUP, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns UnsupportedSetupException")
   @Test
   void fromUnsupportedSetupException() {
     ByteBuf byteBuf = createErrorFrame(0, UNSUPPORTED_SETUP, "test-message");
+    try {
+      assertThat(Exceptions.from(0, byteBuf))
+          .isInstanceOf(UnsupportedSetupException.class)
+          .hasMessage("test-message");
 
-    assertThat(Exceptions.from(0, byteBuf))
-        .isInstanceOf(UnsupportedSetupException.class)
-        .hasMessage("test-message");
-
-    assertThat(Exceptions.from(1, byteBuf))
-        .hasMessage(
-            "Invalid Error frame in Stream ID 1: 0x%08X '%s'", UNSUPPORTED_SETUP, "test-message")
-        .isInstanceOf(IllegalArgumentException.class);
+      assertThat(Exceptions.from(1, byteBuf))
+          .hasMessage(
+              "Invalid Error frame in Stream ID 1: 0x%08X '%s'", UNSUPPORTED_SETUP, "test-message")
+          .isInstanceOf(IllegalArgumentException.class);
+    } finally {
+      byteBuf.release();
+    }
   }
 
   @DisplayName("from returns CustomRSocketException")
@@ -210,15 +253,18 @@ final class ExceptionsTest {
               : ThreadLocalRandom.current()
                   .nextInt(ErrorFrameCodec.MIN_USER_ALLOWED_ERROR_CODE, Integer.MAX_VALUE);
       ByteBuf byteBuf = createErrorFrame(0, randomCode, "test-message");
+      try {
+        assertThat(Exceptions.from(1, byteBuf))
+            .isInstanceOf(CustomRSocketException.class)
+            .hasMessage("test-message");
 
-      assertThat(Exceptions.from(1, byteBuf))
-          .isInstanceOf(CustomRSocketException.class)
-          .hasMessage("test-message");
-
-      assertThat(Exceptions.from(0, byteBuf))
-          .hasMessage("Invalid Error frame in Stream ID 0: 0x%08X '%s'", randomCode, "test-message")
-          .isInstanceOf(IllegalArgumentException.class);
-      byteBuf.release();
+        assertThat(Exceptions.from(0, byteBuf))
+            .hasMessage(
+                "Invalid Error frame in Stream ID 0: 0x%08X '%s'", randomCode, "test-message")
+            .isInstanceOf(IllegalArgumentException.class);
+      } finally {
+        byteBuf.release();
+      }
     }
   }
 

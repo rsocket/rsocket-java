@@ -122,6 +122,7 @@ public class RSocketRequesterTest {
   public void tearDown() {
     Hooks.resetOnErrorDropped();
     Hooks.resetOnNextDropped();
+    rule.assertHasNoLeaks();
   }
 
   @Test
@@ -765,16 +766,21 @@ public class RSocketRequesterTest {
   @Test
   public void simpleOnDiscardRequestChannelTest() {
     AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(1);
-    TestPublisher<Payload> testPublisher = TestPublisher.create();
+    Sinks.Many<Payload> testPublisher = Sinks.many().unicast().onBackpressureBuffer();
 
-    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher);
+    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher.asFlux());
 
     payloadFlux.subscribe(assertSubscriber);
 
-    testPublisher.next(
-        ByteBufPayload.create("d", "m"),
-        ByteBufPayload.create("d1", "m1"),
-        ByteBufPayload.create("d2", "m2"));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d"), ByteBufUtil.writeUtf8(rule.alloc(), "m")));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d1"), ByteBufUtil.writeUtf8(rule.alloc(), "m1")));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d2"), ByteBufUtil.writeUtf8(rule.alloc(), "m2")));
 
     assertSubscriber.cancel();
 
@@ -787,16 +793,23 @@ public class RSocketRequesterTest {
   public void simpleOnDiscardRequestChannelTest2() {
     ByteBufAllocator allocator = rule.alloc();
     AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(1);
-    TestPublisher<Payload> testPublisher = TestPublisher.create();
+    Sinks.Many<Payload> testPublisher = Sinks.many().unicast().onBackpressureBuffer();
 
-    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher);
+    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher.asFlux());
 
     payloadFlux.subscribe(assertSubscriber);
 
-    testPublisher.next(ByteBufPayload.create("d", "m"));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d"), ByteBufUtil.writeUtf8(rule.alloc(), "m")));
 
     int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
-    testPublisher.next(ByteBufPayload.create("d1", "m1"), ByteBufPayload.create("d2", "m2"));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d1"), ByteBufUtil.writeUtf8(rule.alloc(), "m1")));
+    testPublisher.tryEmitNext(
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "d2"), ByteBufUtil.writeUtf8(rule.alloc(), "m2")));
 
     rule.connection.addToReceivedBuffer(
         ErrorFrameCodec.encode(
@@ -820,7 +833,7 @@ public class RSocketRequesterTest {
     switch (frameType) {
       case REQUEST_FNF:
         response =
-            testPublisher.mono().flatMap(p -> rule.socket.fireAndForget(p).then(Mono.empty()));
+            testPublisher.mono().flatMap(p -> rule.socket.fireAndForget(p)).then(Mono.empty());
         break;
       case REQUEST_RESPONSE:
         response = testPublisher.mono().flatMap(p -> rule.socket.requestResponse(p));
@@ -836,7 +849,7 @@ public class RSocketRequesterTest {
     }
 
     response.subscribe(assertSubscriber);
-    testPublisher.next(ByteBufPayload.create("d"));
+    testPublisher.next(ByteBufPayload.create(ByteBufUtil.writeUtf8(rule.alloc(), "d")));
 
     int streamId = rule.getStreamIdForRequestType(frameType);
 
@@ -870,7 +883,7 @@ public class RSocketRequesterTest {
     }
 
     for (int i = 1; i < framesCnt; i++) {
-      testPublisher.next(ByteBufPayload.create("d" + i));
+      testPublisher.next(ByteBufPayload.create(ByteBufUtil.writeUtf8(rule.alloc(), "d" + i)));
     }
 
     assertThat(rule.connection.getSent())
@@ -908,7 +921,10 @@ public class RSocketRequesterTest {
   @MethodSource("refCntCases")
   public void ensureSendsErrorOnIllegalRefCntPayload(
       BiFunction<Payload, ClientSocketRule, Publisher<?>> sourceProducer) {
-    Payload invalidPayload = ByteBufPayload.create("test", "test");
+    Payload invalidPayload =
+        ByteBufPayload.create(
+            ByteBufUtil.writeUtf8(rule.alloc(), "test"),
+            ByteBufUtil.writeUtf8(rule.alloc(), "test"));
     invalidPayload.release();
 
     Publisher<?> source = sourceProducer.apply(invalidPayload, rule);
@@ -926,7 +942,8 @@ public class RSocketRequesterTest {
         (p, clientSocketRule) -> clientSocketRule.socket.requestChannel(Mono.just(p)),
         (p, clientSocketRule) -> {
           Flux.from(clientSocketRule.connection.getSentAsPublisher())
-              .filter(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_CHANNEL)
+              .filter(bb -> frameType(bb) == REQUEST_CHANNEL)
+              .doOnDiscard(ByteBuf.class, ReferenceCounted::release)
               .subscribe(
                   bb -> {
                     clientSocketRule.connection.addToReceivedBuffer(

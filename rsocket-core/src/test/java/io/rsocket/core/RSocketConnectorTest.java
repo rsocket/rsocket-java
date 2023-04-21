@@ -100,6 +100,8 @@ public class RSocketConnectorTest {
         .hasData("RESUME_OK frame must be received before any others")
         .hasStreamIdZero()
         .hasNoLeaks();
+
+    transport.alloc().assertHasNoLeaks();
   }
 
   @Test
@@ -204,6 +206,8 @@ public class RSocketConnectorTest {
               return byteBuf.release();
             });
     assertThat(setupPayload.refCnt()).isZero();
+
+    testClientTransport.alloc().assertHasNoLeaks();
   }
 
   @Test
@@ -263,6 +267,8 @@ public class RSocketConnectorTest {
                 payload.refCnt() == 1
                     && payload.data().refCnt() == 0
                     && payload.metadata().refCnt() == 0);
+
+    testClientTransport.alloc().assertHasNoLeaks();
   }
 
   @Test
