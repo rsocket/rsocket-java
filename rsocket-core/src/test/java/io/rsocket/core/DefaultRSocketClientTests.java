@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -49,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -79,6 +81,26 @@ public class DefaultRSocketClientTests {
   public void tearDown() {
     Hooks.resetOnErrorDropped();
     Hooks.resetOnNextDropped();
+    rule.allocator.assertHasNoLeaks();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void discardElementsConsumerShouldAcceptOtherTypesThanReferenceCounted() {
+    Consumer discardElementsConsumer = DefaultRSocketClient.DISCARD_ELEMENTS_CONSUMER;
+    discardElementsConsumer.accept(new Object());
+  }
+
+  @Test
+  void droppedElementsConsumerReleaseReference() {
+    ReferenceCounted referenceCounted = Mockito.mock(ReferenceCounted.class);
+    Mockito.when(referenceCounted.release()).thenReturn(true);
+    Mockito.when(referenceCounted.refCnt()).thenReturn(1);
+
+    Consumer discardElementsConsumer = DefaultRSocketClient.DISCARD_ELEMENTS_CONSUMER;
+    discardElementsConsumer.accept(referenceCounted);
+
+    Mockito.verify(referenceCounted).release();
   }
 
   static Stream<Arguments> interactions() {
