@@ -46,13 +46,16 @@ import reactor.util.context.Context;
  */
 class DefaultRSocketClient extends ResolvingOperator<RSocket>
     implements CoreSubscriber<RSocket>, CorePublisher<RSocket>, RSocketClient {
-  static final Consumer<ReferenceCounted> DISCARD_ELEMENTS_CONSUMER =
-      referenceCounted -> {
-        if (referenceCounted.refCnt() > 0) {
-          try {
-            referenceCounted.release();
-          } catch (IllegalReferenceCountException e) {
-            // ignored
+  static final Consumer<?> DISCARD_ELEMENTS_CONSUMER =
+      data -> {
+        if (data instanceof ReferenceCounted) {
+          ReferenceCounted referenceCounted = ((ReferenceCounted) data);
+          if (referenceCounted.refCnt() > 0) {
+            try {
+              referenceCounted.release();
+            } catch (IllegalReferenceCountException e) {
+              // ignored
+            }
           }
         }
       };

@@ -40,11 +40,13 @@ import reactor.util.context.Context;
 final class SendUtils {
   private static final Consumer<?> DROPPED_ELEMENTS_CONSUMER =
       data -> {
-        try {
-          ReferenceCounted referenceCounted = (ReferenceCounted) data;
-          referenceCounted.release();
-        } catch (Throwable e) {
-          // ignored
+        if (data instanceof ReferenceCounted) {
+          try {
+            ReferenceCounted referenceCounted = (ReferenceCounted) data;
+            referenceCounted.release();
+          } catch (Throwable e) {
+            // ignored
+          }
         }
       };
 
