@@ -437,12 +437,12 @@ final class StateUtils {
     return state == TERMINATED_STATE || (state & SUBSCRIBED_FLAG) == SUBSCRIBED_FLAG;
   }
 
-  static <T> long addRequestN(AtomicLongFieldUpdater<T> updater, T instance, long toAdd) {
-    return addRequestN(updater, instance, toAdd, false);
+  static <T> long markRequestAdded(AtomicLongFieldUpdater<T> updater, T instance) {
+    return markRequestAdded(updater, instance, false);
   }
 
-  static <T> long addRequestN(
-      AtomicLongFieldUpdater<T> updater, T instance, long toAdd, boolean markPrepared) {
+  static <T> long markRequestAdded(
+      AtomicLongFieldUpdater<T> updater, T instance, boolean markPrepared) {
     long currentState, flags, requestN, nextRequestN;
     for (; ; ) {
       currentState = updater.get(instance);
@@ -457,7 +457,7 @@ final class StateUtils {
       }
 
       flags = (currentState & FLAGS_MASK) | (markPrepared ? READY_TO_SEND_FIRST_FRAME_FLAG : 0);
-      nextRequestN = addRequestN(requestN, toAdd);
+      nextRequestN = incrementRequestField(requestN);
 
       if (updater.compareAndSet(instance, currentState, nextRequestN | flags)) {
         return currentState;
@@ -465,8 +465,8 @@ final class StateUtils {
     }
   }
 
-  static long addRequestN(long a, long b) {
-    long res = a + b;
+  static long incrementRequestField(long a) {
+    long res = a + 1;
     if (res < 0 || res > REQUEST_MASK) {
       return REQUEST_MASK;
     }
@@ -475,19 +475,5 @@ final class StateUtils {
 
   static boolean hasRequested(long state) {
     return (state & REQUEST_MASK) > 0;
-  }
-
-  static long extractRequestN(long state) {
-    long requestN = state & REQUEST_MASK;
-
-    if (requestN == REQUEST_MASK) {
-      return REQUEST_MASK;
-    }
-
-    return requestN;
-  }
-
-  static boolean isMaxAllowedRequestN(long n) {
-    return n >= REQUEST_MASK;
   }
 }

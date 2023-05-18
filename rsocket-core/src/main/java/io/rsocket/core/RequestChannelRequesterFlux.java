@@ -142,7 +142,7 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
 
     this.requested = Operators.addCap(this.requested, n);
 
-    long previousState = addRequestN(STATE, this, n, this.requesterLeaseTracker == null);
+    long previousState = markRequestAdded(STATE, this, n, this.requesterLeaseTracker == null);
     if (isTerminated(previousState)) {
       return;
     }

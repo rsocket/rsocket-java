@@ -61,11 +61,15 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> STATE =
       AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "state");
 
+  volatile long requested;
+  static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> REQUESTED =
+          AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "requested");
+
+
   int streamId;
   CoreSubscriber<? super Payload> inboundSubscriber;
   CompositeByteBuf frames;
   boolean done;
-  long requested;
   long produced;
 
   RequestStreamRequesterFlux(Payload payload, RequesterResponderSupport requesterResponderSupport) {
@@ -136,18 +140,19 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    this.requested = Operators.addCap(this.requested, n);
+    if (Operators.addCap(REQUESTED, this, n) > 0) {
+      return;
+    }
 
     final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
     final boolean leaseEnabled = requesterLeaseTracker != null;
-    final long previousState = addRequestN(STATE, this, n, !leaseEnabled);
+    final long previousState = markRequestAdded(STATE, this, !leaseEnabled);
     if (isTerminated(previousState)) {
       return;
     }
 
     if (hasRequested(previousState)) {
-      if (isFirstFrameSent(previousState)
-          && !isMaxAllowedRequestN(extractRequestN(previousState))) {
+      if (isFirstFrameSent(previousState)) {
         final int streamId = this.streamId;
         final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
         this.connection.sendFrame(streamId, requestNFrame);
@@ -171,7 +176,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return false;
     }
 
-    sendFirstPayload(this.payload, extractRequestN(previousState));
+    sendFirstPayload(this.payload, this.requested);
     return true;
   }
 
@@ -209,6 +214,9 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     }
 
     try {
+      if (initialRequestN != Long.MAX_VALUE) {
+        REQUESTED.addAndGet()
+      }
       sendReleasingPayload(
           streamId,
           FrameType.REQUEST_STREAM,

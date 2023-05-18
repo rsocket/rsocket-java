@@ -183,7 +183,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
 
     this.requested = Operators.addCap(this.requested, n);
 
-    long previousState = StateUtils.addRequestN(STATE, this, n);
+    long previousState = StateUtils.markRequestAdded(STATE, this, n);
     if (isTerminated(previousState)) {
       // full termination can be the result of both sides completion / cancelFrame / remote or local
       // error
