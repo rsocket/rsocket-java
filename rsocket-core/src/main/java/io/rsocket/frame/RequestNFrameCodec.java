@@ -25,6 +25,6 @@ public class RequestNFrameCodec {
     byteBuf.skipBytes(FrameHeaderCodec.size());
     int i = byteBuf.readInt();
     byteBuf.resetReaderIndex();
-    return i == Integer.MAX_VALUE ? Long.MAX_VALUE : i;
+    return i;
   }
 }

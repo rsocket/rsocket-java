@@ -95,7 +95,8 @@ public class RequestChannelRequesterFluxTest {
     Assertions.assertThat(payload.refCnt()).isOne();
     activeStreams.assertNoActiveStreams();
 
-    stateAssert.hasSubscribedFlag().hasRequestN(10).hasNoFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(1)
+            .hasRequestN(10).hasNoFirstFrameSentFlag();
 
     publisher.assertMaxRequested(1).next(payload);
 
@@ -104,7 +105,9 @@ public class RequestChannelRequesterFluxTest {
     activeStreams.assertHasStream(1, requestChannelRequesterFlux);
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(10).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestN(10)
+            .hasRequestedTimes(1).hasFirstFrameSentFlag();
 
     final ByteBuf frame = sender.awaitFrame();
     FrameAssert.assertThat(frame)
@@ -137,7 +140,9 @@ public class RequestChannelRequesterFluxTest {
 
     // state machine check. Request N Frame should sent so request field should be 0
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(11).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(2)
+            .hasRequestN(11).hasFirstFrameSentFlag();
 
     assertSubscriber.request(Long.MAX_VALUE);
     final ByteBuf requestMaxNFrame = sender.awaitFrame();
@@ -152,13 +157,26 @@ public class RequestChannelRequesterFluxTest {
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(3)
+            .hasRequestN(Long.MAX_VALUE).hasFirstFrameSentFlag();
 
     assertSubscriber.request(6);
-    Assertions.assertThat(sender.isEmpty()).isTrue();
+
+    final ByteBuf moreRequestMaxNFrame = sender.awaitFrame();
+    FrameAssert.assertThat(moreRequestMaxNFrame)
+            .isNotNull()
+            .hasRequestN(Integer.MAX_VALUE)
+            .typeOf(FrameType.REQUEST_N)
+            .hasClientSideStreamId()
+            .hasStreamId(1)
+            .hasNoLeaks();
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(4)
+            .hasRequestN(Long.MAX_VALUE)
+            .hasFirstFrameSentFlag();
 
     Payload nextPayload = TestRequesterResponderSupport.genericPayload(allocator);
     requestChannelRequesterFlux.handlePayload(nextPayload);
@@ -174,9 +192,9 @@ public class RequestChannelRequesterFluxTest {
 
     // state machine check
     stateAssert
-        .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
-        .hasFirstFrameSentFlag()
+            .hasSubscribedFlag()
+            .hasRequestedTimes(4)
+            .hasRequestN(Long.MAX_VALUE)
         .hasReassemblingFlag();
 
     for (int i = 0; i < fragments.size(); i++) {
@@ -189,9 +207,9 @@ public class RequestChannelRequesterFluxTest {
 
     // state machine check
     stateAssert
-        .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
-        .hasFirstFrameSentFlag()
+            .hasSubscribedFlag()
+            .hasRequestedTimes(4)
+            .hasRequestN(Long.MAX_VALUE)
         .hasNoReassemblingFlag();
 
     if (completionCase.equals("inbound")) {
@@ -208,7 +226,8 @@ public class RequestChannelRequesterFluxTest {
       // state machine check
       stateAssert
           .hasSubscribedFlag()
-          .hasRequestN(Integer.MAX_VALUE)
+              .hasRequestedTimes(4)
+              .hasRequestN(Long.MAX_VALUE)
           .hasFirstFrameSentFlag()
           .hasNoReassemblingFlag()
           .hasInboundTerminated();
@@ -222,7 +241,8 @@ public class RequestChannelRequesterFluxTest {
       // state machine check
       stateAssert
           .hasSubscribedFlag()
-          .hasRequestN(Integer.MAX_VALUE)
+              .hasRequestedTimes(4)
+              .hasRequestN(Long.MAX_VALUE)
           .hasFirstFrameSentFlag()
           .hasNoReassemblingFlag()
           .hasOutboundTerminated();
@@ -272,7 +292,10 @@ public class RequestChannelRequesterFluxTest {
 
     if (doRequest) {
       assertSubscriber.request(Integer.MAX_VALUE);
-      stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+      stateAssert.hasSubscribedFlag()
+              .hasRequestedTimes(1)
+              .hasRequestN(Integer.MAX_VALUE)
+              .hasNoFirstFrameSentFlag();
       activeStreams.assertNoActiveStreams();
     }
 
@@ -317,7 +340,10 @@ public class RequestChannelRequesterFluxTest {
 
     if (doRequest) {
       assertSubscriber.request(Integer.MAX_VALUE);
-      stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+      stateAssert.hasSubscribedFlag()
+              .hasRequestedTimes(1)
+              .hasRequestN(Integer.MAX_VALUE)
+              .hasNoFirstFrameSentFlag();
       activeStreams.assertNoActiveStreams();
     }
 
@@ -360,7 +386,10 @@ public class RequestChannelRequesterFluxTest {
     stateAssert.hasSubscribedFlagOnly();
 
     assertSubscriber.request(Integer.MAX_VALUE);
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(1)
+            .hasRequestN(Integer.MAX_VALUE)
+            .hasNoFirstFrameSentFlag();
     activeStreams.assertNoActiveStreams();
 
     Payload payload1 = TestRequesterResponderSupport.randomPayload(allocator);
@@ -376,7 +405,11 @@ public class RequestChannelRequesterFluxTest {
         .hasNoLeaks();
     payload1.release();
 
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert
+            .hasSubscribedFlag()
+            .hasRequestedTimes(1)
+            .hasRequestN(Integer.MAX_VALUE)
+            .hasFirstFrameSentFlag();
     activeStreams.assertHasStream(1, requestChannelRequesterFlux);
 
     publisher.assertMaxRequested(1);
@@ -458,7 +491,10 @@ public class RequestChannelRequesterFluxTest {
     stateAssert.hasSubscribedFlagOnly();
 
     assertSubscriber.request(Integer.MAX_VALUE);
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(1)
+            .hasRequestN(Integer.MAX_VALUE)
+            .hasNoFirstFrameSentFlag();
     activeStreams.assertNoActiveStreams();
 
     Payload payload1 = TestRequesterResponderSupport.randomPayload(allocator);
@@ -474,7 +510,7 @@ public class RequestChannelRequesterFluxTest {
         .hasNoLeaks();
     payload1.release();
 
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasRequestedTimes(1).hasFirstFrameSentFlag();
     activeStreams.assertHasStream(1, requestChannelRequesterFlux);
 
     publisher.assertMaxRequested(1);
@@ -540,7 +576,7 @@ public class RequestChannelRequesterFluxTest {
     stateAssert.hasSubscribedFlagOnly();
 
     assertSubscriber.request(1);
-    stateAssert.hasSubscribedFlag().hasRequestN(1).hasNoFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasRequestN(1).hasNoFirstFrameSentFlag();
     activeStreams.assertNoActiveStreams();
 
     Payload payload1 = TestRequesterResponderSupport.randomPayload(allocator);
@@ -554,7 +590,10 @@ public class RequestChannelRequesterFluxTest {
         .hasNoLeaks();
     payload1.release();
 
-    stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag()
+            .hasRequestedTimes(1)
+            .hasRequestN(1)
+            .hasFirstFrameSentFlag();
     activeStreams.assertHasStream(1, requestChannelRequesterFlux);
 
     publisher.assertMaxRequested(1);
@@ -642,13 +681,17 @@ public class RequestChannelRequesterFluxTest {
         stateAssert.hasSubscribedFlagOnly();
 
         assertSubscriber.request(Integer.MAX_VALUE);
-        stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+        stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE)
+                .hasRequestedTimes(1)
+                .hasNoFirstFrameSentFlag();
         activeStreams.assertNoActiveStreams();
 
         Payload requestPayload = TestRequesterResponderSupport.randomPayload(allocator);
         publisher.next(requestPayload);
 
-        stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+        stateAssert.hasSubscribedFlag()
+                .hasRequestN(Integer.MAX_VALUE)
+                .hasFirstFrameSentFlag();
         activeStreams.assertHasStream(1, requestChannelRequesterFlux);
         FrameAssert.assertThat(sender.awaitFrame())
             .typeOf(FrameType.REQUEST_CHANNEL)
@@ -803,13 +846,13 @@ public class RequestChannelRequesterFluxTest {
       stateAssert.hasSubscribedFlagOnly();
 
       assertSubscriber.request(Integer.MAX_VALUE);
-      stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
+      stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasRequestN(Integer.MAX_VALUE).hasNoFirstFrameSentFlag();
       activeStreams.assertNoActiveStreams();
 
       Payload requestPayload = TestRequesterResponderSupport.randomPayload(allocator);
       publisher.next(requestPayload);
 
-      stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+      stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
       activeStreams.assertHasStream(1, requestChannelRequesterFlux);
       FrameAssert.assertThat(sender.awaitFrame())

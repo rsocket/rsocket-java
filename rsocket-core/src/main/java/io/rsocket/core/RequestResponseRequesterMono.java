@@ -138,7 +138,7 @@ final class RequestResponseRequesterMono extends Mono<Payload>
 
     final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
     final boolean leaseEnabled = requesterLeaseTracker != null;
-    final long previousState = markRequestAdded(STATE, this, n, !leaseEnabled);
+    final long previousState = markRequestAdded(STATE, this, !leaseEnabled);
 
     if (isTerminated(previousState) || hasRequested(previousState)) {
       return;

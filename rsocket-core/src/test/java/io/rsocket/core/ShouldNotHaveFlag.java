@@ -1,13 +1,11 @@
 package io.rsocket.core;
 
-import static io.rsocket.core.StateUtils.REQUEST_MASK;
-import static io.rsocket.core.StateUtils.SUBSCRIBED_FLAG;
-import static io.rsocket.core.StateUtils.extractRequestN;
-
 import java.util.HashMap;
 import java.util.Map;
 import org.assertj.core.error.BasicErrorMessageFactory;
 import org.assertj.core.error.ErrorMessageFactory;
+
+import static io.rsocket.core.StateUtils.*;
 
 class ShouldNotHaveFlag extends BasicErrorMessageFactory {
 
@@ -47,7 +45,7 @@ class ShouldNotHaveFlag extends BasicErrorMessageFactory {
         stringBuilder.append(FLAGS_NAMES.get(flag));
       }
     }
-    long requestN = extractRequestN(currentState);
+    long requestN = requestedTimes(currentState);
     if (requestN > 0) {
       if (stringBuilder.length() > 0) {
         stringBuilder.append(", ");

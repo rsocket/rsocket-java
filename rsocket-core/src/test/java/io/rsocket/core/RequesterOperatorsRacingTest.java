@@ -579,7 +579,7 @@ public class RequesterOperatorsRacingTest {
 
           assertSubscriber.request(1);
 
-          stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+          stateAssert.hasSubscribedFlag().hasRequestN(1).hasRequestedTimes(1).hasFirstFrameSentFlag();
 
           final ByteBuf sentFrame = activeStreams.getDuplexConnection().awaitFrame();
           FrameAssert.assertThat(sentFrame)

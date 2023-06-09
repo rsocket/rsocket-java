@@ -20,46 +20,51 @@ import static io.rsocket.core.ShouldNotHaveFlag.shouldNotHaveFlag;
 import static io.rsocket.core.StateUtils.*;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.internal.Failures;
 
 public class StateAssert<T> extends AbstractAssert<StateAssert<T>, AtomicLongFieldUpdater<T>> {
 
   public static <T> StateAssert<T> assertThat(AtomicLongFieldUpdater<T> updater, T instance) {
-    return new StateAssert<>(updater, instance);
+    return new StateAssert<>(updater, instance, () -> 0L);
   }
 
   public static StateAssert<FireAndForgetRequesterMono> assertThat(
       FireAndForgetRequesterMono instance) {
-    return new StateAssert<>(FireAndForgetRequesterMono.STATE, instance);
+    return new StateAssert<>(FireAndForgetRequesterMono.STATE, instance, () -> 0L);
   }
 
   public static StateAssert<RequestResponseRequesterMono> assertThat(
       RequestResponseRequesterMono instance) {
-    return new StateAssert<>(RequestResponseRequesterMono.STATE, instance);
+    return new StateAssert<>(RequestResponseRequesterMono.STATE, instance, () -> 0L);
   }
 
   public static StateAssert<RequestStreamRequesterFlux> assertThat(
       RequestStreamRequesterFlux instance) {
-    return new StateAssert<>(RequestStreamRequesterFlux.STATE, instance);
+    return new StateAssert<>(RequestStreamRequesterFlux.STATE, instance, () -> instance.requested);
   }
 
   public static StateAssert<RequestChannelRequesterFlux> assertThat(
       RequestChannelRequesterFlux instance) {
-    return new StateAssert<>(RequestChannelRequesterFlux.STATE, instance);
+    return new StateAssert<>(RequestChannelRequesterFlux.STATE, instance, () -> instance.requested);
   }
 
   public static StateAssert<RequestChannelResponderSubscriber> assertThat(
       RequestChannelResponderSubscriber instance) {
-    return new StateAssert<>(RequestChannelResponderSubscriber.STATE, instance);
+    return new StateAssert<>(RequestChannelResponderSubscriber.STATE, instance, () -> instance.requested);
   }
 
   private final Failures failures = Failures.instance();
   private final T instance;
+  private final LongSupplier requestNSupplier;
 
-  public StateAssert(AtomicLongFieldUpdater<T> updater, T instance) {
+  public StateAssert(AtomicLongFieldUpdater<T> updater, T instance, LongSupplier requestNSupplier) {
     super(updater, StateAssert.class);
     this.instance = instance;
+    this.requestNSupplier = requestNSupplier;
   }
 
   public StateAssert<T> isUnsubscribed() {
@@ -86,19 +91,26 @@ public class StateAssert<T> extends AbstractAssert<StateAssert<T>, AtomicLongFie
     return this;
   }
 
-  public StateAssert<T> hasRequestN(long n) {
+  public StateAssert<T> hasRequestedTimes(int n) {
     long currentState = actual.get(instance);
-    if (extractRequestN(currentState) != n) {
+    if (requestedTimes(currentState) != n) {
       throw failures.failure(info, shouldHaveRequestN(currentState, n));
     }
     return this;
   }
 
+  public StateAssert<T> hasRequestN(long n) {
+    final long requestN = requestNSupplier.getAsLong();
+    if (requestN != n) {
+      throw failures.failure(info, shouldHaveRequestN(requestN, n));
+    }
+    return this;
+  }
+
   public StateAssert<T> hasRequestNBetween(long min, long max) {
-    long currentState = actual.get(instance);
-    final long requestN = extractRequestN(currentState);
+    final long requestN = requestNSupplier.getAsLong();
     if (requestN < min || requestN > max) {
-      throw failures.failure(info, shouldHaveRequestNBetween(currentState, min, max));
+      throw failures.failure(info, shouldHaveRequestNBetween(requestN, min, max));
     }
     return this;
   }

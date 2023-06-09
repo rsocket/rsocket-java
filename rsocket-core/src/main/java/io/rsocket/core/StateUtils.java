@@ -476,4 +476,29 @@ final class StateUtils {
   static boolean hasRequested(long state) {
     return (state & REQUEST_MASK) > 0;
   }
+
+  static int requestedTimes(long state) {
+    return (int) (state & REQUEST_MASK);
+  }
+
+  static <T> long extractRequestN(AtomicLongFieldUpdater<T> updater, T instance) {
+    for (; ; ) {
+      long requestN = updater.get(instance);
+
+      if (requestN == 0) {
+        return 0;
+      }
+
+      if (requestN == Long.MAX_VALUE) {
+        return Long.MAX_VALUE;
+      }
+
+      long rsocketRequestN = Math.min(requestN, Integer.MAX_VALUE);
+      if (updater.compareAndSet(instance, requestN, (requestN - rsocketRequestN))) {
+        return requestN;
+      }
+    }
+  }
+
+  static final long LIMIT = (long) Integer.MAX_VALUE << 2;
 }

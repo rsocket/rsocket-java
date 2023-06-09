@@ -61,15 +61,15 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
   static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> STATE =
       AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "state");
 
-  volatile long requested;
-  static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> REQUESTED =
-          AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "requested");
-
+  volatile long requestN;
+  static final AtomicLongFieldUpdater<RequestStreamRequesterFlux> REQUEST_N =
+      AtomicLongFieldUpdater.newUpdater(RequestStreamRequesterFlux.class, "requestN");
 
   int streamId;
   CoreSubscriber<? super Payload> inboundSubscriber;
   CompositeByteBuf frames;
   boolean done;
+  long requested;
   long produced;
 
   RequestStreamRequesterFlux(Payload payload, RequesterResponderSupport requesterResponderSupport) {
@@ -140,9 +140,8 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    if (Operators.addCap(REQUESTED, this, n) > 0) {
-      return;
-    }
+    this.requested = Operators.addCap(this.requested, n);
+    Operators.addCap(REQUEST_N, this, n);
 
     final RequesterLeaseTracker requesterLeaseTracker = this.requesterLeaseTracker;
     final boolean leaseEnabled = requesterLeaseTracker != null;
@@ -153,9 +152,13 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
 
     if (hasRequested(previousState)) {
       if (isFirstFrameSent(previousState)) {
-        final int streamId = this.streamId;
-        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
-        this.connection.sendFrame(streamId, requestNFrame);
+        long requestN = extractRequestN(REQUEST_N, this);
+        if (requestN > 0) {
+          final int streamId = this.streamId;
+          final ByteBuf requestNFrame =
+              RequestNFrameCodec.encode(this.allocator, streamId, requestN);
+          this.connection.sendFrame(streamId, requestNFrame);
+        }
       }
       return;
     }
@@ -165,7 +168,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    sendFirstPayload(this.payload, n);
+    sendFirstPayload(this.payload);
   }
 
   @Override
@@ -176,11 +179,11 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return false;
     }
 
-    sendFirstPayload(this.payload, this.requested);
+    sendFirstPayload(this.payload);
     return true;
   }
 
-  void sendFirstPayload(Payload payload, long initialRequestN) {
+  void sendFirstPayload(Payload payload) {
 
     final RequesterResponderSupport sm = this.requesterResponderSupport;
     final DuplexConnection connection = this.connection;
@@ -213,10 +216,9 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       requestInterceptor.onStart(streamId, FrameType.REQUEST_STREAM, payload.metadata());
     }
 
+    long initialRequestN = extractRequestN(REQUEST_N, this);
+
     try {
-      if (initialRequestN != Long.MAX_VALUE) {
-        REQUESTED.addAndGet()
-      }
       sendReleasingPayload(
           streamId,
           FrameType.REQUEST_STREAM,
@@ -257,21 +259,17 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       return;
     }
 
-    if (isMaxAllowedRequestN(initialRequestN)) {
+    if (initialRequestN > Integer.MAX_VALUE) {
       return;
     }
 
-    long requestN = extractRequestN(previousState);
-    if (isMaxAllowedRequestN(requestN)) {
-      final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
-      connection.sendFrame(streamId, requestNFrame);
-      return;
-    }
-
-    if (requestN > initialRequestN) {
-      final ByteBuf requestNFrame =
-          RequestNFrameCodec.encode(allocator, streamId, requestN - initialRequestN);
-      connection.sendFrame(streamId, requestNFrame);
+    long requestedTimes = requestedTimes(previousState);
+    if (requestedTimes > 1) {
+      long requestN = extractRequestN(REQUEST_N, this);
+      if (requestN > 0) {
+        final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
+        connection.sendFrame(streamId, requestNFrame);
+      }
     }
   }
 
@@ -309,6 +307,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     }
 
     final long produced = this.produced;
+    // check overflow
     if (this.requested == produced) {
       p.release();
 
@@ -336,6 +335,15 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     }
 
     this.produced = produced + 1;
+
+    if (this.produced % LIMIT == 0) {
+      long requestN = extractRequestN(REQUEST_N, this);
+      if (requestN > 0) {
+        final int streamId = this.streamId;
+        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, requestN);
+        this.connection.sendFrame(streamId, requestNFrame);
+      }
+    }
 
     this.inboundSubscriber.onNext(p);
   }
@@ -444,7 +452,7 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
     long state = this.state;
 
     if (key == Attr.TERMINATED) return isTerminated(state);
-    if (key == Attr.REQUESTED_FROM_DOWNSTREAM) return extractRequestN(state);
+    if (key == Attr.REQUESTED_FROM_DOWNSTREAM) return this.requested;
 
     return null;
   }

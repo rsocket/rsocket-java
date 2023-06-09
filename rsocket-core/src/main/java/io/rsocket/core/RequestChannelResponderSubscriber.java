@@ -73,6 +73,10 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
   static final AtomicLongFieldUpdater<RequestChannelResponderSubscriber> STATE =
       AtomicLongFieldUpdater.newUpdater(RequestChannelResponderSubscriber.class, "state");
 
+  volatile long requestN;
+  static final AtomicLongFieldUpdater<RequestChannelResponderSubscriber> REQUEST_N =
+      AtomicLongFieldUpdater.newUpdater(RequestChannelResponderSubscriber.class, "requestN");
+
   Payload firstPayload;
 
   Subscription outboundSubscription;
@@ -182,8 +186,9 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     this.requested = Operators.addCap(this.requested, n);
+    Operators.addCap(REQUEST_N, this, n);
 
-    long previousState = StateUtils.markRequestAdded(STATE, this, n);
+    long previousState = StateUtils.markRequestAdded(STATE, this);
     if (isTerminated(previousState)) {
       // full termination can be the result of both sides completion / cancelFrame / remote or local
       // error
@@ -234,11 +239,14 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     }
 
     if (hasRequested(previousState)) {
-      if (isFirstFrameSent(previousState)
-          && !isMaxAllowedRequestN(StateUtils.extractRequestN(previousState))) {
-        final int streamId = this.streamId;
-        final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, n);
-        this.connection.sendFrame(streamId, requestNFrame);
+      if (isFirstFrameSent(previousState)) {
+        long requestN = extractRequestN(REQUEST_N, this);
+        if (requestN > 0) {
+          final int streamId = this.streamId;
+          final ByteBuf requestNFrame =
+              RequestNFrameCodec.encode(this.allocator, streamId, requestN);
+          this.connection.sendFrame(streamId, requestNFrame);
+        }
       }
       return;
     }
@@ -279,13 +287,13 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       return;
     }
 
-    long requestN = StateUtils.extractRequestN(previousState);
-    if (isMaxAllowedRequestN(requestN)) {
+    long requestN = extractRequestN(REQUEST_N, this);
+    if (requestN == Long.MAX_VALUE) {
       final int streamId = this.streamId;
-      final ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, streamId, requestN);
+      final ByteBuf requestNFrame = RequestNFrameCodec.encode(this.allocator, streamId, requestN);
       this.connection.sendFrame(streamId, requestNFrame);
     } else {
-      long firstRequestN = requestN - 1;
+      long firstRequestN = Math.min(Integer.MAX_VALUE, requestN) - 1;
       if (firstRequestN > 0) {
         final int streamId = this.streamId;
         final ByteBuf requestNFrame =
@@ -479,6 +487,16 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       }
 
       this.produced = produced + 1;
+
+      if (this.produced % LIMIT == 0) {
+        long requestN = extractRequestN(REQUEST_N, this);
+        if (requestN > 0) {
+          final int streamId = this.streamId;
+          final ByteBuf requestNFrame =
+              RequestNFrameCodec.encode(this.allocator, streamId, requestN);
+          this.connection.sendFrame(streamId, requestNFrame);
+        }
+      }
 
       this.inboundSubscriber.onNext(p);
     }

@@ -85,32 +85,32 @@ public class RequestChannelResponderSubscriberTest {
     activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
 
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
     activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
 
     publisher.subscribe(requestChannelResponderSubscriber);
     publisher.assertMaxRequested(1);
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
 
     final AssertSubscriber<Payload> assertSubscriber =
         requestChannelResponderSubscriber.subscribeWith(AssertSubscriber.create(0));
     Assertions.assertThat(firstPayload.refCnt()).isOne();
 
     // state machine check
-    stateAssert.hasSubscribedFlagOnly().hasRequestN(0);
+    stateAssert.hasSubscribedFlagOnly().hasRequestedTimes(0);
 
     assertSubscriber.request(1);
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasFirstFrameSentFlag().hasRequestN(1);
+    stateAssert.hasSubscribedFlag().hasFirstFrameSentFlag().hasRequestN(1).hasRequestedTimes(1);
 
     // should not send requestN since 1 is remaining
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     assertSubscriber.request(1);
 
-    stateAssert.hasSubscribedFlag().hasRequestN(2).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestN(2).hasRequestedTimes(2).hasFirstFrameSentFlag();
 
     // should not send requestN since 1 is remaining
     FrameAssert.assertThat(sender.awaitFrame())
@@ -148,7 +148,7 @@ public class RequestChannelResponderSubscriberTest {
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestN(Long.MAX_VALUE).hasRequestedTimes(3).hasFirstFrameSentFlag();
 
     Payload nextPayload = TestRequesterResponderSupport.genericPayload(allocator);
     requestChannelResponderSubscriber.handlePayload(nextPayload);
@@ -165,7 +165,8 @@ public class RequestChannelResponderSubscriberTest {
     // state machine check
     stateAssert
         .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
+            .hasRequestedTimes(3)
+        .hasRequestN(Long.MAX_VALUE)
         .hasFirstFrameSentFlag()
         .hasReassemblingFlag();
 
@@ -180,7 +181,8 @@ public class RequestChannelResponderSubscriberTest {
     // state machine check
     stateAssert
         .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
+            .hasRequestedTimes(3)
+        .hasRequestN(Long.MAX_VALUE)
         .hasFirstFrameSentFlag()
         .hasNoReassemblingFlag();
 
@@ -199,7 +201,7 @@ public class RequestChannelResponderSubscriberTest {
       // state machine check
       stateAssert
           .hasSubscribedFlag()
-          .hasRequestN(Integer.MAX_VALUE)
+          .hasRequestN(Long.MAX_VALUE)
           .hasFirstFrameSentFlag()
           .hasNoReassemblingFlag()
           .hasInboundTerminated();
@@ -221,7 +223,7 @@ public class RequestChannelResponderSubscriberTest {
       // state machine check
       stateAssert
           .hasSubscribedFlag()
-          .hasRequestN(Integer.MAX_VALUE)
+          .hasRequestN(Long.MAX_VALUE)
           .hasFirstFrameSentFlag()
           .hasNoReassemblingFlag()
           .hasInboundTerminated();
@@ -238,7 +240,7 @@ public class RequestChannelResponderSubscriberTest {
       // state machine check
       stateAssert
           .hasSubscribedFlag()
-          .hasRequestN(Integer.MAX_VALUE)
+          .hasRequestN(Long.MAX_VALUE)
           .hasFirstFrameSentFlag()
           .hasNoReassemblingFlag()
           .hasOutboundTerminated();
@@ -278,32 +280,32 @@ public class RequestChannelResponderSubscriberTest {
     activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
 
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
     activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
 
     publisher.subscribe(requestChannelResponderSubscriber);
     publisher.assertMaxRequested(1);
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
 
     final AssertSubscriber<Payload> assertSubscriber =
         requestChannelResponderSubscriber.subscribeWith(AssertSubscriber.create(0));
     Assertions.assertThat(firstPayload.refCnt()).isOne();
 
     // state machine check
-    stateAssert.hasSubscribedFlagOnly().hasRequestN(0);
+    stateAssert.hasSubscribedFlagOnly().hasRequestedTimes(0);
 
     assertSubscriber.request(1);
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasFirstFrameSentFlag().hasRequestN(1);
+    stateAssert.hasSubscribedFlag().hasFirstFrameSentFlag().hasRequestedTimes(1).hasRequestN(1);
 
     // should not send requestN since 1 is remaining
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     assertSubscriber.request(1);
 
-    stateAssert.hasSubscribedFlag().hasRequestN(2).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(2).hasRequestN(2).hasFirstFrameSentFlag();
 
     // should not send requestN since 1 is remaining
     FrameAssert.assertThat(sender.awaitFrame())
@@ -358,20 +360,20 @@ public class RequestChannelResponderSubscriberTest {
     activeStreams.activeStreams.put(1, requestChannelResponderSubscriber);
 
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
     activeStreams.assertHasStream(1, requestChannelResponderSubscriber);
 
     publisher.subscribe(requestChannelResponderSubscriber);
     publisher.assertMaxRequested(1);
     // state machine check
-    stateAssert.isUnsubscribed().hasRequestN(0);
+    stateAssert.isUnsubscribed().hasRequestedTimes(0);
 
     final AssertSubscriber<Payload> assertSubscriber =
         requestChannelResponderSubscriber.subscribeWith(AssertSubscriber.create(0));
     Assertions.assertThat(firstPayload.refCnt()).isOne();
 
     // state machine check
-    stateAssert.hasSubscribedFlagOnly().hasRequestN(0);
+    stateAssert.hasSubscribedFlagOnly().hasRequestedTimes(0);
 
     Payload unrequestedPayload = TestRequesterResponderSupport.genericPayload(allocator);
     requestChannelResponderSubscriber.handlePayload(unrequestedPayload);

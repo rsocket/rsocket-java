@@ -96,7 +96,7 @@ public class RequestResponseRequesterMonoTest {
                 .then(() -> Assertions.assertThat(payload.refCnt()).isOne())
                 .then(activeStreams::assertNoActiveStreams)
                 .thenRequest(1)
-                .then(() -> stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag())
+                .then(() -> stateAssert.hasSubscribedFlag().hasRequestN(1).hasRequestedTimes(1).hasFirstFrameSentFlag())
                 .then(() -> Assertions.assertThat(payload.refCnt()).isZero())
                 .then(() -> activeStreams.assertHasStream(1, requestResponseRequesterMono)))
         .verify();
@@ -180,7 +180,8 @@ public class RequestResponseRequesterMonoTest {
                   () ->
                       stateAssert
                           .hasSubscribedFlag()
-                          .hasRequestN(1)
+                              .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
               .then(
@@ -195,7 +196,7 @@ public class RequestResponseRequesterMonoTest {
                   () ->
                       stateAssert
                           .hasSubscribedFlag()
-                          .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
               .then(
@@ -210,7 +211,7 @@ public class RequestResponseRequesterMonoTest {
                   () ->
                       stateAssert
                           .hasSubscribedFlag()
-                          .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
               .then(
@@ -267,7 +268,7 @@ public class RequestResponseRequesterMonoTest {
                       () ->
                           stateAssert
                               .hasSubscribedFlag()
-                              .hasRequestN(1)
+                              .hasRequestedTimes(1)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(
@@ -279,7 +280,7 @@ public class RequestResponseRequesterMonoTest {
                       () ->
                           stateAssert
                               .hasSubscribedFlag()
-                              .hasRequestN(1)
+                              .hasRequestedTimes(1)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(
@@ -291,7 +292,7 @@ public class RequestResponseRequesterMonoTest {
                       () ->
                           stateAssert
                               .hasSubscribedFlag()
-                              .hasRequestN(1)
+                              .hasRequestedTimes(1)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(payload::release)
@@ -346,7 +347,7 @@ public class RequestResponseRequesterMonoTest {
                 .then(() -> Assertions.assertThat(payload.refCnt()).isOne())
                 .then(activeStreams::assertNoActiveStreams)
                 .thenRequest(1)
-                .then(() -> stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag())
+                .then(() -> stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasFirstFrameSentFlag())
                 .then(() -> Assertions.assertThat(payload.refCnt()).isZero())
                 .then(() -> activeStreams.assertHasStream(1, requestResponseRequesterMono)))
         .verify();

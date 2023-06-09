@@ -106,7 +106,7 @@ public class RequestStreamRequesterFluxTest {
     activeStreams.assertHasStream(1, requestStreamRequesterFlux);
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasFirstFrameSentFlag();
 
     final ByteBuf frame = sender.awaitFrame();
     FrameAssert.assertThat(frame)
@@ -139,7 +139,7 @@ public class RequestStreamRequesterFluxTest {
 
     // state machine check. Request N Frame should sent so request field should be 0
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(2).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(2).hasFirstFrameSentFlag();
 
     assertSubscriber.request(Long.MAX_VALUE);
     final ByteBuf requestMaxNFrame = sender.awaitFrame();
@@ -154,13 +154,13 @@ public class RequestStreamRequesterFluxTest {
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
     assertSubscriber.request(6);
     Assertions.assertThat(sender.isEmpty()).isTrue();
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
     int mtu = ThreadLocalRandom.current().nextInt(64, 256);
     Payload randomPayload = TestRequesterResponderSupport.randomPayload(allocator);
@@ -173,7 +173,7 @@ public class RequestStreamRequesterFluxTest {
     // state machine check
     stateAssert
         .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
+        .hasRequestedTimes(Integer.MAX_VALUE)
         .hasFirstFrameSentFlag()
         .hasReassemblingFlag();
 
@@ -188,7 +188,7 @@ public class RequestStreamRequesterFluxTest {
     // state machine check
     stateAssert
         .hasSubscribedFlag()
-        .hasRequestN(Integer.MAX_VALUE)
+        .hasRequestedTimes(Integer.MAX_VALUE)
         .hasFirstFrameSentFlag()
         .hasNoReassemblingFlag();
 
@@ -252,7 +252,7 @@ public class RequestStreamRequesterFluxTest {
 
     // state machine check
 
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
     Assertions.assertThat(payload.refCnt()).isZero();
     activeStreams.assertHasStream(1, requestStreamRequesterFlux);
@@ -279,7 +279,7 @@ public class RequestStreamRequesterFluxTest {
 
     // state machine check
 
-    stateAssert.hasSubscribedFlag().hasRequestN(Integer.MAX_VALUE).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(Integer.MAX_VALUE).hasFirstFrameSentFlag();
 
     requestStreamRequesterFlux.handlePayload(EmptyPayload.INSTANCE);
     requestStreamRequesterFlux.handleComplete();
@@ -360,7 +360,7 @@ public class RequestStreamRequesterFluxTest {
                 .then(
                     () ->
                         // state machine check
-                        stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag())
+                        stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasFirstFrameSentFlag())
                 .then(() -> Assertions.assertThat(payload.refCnt()).isZero())
                 .then(() -> activeStreams.assertHasStream(1, requestStreamRequesterFlux)))
         .verify();
@@ -420,7 +420,7 @@ public class RequestStreamRequesterFluxTest {
                         // state machine check
                         StateAssert.assertThat(rsf)
                             .hasSubscribedFlag()
-                            .hasRequestN(Integer.MAX_VALUE)
+                            .hasRequestedTimes(Integer.MAX_VALUE)
                             .hasFirstFrameSentFlag())
                 .then(() -> rsf.handlePayload(EmptyPayload.INSTANCE))
                 .thenRequest(1L)
@@ -429,7 +429,7 @@ public class RequestStreamRequesterFluxTest {
                         // state machine check
                         StateAssert.assertThat(rsf)
                             .hasSubscribedFlag()
-                            .hasRequestN(Integer.MAX_VALUE)
+                            .hasRequestedTimes(Integer.MAX_VALUE)
                             .hasFirstFrameSentFlag())
                 .expectNext(EmptyPayload.INSTANCE)
                 .thenRequest(1L)
@@ -438,25 +438,7 @@ public class RequestStreamRequesterFluxTest {
                         // state machine check
                         StateAssert.assertThat(rsf)
                             .hasSubscribedFlag()
-                            .hasRequestN(Integer.MAX_VALUE)
-                            .hasFirstFrameSentFlag())
-                .then(rsf::handleComplete)
-                .thenRequest(1L)
-                .then(
-                    () ->
-                        // state machine check
-                        StateAssert.assertThat(rsf).isTerminated())
-                .expectComplete(),
-        (rsf, sv) ->
-            sv.then(() -> rsf.handlePayload(EmptyPayload.INSTANCE))
-                .expectNext(EmptyPayload.INSTANCE)
-                .thenRequest(Long.MAX_VALUE)
-                .then(
-                    () ->
-                        // state machine check
-                        StateAssert.assertThat(rsf)
-                            .hasSubscribedFlag()
-                            .hasRequestN(Integer.MAX_VALUE)
+                            .hasRequestedTimes(Integer.MAX_VALUE)
                             .hasFirstFrameSentFlag())
                 .then(rsf::handleComplete)
                 .thenRequest(1L)
@@ -474,7 +456,25 @@ public class RequestStreamRequesterFluxTest {
                         // state machine check
                         StateAssert.assertThat(rsf)
                             .hasSubscribedFlag()
-                            .hasRequestN(Integer.MAX_VALUE)
+                            .hasRequestedTimes(Integer.MAX_VALUE)
+                            .hasFirstFrameSentFlag())
+                .then(rsf::handleComplete)
+                .thenRequest(1L)
+                .then(
+                    () ->
+                        // state machine check
+                        StateAssert.assertThat(rsf).isTerminated())
+                .expectComplete(),
+        (rsf, sv) ->
+            sv.then(() -> rsf.handlePayload(EmptyPayload.INSTANCE))
+                .expectNext(EmptyPayload.INSTANCE)
+                .thenRequest(Long.MAX_VALUE)
+                .then(
+                    () ->
+                        // state machine check
+                        StateAssert.assertThat(rsf)
+                            .hasSubscribedFlag()
+                            .hasRequestedTimes(Integer.MAX_VALUE)
                             .hasFirstFrameSentFlag())
                 .then(() -> rsf.handleError(new ApplicationErrorException("test")))
                 .then(
@@ -515,7 +515,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
@@ -531,7 +531,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
@@ -547,7 +547,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(1)
+                          .hasRequestedTimes(1)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
@@ -556,7 +556,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(Integer.MAX_VALUE)
+                          .hasRequestedTimes(Integer.MAX_VALUE)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag()
                           .hasReassemblingFlag())
@@ -572,7 +572,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(Integer.MAX_VALUE)
+                          .hasRequestedTimes(Integer.MAX_VALUE)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag()
                           .hasNoReassemblingFlag())
@@ -591,7 +591,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(Integer.MAX_VALUE)
+                          .hasRequestedTimes(Integer.MAX_VALUE)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag())
               .assertNext(
@@ -607,7 +607,7 @@ public class RequestStreamRequesterFluxTest {
                   () ->
                       // state machine check
                       StateAssert.assertThat(rsf)
-                          .hasRequestN(Integer.MAX_VALUE)
+                          .hasRequestedTimes(Integer.MAX_VALUE)
                           .hasSubscribedFlag()
                           .hasFirstFrameSentFlag())
               .then(rsf::handleComplete)
@@ -651,7 +651,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasNoReassemblingFlag())
                   .then(
@@ -664,7 +664,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(
@@ -677,7 +677,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(
@@ -690,7 +690,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .thenRequest(1)
@@ -699,7 +699,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .thenRequest(1)
@@ -708,7 +708,7 @@ public class RequestStreamRequesterFluxTest {
                           // state machine check
                           StateAssert.assertThat(rsf)
                               .hasSubscribedFlag()
-                              .hasRequestN(Integer.MAX_VALUE)
+                              .hasRequestedTimes(Integer.MAX_VALUE)
                               .hasFirstFrameSentFlag()
                               .hasReassemblingFlag())
                   .then(payload::release)
@@ -1159,7 +1159,7 @@ public class RequestStreamRequesterFluxTest {
     activeStreams.assertHasStream(1, requestStreamRequesterFlux);
 
     // state machine check
-    stateAssert.hasSubscribedFlag().hasRequestN(1).hasFirstFrameSentFlag();
+    stateAssert.hasSubscribedFlag().hasRequestedTimes(1).hasFirstFrameSentFlag();
 
     final ByteBuf frame = sender.awaitFrame();
     FrameAssert.assertThat(frame)
