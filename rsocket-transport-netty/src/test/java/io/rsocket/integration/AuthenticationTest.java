@@ -48,7 +48,7 @@ public class AuthenticationTest {
                     socketAcceptor ->
                         (setup, sendingSocket) -> {
                           if (true) { // TODO here would be an authentication check based on the
-                            // setup payload
+                                      // setup payload
                             return Mono.error(new RejectedSetupException("ACCESS_DENIED"));
                           } else {
                             return socketAcceptor.accept(setup, sendingSocket);
