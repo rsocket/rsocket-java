@@ -23,25 +23,25 @@
         </encoder>
     </appender>
 
-    <timestamp key="bySecond" datePattern="yyyyMMdd'T'HHmmss"/>
+<!--    <timestamp key="bySecond" datePattern="yyyyMMdd'T'HHmmss"/>-->
+<!---->
+<!--    <appender name="FILE" class="ch.qos.logback.core.FileAppender">-->
+<!--        &lt;!&ndash; use the previously created timestamp to create a uniquely-->
+<!--             named log file &ndash;&gt;-->
+<!--        <file>log-${bySecond}.txt</file>-->
+<!--        <encoder>-->
+<!--            <pattern>%date{HH:mm:ss.SSS} %-10thread %-42logger %msg%n</pattern>-->
+<!--        </encoder>-->
+<!--    </appender>-->
 
-    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-        <!-- use the previously created timestamp to create a uniquely
-             named log file -->
-        <file>log-${bySecond}.txt</file>
-        <encoder>
-            <pattern>%date{HH:mm:ss.SSS} %-10thread %-42logger %msg%n</pattern>
-        </encoder>
-    </appender>
-
-    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="FILE" />
-    </appender>
+<!--    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">-->
+<!--        <appender-ref ref="FILE" />-->
+<!--    </appender>-->
 
     <logger name="io.rsocket.transport.netty" level="INFO"/>
-    <logger name="io.rsocket.FrameLogger" level="DEBUG" additivity="false">
-        <appender-ref ref="ASYNC" />
-    </logger>
+<!--    <logger name="io.rsocket.FrameLogger" level="DEBUG" additivity="false">-->
+<!--        <appender-ref ref="ASYNC" />-->
+<!--    </logger>-->
     <logger name="io.rsocket.fragmentation.FragmentationDuplexConnection" level="INFO"/>
     <logger name="io.rsocket.core.RSocketRequester" level="DEBUG"/>
     <logger name="io.rsocket.core.RSocketResponder" level="DEBUG"/>
@@ -53,7 +53,7 @@
 
     <root level="DEBUG">
         <appender-ref ref="STDOUT"/>
-        <appender-ref ref="ASYNC"/>
+<!--        <appender-ref ref="ASYNC"/>-->
     </root>
 
 </configuration>
