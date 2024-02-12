@@ -463,8 +463,14 @@ public final class RSocketServer {
           return interceptors
               .initSocketAcceptor(acceptor)
               .accept(setupPayload, wrappedRSocketRequester)
-              .doOnError(
-                  err -> serverSetup.sendError(wrappedDuplexConnection, rejectedSetupError(err)))
+              .onErrorResume(
+                  err ->
+                      Mono.fromRunnable(
+                              () ->
+                                  serverSetup.sendError(
+                                      wrappedDuplexConnection, rejectedSetupError(err)))
+                          .then(wrappedDuplexConnection.onClose())
+                          .then(Mono.error(err)))
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);

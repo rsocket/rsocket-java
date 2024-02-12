@@ -33,11 +33,31 @@ public class FrameUtil {
     if (FrameHeaderCodec.hasMetadata(frame)) {
       payload.append("\nMetadata:\n");
 
-      ByteBufUtil.appendPrettyHexDump(payload, getMetadata(frame, frameType));
+      ByteBuf metadata = getMetadata(frame, frameType);
+      if (metadata.readableBytes() < 100) {
+        ByteBufUtil.appendPrettyHexDump(payload, metadata);
+      } else {
+        payload.append(
+            "  +-------------------------------------------------+\n"
+                + "         |  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f |\n"
+                + "+--------+-------------------------------------------------+----------------+\n"
+                + "|00000000| too large payload                               |                |\n"
+                + "+--------+-------------------------------------------------+----------------+\n");
+      }
     }
 
     payload.append("\nData:\n");
-    ByteBufUtil.appendPrettyHexDump(payload, getData(frame, frameType));
+    ByteBuf data = getData(frame, frameType);
+    if (data.readableBytes() < 100) {
+      ByteBufUtil.appendPrettyHexDump(payload, data);
+    } else {
+      payload.append(
+          "  +-------------------------------------------------+\n"
+              + "         |  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f |\n"
+              + "+--------+-------------------------------------------------+----------------+\n"
+              + "|00000000| too large payload                               |                |\n"
+              + "+--------+-------------------------------------------------+----------------+\n");
+    }
 
     return payload.toString();
   }
