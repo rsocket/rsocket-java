@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.rsocket.core.StressSubscriber;
 import io.rsocket.utils.FastLogger;
-
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import org.openjdk.jcstress.annotations.Actor;
@@ -1726,8 +1725,8 @@ public abstract class UnboundedProcessorStressTest {
 
   static void checkOutcomes(Object instance, String result, Logger logger) {
     if (Arrays.stream(instance.getClass().getDeclaredAnnotationsByType(Outcome.class))
-              .flatMap(o -> Arrays.stream(o.id()))
-              .noneMatch(s -> s.equalsIgnoreCase(result))) {
+        .flatMap(o -> Arrays.stream(o.id()))
+        .noneMatch(s -> s.equalsIgnoreCase(result))) {
       throw new RuntimeException(result + " " + logger);
     }
   }
