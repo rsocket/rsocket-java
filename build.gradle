@@ -34,9 +34,9 @@ subprojects {
     apply plugin: 'com.github.vlsi.gradle-extensions'
 
     ext['reactor-bom.version'] = '2020.0.39'
-    ext['logback.version'] = '1.2.10'
+    ext['logback.version'] = '1.3.14'
     ext['netty-bom.version'] = '4.1.106.Final'
-    ext['netty-boringssl.version'] = '2.0.61.Final'
+    ext['netty-boringssl.version'] = '2.0.62.Final'
     ext['hdrhistogram.version'] = '2.1.12'
     ext['mockito.version'] = '4.11.0'
     ext['slf4j.version'] = '1.7.36'
