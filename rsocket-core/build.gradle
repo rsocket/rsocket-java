@@ -41,13 +41,14 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
     jcstressImplementation(project(":rsocket-test"))
+    jcstressImplementation 'org.slf4j:slf4j-api'
     jcstressImplementation "ch.qos.logback:logback-classic"
     jcstressImplementation 'io.projectreactor:reactor-test'
 }
 
 jcstress {
-    mode = 'quick' //quick, default, tough
-    jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.15"
+    mode = 'sanity' //sanity, quick, default, tough
+    jcstressDependency = "org.openjdk.jcstress:jcstress-core:0.16"
 }
 
 jar {

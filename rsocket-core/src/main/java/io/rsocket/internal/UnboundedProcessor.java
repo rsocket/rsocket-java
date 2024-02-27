@@ -32,6 +32,7 @@ import reactor.core.Fuseable;
 import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
+import reactor.util.Logger;
 import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
@@ -51,6 +52,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
   final Queue<ByteBuf> queue;
   final Queue<ByteBuf> priorityQueue;
   final Runnable onFinalizedHook;
+  @Nullable final Logger logger;
 
   boolean cancelled;
   boolean done;
@@ -99,10 +101,19 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     this(() -> {});
   }
 
+  UnboundedProcessor(Logger logger) {
+    this(() -> {}, logger);
+  }
+
   public UnboundedProcessor(Runnable onFinalizedHook) {
+    this(onFinalizedHook, null);
+  }
+
+  UnboundedProcessor(Runnable onFinalizedHook, @Nullable Logger logger) {
     this.onFinalizedHook = onFinalizedHook;
     this.queue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
     this.priorityQueue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
+    this.logger = logger;
   }
 
   @Override
@@ -153,7 +164,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       if (hasRequest(previousState)) {
-        drainRegular(previousState);
+        drainRegular((previousState | FLAG_HAS_VALUE) + 1);
       }
     }
     return true;
@@ -189,7 +200,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       if (hasRequest(previousState)) {
-        drainRegular(previousState);
+        drainRegular((previousState | FLAG_HAS_VALUE) + 1);
       }
     }
 
@@ -223,9 +234,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return true;
       }
 
-      if (hasRequest(previousState)) {
-        drainRegular(previousState);
-      }
+      drainRegular((previousState | FLAG_TERMINATED | FLAG_HAS_VALUE) + 1);
     }
 
     return true;
@@ -279,9 +288,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return;
       }
 
-      if (hasRequest(previousState)) {
-        drainRegular(previousState);
-      }
+      drainRegular((previousState | FLAG_TERMINATED) + 1);
     }
   }
 
@@ -318,18 +325,15 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return;
       }
 
-      if (hasRequest(previousState)) {
-        drainRegular(previousState);
-      }
+      drainRegular((previousState | FLAG_TERMINATED) + 1);
     }
   }
 
-  void drainRegular(long previousState) {
+  void drainRegular(long expectedState) {
     final CoreSubscriber<? super ByteBuf> a = this.actual;
     final Queue<ByteBuf> q = this.queue;
     final Queue<ByteBuf> pq = this.priorityQueue;
 
-    long expectedState = previousState + 1;
     for (; ; ) {
 
       long r = this.requested;
@@ -351,7 +355,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
           empty = t == null;
         }
 
-        if (checkTerminated(done, empty, a)) {
+        if (checkTerminated(done, empty, true, a)) {
           if (!empty) {
             release(t);
           }
@@ -374,7 +378,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         done = this.done;
         empty = q.isEmpty() && pq.isEmpty();
 
-        if (checkTerminated(done, empty, a)) {
+        if (checkTerminated(done, empty, false, a)) {
           return;
         }
       }
@@ -401,7 +405,8 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     }
   }
 
-  boolean checkTerminated(boolean done, boolean empty, CoreSubscriber<? super ByteBuf> a) {
+  boolean checkTerminated(
+      boolean done, boolean empty, boolean hasDemand, CoreSubscriber<? super ByteBuf> a) {
     final long state = this.state;
     if (isCancelled(state)) {
       clearAndFinalize(this);
@@ -415,8 +420,15 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     }
 
     if (done && empty) {
+      if (!isTerminated(state)) {
+        // proactively return if volatile field is not yet set to needed state
+        return false;
+      }
       final ByteBuf last = this.last;
       if (last != null) {
+        if (!hasDemand) {
+          return false;
+        }
         this.last = null;
         a.onNext(last);
       }
@@ -473,6 +485,10 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
 
     previousState = markSubscriberReady(this);
 
+    if (isSubscriberReady(previousState)) {
+      return;
+    }
+
     if (this.outputFused) {
       if (isCancelled(previousState)) {
         return;
@@ -523,7 +539,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     }
 
     if (hasRequest(previousState)) {
-      drainRegular(previousState);
+      drainRegular((previousState | FLAG_SUBSCRIBER_READY) + 1);
     }
   }
 
@@ -549,7 +565,7 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       if (isSubscriberReady(previousState) && hasValue(previousState)) {
-        drainRegular(previousState);
+        drainRegular((previousState | FLAG_HAS_REQUEST) + 1);
       }
     }
   }
@@ -727,7 +743,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return state;
       }
 
-      if (STATE.compareAndSet(instance, state, state | FLAG_SUBSCRIBED_ONCE)) {
+      final long nextState = state | FLAG_SUBSCRIBED_ONCE;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  mso", state, nextState);
         return state;
       }
     }
@@ -743,7 +761,10 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
     for (; ; ) {
       long state = instance.state;
 
-      if (isFinalized(state) || isCancelled(state) || isDisposed(state)) {
+      if (isFinalized(state)
+          || isCancelled(state)
+          || isDisposed(state)
+          || isSubscriberReady(state)) {
         return state;
       }
 
@@ -754,7 +775,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         }
       }
 
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_SUBSCRIBER_READY)) {
+      nextState = nextState | FLAG_SUBSCRIBER_READY;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  msr", state, nextState);
         return state;
       }
     }
@@ -776,11 +799,13 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       long nextState = state;
-      if (isSubscriberReady(state) && hasValue(state)) {
+      if (isWorkInProgress(state) || (isSubscriberReady(state) && hasValue(state))) {
         nextState = addWork(state);
       }
 
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_HAS_REQUEST)) {
+      nextState = nextState | FLAG_HAS_REQUEST;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  mra", state, nextState);
         return state;
       }
     }
@@ -815,7 +840,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         }
       }
 
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_HAS_VALUE)) {
+      nextState = nextState | FLAG_HAS_VALUE;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  mva", state, nextState);
         return state;
       }
     }
@@ -840,12 +867,12 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       if (isWorkInProgress(state)) {
         nextState = addWork(state);
       } else if (isSubscriberReady(state) && !instance.outputFused) {
-        if (hasRequest(state)) {
-          nextState = addWork(state);
-        }
+        nextState = addWork(state);
       }
 
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_HAS_VALUE | FLAG_TERMINATED)) {
+      nextState = nextState | FLAG_HAS_VALUE | FLAG_TERMINATED;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "mva&t", state, nextState);
         return state;
       }
     }
@@ -867,16 +894,20 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
       }
 
       long nextState = state;
-      if (isSubscriberReady(state) && !instance.outputFused) {
+      if (isWorkInProgress(state)) {
+        nextState = addWork(state);
+      } else if (isSubscriberReady(state) && !instance.outputFused) {
         if (!hasValue(state)) {
           // fast path for no values and no work in progress
           nextState = FLAG_FINALIZED;
-        } else if (hasRequest(state)) {
+        } else {
           nextState = addWork(state);
         }
       }
 
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_TERMINATED)) {
+      nextState = nextState | FLAG_TERMINATED;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, " mt|f", state, nextState);
         if (isFinalized(nextState)) {
           instance.onFinalizedHook.run();
         }
@@ -899,8 +930,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return state;
       }
 
-      final long nextState = addWork(state);
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_CANCELLED)) {
+      final long nextState = addWork(state) | FLAG_CANCELLED;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "   mc", state, nextState);
         return state;
       }
     }
@@ -921,8 +953,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return state;
       }
 
-      final long nextState = addWork(state);
-      if (STATE.compareAndSet(instance, state, nextState | FLAG_DISPOSED)) {
+      final long nextState = addWork(state) | FLAG_DISPOSED;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "   md", state, nextState);
         return state;
       }
     }
@@ -945,12 +978,10 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
    */
   static long markWorkDone(
       UnboundedProcessor instance, long expectedState, boolean hasRequest, boolean hasValue) {
-    final long expectedMissed = expectedState & MAX_WIP_VALUE;
     for (; ; ) {
       final long state = instance.state;
-      final long missed = state & MAX_WIP_VALUE;
 
-      if (missed != expectedMissed) {
+      if (state != expectedState) {
         return state;
       }
 
@@ -958,11 +989,12 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         return state;
       }
 
-      final long nextState = state - expectedMissed;
-      if (STATE.compareAndSet(
-          instance,
-          state,
-          nextState ^ (hasRequest ? 0 : FLAG_HAS_REQUEST) ^ (hasValue ? 0 : FLAG_HAS_VALUE))) {
+      final long nextState =
+          (state - (expectedState & MAX_WIP_VALUE))
+              ^ (hasRequest ? 0 : FLAG_HAS_REQUEST)
+              ^ (hasValue ? 0 : FLAG_HAS_VALUE);
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  mwd", state, nextState);
         return nextState;
       }
     }
@@ -991,8 +1023,9 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
         instance.clearUnsafely();
       }
 
-      if (STATE.compareAndSet(
-          instance, state, (state & ~MAX_WIP_VALUE & ~FLAG_HAS_VALUE) | FLAG_FINALIZED)) {
+      long nextState = (state & ~MAX_WIP_VALUE & ~FLAG_HAS_VALUE) | FLAG_FINALIZED;
+      if (STATE.compareAndSet(instance, state, nextState)) {
+        log(instance, "  c&f", state, nextState);
         instance.onFinalizedHook.run();
         break;
       }
@@ -1033,5 +1066,102 @@ public final class UnboundedProcessor extends Flux<ByteBuf>
 
   static boolean isSubscribedOnce(long state) {
     return (state & FLAG_SUBSCRIBED_ONCE) == FLAG_SUBSCRIBED_ONCE;
+  }
+
+  static void log(
+      UnboundedProcessor instance, String action, long initialState, long committedState) {
+    log(instance, action, initialState, committedState, false);
+  }
+
+  static void log(
+      UnboundedProcessor instance,
+      String action,
+      long initialState,
+      long committedState,
+      boolean logStackTrace) {
+    Logger logger = instance.logger;
+    if (logger == null || !logger.isTraceEnabled()) {
+      return;
+    }
+
+    if (logStackTrace) {
+      logger.trace(
+          String.format(
+              "[%s][%s][%s][%s-%s]",
+              instance,
+              action,
+              action,
+              Thread.currentThread().getId(),
+              formatState(initialState, 64),
+              formatState(committedState, 64)),
+          new RuntimeException());
+    } else {
+      logger.trace(
+          String.format(
+              "[%s][%s][%s][%s-%s]",
+              instance,
+              action,
+              Thread.currentThread().getId(),
+              formatState(initialState, 64),
+              formatState(committedState, 64)));
+    }
+  }
+
+  static void log(
+      UnboundedProcessor instance, String action, int initialState, int committedState) {
+    log(instance, action, initialState, committedState, false);
+  }
+
+  static void log(
+      UnboundedProcessor instance,
+      String action,
+      int initialState,
+      int committedState,
+      boolean logStackTrace) {
+    Logger logger = instance.logger;
+    if (logger == null || !logger.isTraceEnabled()) {
+      return;
+    }
+
+    if (logStackTrace) {
+      logger.trace(
+          String.format(
+              "[%s][%s][%s][%s-%s]",
+              instance,
+              action,
+              action,
+              Thread.currentThread().getId(),
+              formatState(initialState, 32),
+              formatState(committedState, 32)),
+          new RuntimeException());
+    } else {
+      logger.trace(
+          String.format(
+              "[%s][%s][%s][%s-%s]",
+              instance,
+              action,
+              Thread.currentThread().getId(),
+              formatState(initialState, 32),
+              formatState(committedState, 32)));
+    }
+  }
+
+  static String formatState(long state, int size) {
+    final String defaultFormat = Long.toBinaryString(state);
+    final StringBuilder formatted = new StringBuilder();
+    final int toPrepend = size - defaultFormat.length();
+    for (int i = 0; i < size; i++) {
+      if (i != 0 && i % 4 == 0) {
+        formatted.append("_");
+      }
+      if (i < toPrepend) {
+        formatted.append("0");
+      } else {
+        formatted.append(defaultFormat.charAt(i - toPrepend));
+      }
+    }
+
+    formatted.insert(0, "0b");
+    return formatted.toString();
   }
 }

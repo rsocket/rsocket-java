@@ -3,6 +3,9 @@ package io.rsocket.internal;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.rsocket.core.StressSubscriber;
+import io.rsocket.utils.FastLogger;
+import java.util.Arrays;
+import java.util.ConcurrentModificationException;
 import org.openjdk.jcstress.annotations.Actor;
 import org.openjdk.jcstress.annotations.Arbiter;
 import org.openjdk.jcstress.annotations.Expect;
@@ -14,6 +17,7 @@ import org.openjdk.jcstress.infra.results.LLL_Result;
 import org.openjdk.jcstress.infra.results.L_Result;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Hooks;
+import reactor.util.Logger;
 
 public abstract class UnboundedProcessorStressTest {
 
@@ -21,7 +25,9 @@ public abstract class UnboundedProcessorStressTest {
     Hooks.onErrorDropped(t -> {});
   }
 
-  final UnboundedProcessor unboundedProcessor = new UnboundedProcessor();
+  final Logger logger = new FastLogger(getClass().getName());
+
+  final UnboundedProcessor unboundedProcessor = new UnboundedProcessor(logger);
 
   @JCStressTest
   @Outcome(
@@ -145,6 +151,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -270,6 +278,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -375,6 +385,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -476,6 +488,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -578,6 +592,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -701,6 +717,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -781,6 +799,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -837,9 +857,15 @@ public abstract class UnboundedProcessorStressTest {
               + stressSubscriber.onErrorCalls * 2
               + stressSubscriber.droppedErrors.size() * 3;
 
+      if (stressSubscriber.concurrentOnNext || stressSubscriber.concurrentOnComplete) {
+        throw new ConcurrentModificationException("boo");
+      }
+
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -892,6 +918,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r3 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1107,6 +1135,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1238,6 +1268,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1390,6 +1422,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1522,6 +1556,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1587,6 +1623,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1652,6 +1690,8 @@ public abstract class UnboundedProcessorStressTest {
       stressSubscriber.values.forEach(ByteBuf::release);
 
       r.r4 = byteBuf1.refCnt() + byteBuf2.refCnt() + byteBuf3.refCnt() + byteBuf4.refCnt();
+
+      checkOutcomes(this, r.toString(), logger);
     }
   }
 
@@ -1678,6 +1718,16 @@ public abstract class UnboundedProcessorStressTest {
     @Arbiter
     public void arbiter(L_Result r) {
       r.r1 = stressSubscriber1.onErrorCalls + stressSubscriber2.onErrorCalls;
+
+      checkOutcomes(this, r.toString(), logger);
+    }
+  }
+
+  static void checkOutcomes(Object instance, String result, Logger logger) {
+    if (Arrays.stream(instance.getClass().getDeclaredAnnotationsByType(Outcome.class))
+        .flatMap(o -> Arrays.stream(o.id()))
+        .noneMatch(s -> s.equalsIgnoreCase(result))) {
+      throw new RuntimeException(result + " " + logger);
     }
   }
 }
