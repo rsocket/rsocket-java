@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -463,8 +463,14 @@ public final class RSocketServer {
           return interceptors
               .initSocketAcceptor(acceptor)
               .accept(setupPayload, wrappedRSocketRequester)
-              .doOnError(
-                  err -> serverSetup.sendError(wrappedDuplexConnection, rejectedSetupError(err)))
+              .onErrorResume(
+                  err ->
+                      Mono.fromRunnable(
+                              () ->
+                                  serverSetup.sendError(
+                                      wrappedDuplexConnection, rejectedSetupError(err)))
+                          .then(wrappedDuplexConnection.onClose())
+                          .then(Mono.error(err)))
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
