@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2021 the original author or authors.
+ * Copyright 2015-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,14 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.Closeable;
 import io.rsocket.FrameAssert;
 import io.rsocket.RSocket;
+import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameCodec;
 import io.rsocket.frame.RequestResponseFrameCodec;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestServerTransport;
+import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Random;
 import org.assertj.core.api.Assertions;
@@ -160,6 +163,37 @@ public class RSocketServerTest {
     FrameAssert.assertThat(connection.pollFrame())
         .hasStreamIdZero()
         .hasData("SETUP or RESUME frame must be received before any others")
+        .hasNoLeaks();
+    server.dispose();
+    transport.alloc().assertHasNoLeaks();
+  }
+
+  @Test
+  public void ensuresErrorFrameDeliveredPriorConnectionDisposal() {
+    TestServerTransport transport = new TestServerTransport();
+    Closeable server =
+        RSocketServer.create()
+            .acceptor(
+                (setup, sendingSocket) -> Mono.error(new RejectedSetupException("ACCESS_DENIED")))
+            .bind(transport)
+            .block();
+
+    TestDuplexConnection connection = transport.connect();
+    connection.addToReceivedBuffer(
+        SetupFrameCodec.encode(
+            ByteBufAllocator.DEFAULT,
+            false,
+            0,
+            1,
+            Unpooled.EMPTY_BUFFER,
+            "metadata_type",
+            "data_type",
+            EmptyPayload.INSTANCE));
+
+    StepVerifier.create(connection.onClose()).expectComplete().verify(Duration.ofSeconds(30));
+    FrameAssert.assertThat(connection.pollFrame())
+        .hasStreamIdZero()
+        .hasData("ACCESS_DENIED")
         .hasNoLeaks();
     server.dispose();
     transport.alloc().assertHasNoLeaks();
