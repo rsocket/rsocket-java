@@ -287,6 +287,9 @@ public class ServerRSocketSession
 
   @Override
   public void dispose() {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Side[server]|Session[{}]. Disposing session", session);
+    }
     Operators.terminate(S, this);
     resumableConnection.dispose();
   }
