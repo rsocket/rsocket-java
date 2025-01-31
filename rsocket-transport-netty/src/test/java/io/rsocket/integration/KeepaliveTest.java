@@ -27,8 +27,8 @@ import reactor.util.retry.Retry;
 import reactor.util.retry.RetryBackoffSpec;
 
 /**
- * Test case that reproduces the following
- * <a href="https://github.com/rsocket/rsocket-java/issues/1099">GitHub Issue</a>
+ * Test case that reproduces the following <a
+ * href="https://github.com/rsocket/rsocket-java/issues/1099">GitHub Issue</a>
  */
 public class KeepaliveTest {
 
