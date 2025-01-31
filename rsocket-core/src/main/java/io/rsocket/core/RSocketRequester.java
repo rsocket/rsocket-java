@@ -310,11 +310,9 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
   private void tryTerminateOnKeepAlive(KeepAliveSupport.KeepAlive keepAlive) {
     tryTerminate(
         () -> {
-          ConnectionErrorException exception = new ConnectionErrorException(String.format(
-                  "No keep-alive acks for %d ms",
-                  keepAlive.getTimeout()
-                           .toMillis()));
-
+          ConnectionErrorException exception =
+              new ConnectionErrorException(
+                  String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis()));
 
           getDuplexConnection().dispose();
           return exception;
