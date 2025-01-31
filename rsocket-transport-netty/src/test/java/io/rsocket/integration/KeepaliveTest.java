@@ -13,6 +13,9 @@ import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +32,21 @@ public class KeepaliveTest {
   private static final Logger LOG = LoggerFactory.getLogger(KeepaliveTest.class);
   private static final int PORT = 23200;
 
+  private CloseableChannel server;
+
+  @BeforeEach
+  void setUp() {
+    server = createServer().block();
+  }
+
+  @AfterEach
+  void tearDown() {
+    server.dispose();
+    server.onClose().block();
+  }
+
   @Test
   void keepAliveTest() {
-    createServer().block();
     RSocketClient rsocketClient = createClient();
 
     int expectedCount = 4;
@@ -64,7 +79,6 @@ public class KeepaliveTest {
 
   @Test
   void keepAliveTestLazy() {
-    createServer().block();
     Mono<RSocket> rsocketMono = createClientLazy();
 
     int expectedCount = 4;
@@ -161,21 +175,6 @@ public class KeepaliveTest {
         .reconnect(reconnectSpec.apply("connector-close"))
         .keepAlive(Duration.ofMillis(100L), Duration.ofMillis(900L))
         .connect(TcpClientTransport.create(TcpClient.create().host("localhost").port(PORT)));
-
-    //		RSocketClient client = RSocketClient.from(rsocketMono);
-
-    //		client
-    //				.source()
-    //				.doOnNext(r -> LOG.info("Got RSocket"))
-    //				.flatMap(RSocket::onClose)
-    //				.doOnError(err -> LOG.error("Error during onClose.", err))
-    //				.retryWhen(reconnectSpec.apply("client-close"))
-    //				.doFirst(() -> LOG.info("Connected on client side."))
-    //				.doOnTerminate(() -> LOG.info("Connection closed on client side."))
-    //				.repeat()
-    //				.subscribe();
-
-    //		return client;
   }
 
   public static class MyServerRsocket implements RSocket {
